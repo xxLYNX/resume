@@ -1,0 +1,17 @@
+# Build outputs
+output/
+*.pdf
+*.aux
+*.log
+*.out
+
+# Go
+resume-builder
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work

@@ -1,0 +1,9 @@
+{{- /* Header template for contact information */ -}}
+\begin{center}
+    \textbf{\Huge \scshape {{.name}}} \\ \vspace{1pt}
+    \small {{if .phone}}{\underline{ {{- .phone -}} }} $|$ {{end}}
+    {{- if .email}}\href{mailto:{{.email}}}{\underline{Email}} $|$ {{end}}
+    {{- if .linkedin}}\href{ {{- .linkedin -}} }{\underline{LinkedIn}} $|${{end}}
+    {{- if .website}}\href{ {{- .website -}} }{\underline{Personal Site}} $|${{end}}
+    {{- if .github}}\href{ {{- .github -}} }{\underline{GitHub}}{{end}}
+\end{center}

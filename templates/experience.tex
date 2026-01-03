@@ -1,0 +1,16 @@
+{{- /* Experience section template */ -}}
+\section{Experience}
+  \resumeSubHeadingListStart
+{{- range .experience}}
+
+    \resumeSubheading
+      { {{- .position -}} }{ {{- .date -}} }
+      { {{- .company -}} }{}
+      \resumeItemListStart
+{{- range .highlights}}
+        \resumeItem{ {{- . -}} }
+{{- end}}
+      \resumeItemListEnd
+{{- end}}
+
+  \resumeSubHeadingListEnd

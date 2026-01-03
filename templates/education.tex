@@ -1,0 +1,9 @@
+{{- /* Education section template */ -}}
+\section{Education}
+  \resumeSubHeadingListStart
+{{- range .education}}
+    \resumeSubheading
+      { {{- .degree -}} }{ {{- .date -}} }
+      { {{- .school -}} }{}
+{{- end}}
+  \resumeSubHeadingListEnd

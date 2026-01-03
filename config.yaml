@@ -1,0 +1,37 @@
+# Resume Configuration
+# Control which sections appear in your resume and their order
+
+# Section order and inclusion
+sections:
+  - name: "header"
+    enabled: true
+    template: "templates/header.tex"
+    content: "content/header.yaml"
+    
+  - name: "education"
+    enabled: true
+    template: "templates/education.tex"
+    content: "content/education.yaml"
+    
+  - name: "experience"
+    enabled: true
+    template: "templates/experience.tex"
+    content: "content/experience.yaml"
+    
+  - name: "projects"
+    enabled: true
+    template: "templates/projects.tex"
+    content: "content/projects.yaml"
+    
+  - name: "skills"
+    enabled: true
+    template: "templates/skills.tex"
+    content: "content/skills.yaml"
+
+# Output configuration
+output:
+  directory: "output"
+  filename: "resume.tex"
+  
+# LaTeX preamble
+preamble: "templates/preamble.tex"

@@ -1,0 +1,39 @@
+projects:
+  - name: "Rust Language Development"
+    technologies: "Rust development"
+    date: "Feb. 2024 -- Oct. 2024"
+    details:
+      - "Working with professor Kun Sun on potential improvements to the unsafe Rust keyword"
+      - "If successful changes may be implemented into the Rust programming language"
+      
+  - name: "Malclass"
+    technologies: "C, Python, Ghidra API, VirusTotal API, PostgreSQL, Git"
+    date: "Dec. 2024 -- Present"
+    details:
+      - "Ongoing complete refactoring of the original PE-Trainer malware classification project"
+      - "Using lessons learned from PE-Trainer Malclass features improved ingestion techniques and provides rough analysis of malware behavior via Ghidra API"
+      
+  - name: "PE-Trainer"
+    technologies: "Python, Rust, Scikit-learn, MariaDB, VMware Workstation, Google CCE, Git"
+    date: "Aug. 2024 -- Dec. 2024"
+    details:
+      - "Developed a framework and ingest pipeline for supervised malware detection for PE files targeting Windows"
+      - "Utilized over 200GB of malware samples for training data"
+      - "Achieved a malware classification accuracy of 94 percent with k-folded random forest"
+      - "Authored a research paper showcasing research findings"
+      - "Visualized GitHub data to show collaboration"
+      
+  - name: "Cloud Security Risk Report"
+    technologies: "Google Colab"
+    date: "Aug. 2024 -- Dec. 2024"
+    details:
+      - "Created a comprehensive report and presentation on induced security risks inherent to the cloud service model"
+      - "Applied industry research in addition to NIST (SP) 800-210"
+      - "Final project for graduate class AIT670 - Cloud Computing Security"
+      
+  - name: "Personal Cybersecurity Lab"
+    technologies: "Suricata, Splunk, Docker, VMware Workstation"
+    date: "Feb. 2023 -- Present"
+    details:
+      - "Implemented a comprehensive SIEM (Security Information and Event Management) and SOAR (Security Orchestration, Automation, and Response) system for personal penetration testing projects"
+      - "Used for HackTheBox hacking labs and CTF events"

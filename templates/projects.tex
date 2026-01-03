@@ -1,0 +1,13 @@
+{{- /* Projects section template */ -}}
+\section{Projects}
+    \resumeSubHeadingListStart
+{{- range .projects}}
+      \resumeProjectHeading
+          {\textbf{ {{- .name -}} } $|$ \emph{ {{- .technologies -}} }}{ {{- .date -}} }
+          \resumeItemListStart
+{{- range .details}}
+            \resumeItem{ {{- . -}} }
+{{- end}}
+          \resumeItemListEnd
+{{- end}}
+    \resumeSubHeadingListEnd
