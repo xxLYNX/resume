@@ -189,11 +189,6 @@ skills:
 - Verify `enabled: true` in config.yaml
 - Check file paths in config.yaml are correct
 
-## 📄 License
-
-MIT
-
 ---
 
-**Author:** Cullen Kelley  
-**Based on:** [sb2nov/resume](https://github.com/sb2nov/resume)
+**Author:** Cullen Kelley
