@@ -5,5 +5,12 @@
     \resumeSubheading
       { {{- .degree -}} }{ {{- .date -}} }
       { {{- .school -}} }{}
+{{- if .highlights}}
+      \resumeItemListStart
+{{- range .highlights}}
+        \resumeItem{ {{- . -}} }
+{{- end}}
+      \resumeItemListEnd
+{{- end}}
 {{- end}}
   \resumeSubHeadingListEnd
