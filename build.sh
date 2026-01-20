@@ -1,5 +1,9 @@
 #!/bin/bash
 # Quick helper script for common resume operations
+# 
+# NOTE: This script is deprecated in favor of running Go directly for
+# better cross-platform support. Use: go run main.go [flags]
+# This script is kept for backwards compatibility.
 
 set -e
 

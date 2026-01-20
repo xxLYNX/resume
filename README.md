@@ -2,6 +2,8 @@
 
 A modular LaTeX resume build system that separates content from presentation, inspired by static site generators like Hugo.
 
+> **✨ Now fully cross-platform!** The build system runs natively on Windows, macOS, and Linux without requiring bash.
+
 ## 🎯 Philosophy
 
 This system treats your resume like a static site:
@@ -51,17 +53,17 @@ resume/
 
 2. **Generate LaTeX file:**
    ```bash
-   ./build.sh build
+   go run main.go
    ```
 
 3. **Compile to PDF:**
    ```bash
-   ./build.sh pdf
+   go run main.go
    ```
 
 4. **Clean build artifacts:**
    ```bash
-   ./build.sh clean
+   go run main.go -clean
    ```
 
 ## 📝 Usage

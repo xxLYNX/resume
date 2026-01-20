@@ -46,7 +46,7 @@ Download and install [MiKTeX](https://miktex.org/download) or [TeX Live](https:/
 
 3. **Build your resume**
    ```bash
-   ./build.sh build
+   go run main.go
    ```
 
 4. **View the generated LaTeX**
@@ -56,16 +56,15 @@ Download and install [MiKTeX](https://miktex.org/download) or [TeX Live](https:/
 
 5. **Compile to PDF** (optional, requires pdflatex)
    ```bash
-   ./build.sh pdf
+   go run main.go
    ```
 
 ## Workflow
 
 ### Basic Workflow
 1. Edit content files in `content/`
-2. Run `./build.sh build` to generate LaTeX
-3. Check `output/resume.tex` for correctness
-4. Run `./build.sh pdf` to compile to PDF (if pdflatex installed)
+2. Run `go run main.go` to generate LaTeX and PDF
+3. Check `output/resume.tex` for correctness and `output/resume.pdf` for final output
 
 ### Advanced Workflow
 1. Modify templates in `templates/` to change formatting

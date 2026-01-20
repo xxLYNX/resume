@@ -18,7 +18,7 @@ A Hugo-style static site generator for your resume:
 
 2. **Build your resume**
    ```bash
-   ./build.sh build
+   go run main.go
    ```
 
 3. **View the output**
@@ -86,12 +86,12 @@ resume/
 
 ### Using build.sh
 ```bash
-./build.sh build     # Generate LaTeX
-./build.sh pdf       # Generate and compile to PDF
-./build.sh clean     # Remove output files
-./build.sh validate  # Check YAML syntax
-./build.sh show      # View generated LaTeX
-./build.sh open      # Open PDF in viewer
+go run main.go           # Generate LaTeX and PDF (default)
+go run main.go -pdf      # Same as above
+go run main.go -clean    # Remove output files
+go run main.go -validate # Check YAML syntax
+go run main.go -show     # View generated LaTeX
+go run main.go -open     # Open PDF in viewer
 ```
 
 ### Using Go directly
@@ -106,13 +106,13 @@ go run main.go       # Generate LaTeX
 vim content/experience.yaml
 
 # 2. Build
-./build.sh build
+go run main.go
 
 # 3. Check output
 cat output/resume.tex
 
-# 4. If you have pdflatex:
-./build.sh pdf
+# 4. Open the PDF
+go run main.go -open
 ./build.sh open
 ```
 
@@ -121,7 +121,7 @@ cat output/resume.tex
 ✅ **Edit content, not LaTeX** - Keep your changes in YAML files  
 ✅ **Use version control** - Commit your content changes  
 ✅ **Create variants** - Copy config.yaml for different resume versions  
-✅ **Test frequently** - Run `./build.sh build` after each change  
+✅ **Test frequently** - Run `go run main.go` after each change  
 ✅ **Read the examples** - See [EXAMPLES.md](EXAMPLES.md) for advanced usage  
 
 ## Need Help?
@@ -141,4 +141,4 @@ cat output/resume.tex
 
 ---
 
-**You're all set!** Start by editing `content/experience.yaml` and run `./build.sh build`.
+**You're all set!** Start by editing `content/experience.yaml` and run `go run main.go`.
