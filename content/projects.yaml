@@ -1,9 +1,9 @@
 projects:
-  - name: "Self-Driving Car Algorithm Research"
+  - name: "Self-Driving Car BA Algorithm Research"
     technologies: "C++, Python, Google Ceres Solver"
     date: "Sep. 2025 -- Dec. 2025"
     details:
-      - "Assessed performance of bundle adjustment algorithms using Oxford RobotCar"
+      - "Assessed performance of bundle adjustment algorithm error rate and overhead using Oxford RobotCar"
       - "Benchmarked Levenberg-Marquardt and Dogleg algorithms using sparse schur"
 
   - name: "Biometric Authentication Modalities Research"
@@ -17,7 +17,7 @@ projects:
     technologies: "C, Ghidra, x64dbg"
     date: "Jan. 2024 -- May 2024"
     details:
-      - "Researched and developed a proof of concept exploit for CVE-2024-2193 (GhostRace)"
+      - "Researched and developed a Proof-of-concept exploit for CVE-2024-2193 (GhostRace)"
       - "Analyzed previous branch-misprediction and speculative execution CPU vulnerabilities Spectre and Meltdown"
             
   - name: "Machine Learning Malware Detector"
@@ -25,8 +25,8 @@ projects:
     date: "Aug. 2024 -- Present"
     details:
       - "Developed CI/CD pipeline for ingesting malware samples for supervised machine learning malware detection"
-      - "Ingested 201,549 Windows malware samples for training data"
-      - "Achieved a malware detection accuracy of 94\\% with k-folded random forest"
+      - "Ingested 201,549 Windows malware samples for training data using label encoder and padding each entry"
+      - "Achieved a malware detection accuracy of 94\\% with k-folded cross validation, comparing to train-test split baseline"
       
   - name: "Cloud Service Model Risk Assessment"
     technologies: "Google Cloud, AWS"

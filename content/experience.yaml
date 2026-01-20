@@ -1,18 +1,18 @@
 experience:
-  - position: "Software Security Consultant (3 month consulting position)"
+  - position: "Software Security Consultant"
     date: "Jun. 2024 -- Aug. 2024"
     company: "Affinity DB | Leesburg, VA"
     highlights:
-      - "Conducted a code security review of numerous Python, VBA, and Typescript based applications written by third party contractors prior to production integration"
+      - "Conducted quality assurance audit of numerous Python and VBA applications written by third party contractors prior to production integration"
       - "Created application documentation and a writeup documenting the review process and sharing findings with stakeholders"
-      - "Utilized many security tools including IDA, x64dbg, oletools, and DidierStevensSuite MS tooling"
+      - "Audited using common industry tools including IDA CE, x64dbg, oletools, and DidierStevensSuite MS tooling"
   
   - position: "eCommerce Department Manager and Trainer"
     date: "Sep. 2020 -- Jun. 2024"
     company: "Safeway | Great Falls, VA"
     highlights:
       - "Promoted from entry position eCommerce shopper within six months of hire due to exceptional performance and implemented improvements to department operations"
-      - "Found vulnerability in 2 systems used by department and reported to Safeway IT security team"
-      - "Led department operations of a small team ensuring timely delivery of online orders"
+      - "Identified vulnerabilities in multiple systems and responsibly disclosed them to Safeway IT security team"
+      - "Led operations of a three man team ensuring timely delivery of online orders with 99.3\\% on-timeness"
       - "Launched eCommerce departments across Washington metropolitan area"
       - "Independently produced training materials for on-boarding employees"

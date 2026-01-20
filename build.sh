@@ -36,10 +36,17 @@ build_resume() {
     if command -v pdflatex &> /dev/null; then
         echo -e "${BLUE}📦 Compiling to PDF...${NC}"
         cd output
-        pdflatex -interaction=nonstopmode resume.tex > /dev/null 2>&1
-        pdflatex -interaction=nonstopmode resume.tex > /dev/null 2>&1
-        cd ..
-        echo -e "${GREEN}✅ PDF generated: output/resume.pdf${NC}"
+        if pdflatex -interaction=nonstopmode resume.tex > pdflatex.log 2>&1; then
+            # Run twice for references
+            pdflatex -interaction=nonstopmode resume.tex > pdflatex.log 2>&1
+            cd ..
+            echo -e "${GREEN}✅ PDF generated: output/resume.pdf${NC}"
+        else
+            cd ..
+            echo -e "${RED}❌ PDF compilation failed. Error log:${NC}"
+            tail -50 output/pdflatex.log
+            exit 1
+        fi
     else
         echo -e "${YELLOW}⚠️  pdflatex not found - skipping PDF compilation${NC}"
         echo -e "${YELLOW}    Install texlive to enable PDF output (see INSTALL.md)${NC}"
@@ -57,10 +64,16 @@ compile_pdf() {
     build_resume
     echo -e "${BLUE}📦 Compiling to PDF...${NC}"
     cd output
-    pdflatex -interaction=nonstopmode resume.tex > /dev/null 2>&1
-    pdflatex -interaction=nonstopmode resume.tex > /dev/null 2>&1
-    cd ..
-    echo -e "${GREEN}✅ PDF generated: output/resume.pdf${NC}"
+    if pdflatex -interaction=nonstopmode resume.tex > pdflatex.log 2>&1; then
+        pdflatex -interaction=nonstopmode resume.tex > pdflatex.log 2>&1
+        cd ..
+        echo -e "${GREEN}✅ PDF generated: output/resume.pdf${NC}"
+    else
+        cd ..
+        echo -e "${RED}❌ PDF compilation failed. Error log:${NC}"
+        tail -50 output/pdflatex.log
+        exit 1
+    fi
 }
 
 clean_files() {
