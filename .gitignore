@@ -1,9 +1,8 @@
 # Build outputs
-output/
-*.pdf
-*.aux
-*.log
-*.out
+output/*.aux
+output/*.log
+output/*.out
+output/resume.tex
 
 # Go
 resume-builder
