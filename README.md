@@ -1,12 +1,10 @@
 # Resume Builder
 
-A modular LaTeX resume build system that separates content from presentation, inspired by static site generators like Hugo.
-
-> **✨ Now fully cross-platform!** The build system runs natively on Windows, macOS, and Linux without requiring bash.
+A modular LaTeX resume build system that separates content from formatting resulting in a highly configurable beautiful resume.
 
 ## 🎯 Philosophy
 
-This system treats your resume like a static site:
+This system breaks your resume into content 'blocks' each with:
 - **Content** (YAML files) contains your actual resume data
 - **Templates** (LaTeX files) define how sections are formatted
 - **Configuration** (config.yaml) controls which sections to include

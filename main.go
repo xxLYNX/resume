@@ -8,7 +8,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"text/template"
+	"unicode"
 
 	"gopkg.in/yaml.v3"
 )
@@ -52,7 +54,7 @@ func main() {
 	showCmd := flag.Bool("show", false, "Display the generated LaTeX file")
 	openCmd := flag.Bool("open", false, "Open the generated PDF")
 	helpCmd := flag.Bool("help", false, "Show help message")
-	
+
 	flag.Parse()
 
 	// Default behavior if no flags provided
@@ -196,28 +198,50 @@ func printHelp() {
 
 func buildAndCompile() {
 	fmt.Printf("%s🔨 Building resume...%s\n", colorBlue, colorReset)
-	
+
 	if err := buildResume(); err != nil {
 		log.Fatalf("%s❌ Error building resume: %v%s\n", colorRed, err, colorReset)
 	}
-	
+
 	fmt.Printf("%s✅ LaTeX generated: output/resume.tex%s\n", colorGreen, colorReset)
-	
+
 	// Check if pdflatex is available
 	if _, err := exec.LookPath("pdflatex"); err != nil {
 		fmt.Printf("%s⚠️  pdflatex not found - skipping PDF compilation%s\n", colorYellow, colorReset)
 		fmt.Printf("%s    Install texlive to enable PDF output (see INSTALL.md)%s\n", colorYellow, colorReset)
 		return
 	}
-	
+
 	fmt.Printf("%s📦 Compiling to PDF...%s\n", colorBlue, colorReset)
-	
+
 	if err := compilePDF(); err != nil {
 		fmt.Printf("%s❌ PDF compilation failed%s\n", colorRed, colorReset)
 		os.Exit(1)
 	}
-	
-	fmt.Printf("%s✅ PDF generated: output/resume.pdf%s\n", colorGreen, colorReset)
+
+	config, err := loadConfig("config.yaml")
+	if err != nil {
+		fmt.Printf("%s⚠️  Could not load config to derive PDF name: %v%s\n", colorYellow, err, colorReset)
+		fmt.Printf("%s✅ PDF generated: output/resume.pdf%s\n", colorGreen, colorReset)
+		return
+	}
+
+	sourcePDF, targetPDF, err := derivePDFPaths(config)
+	if err != nil {
+		fmt.Printf("%s⚠️  Could not derive PDF name: %v%s\n", colorYellow, err, colorReset)
+		fmt.Printf("%s✅ PDF generated: %s%s\n", colorGreen, sourcePDF, colorReset)
+		return
+	}
+
+	if sourcePDF != targetPDF {
+		if err := os.Rename(sourcePDF, targetPDF); err != nil {
+			fmt.Printf("%s⚠️  Could not rename PDF: %v%s\n", colorYellow, err, colorReset)
+			fmt.Printf("%s✅ PDF generated: %s%s\n", colorGreen, sourcePDF, colorReset)
+			return
+		}
+	}
+
+	fmt.Printf("%s✅ PDF generated: %s%s\n", colorGreen, targetPDF, colorReset)
 }
 
 func compilePDF() error {
@@ -226,19 +250,19 @@ func compilePDF() error {
 		cmd := exec.Command("pdflatex", "-interaction=nonstopmode", "resume.tex")
 		cmd.Dir = "output"
 		output, err := cmd.CombinedOutput()
-		
+
 		if err != nil {
 			// Write log file
 			logPath := filepath.Join("output", "pdflatex.log")
 			os.WriteFile(logPath, output, 0644)
-			
+
 			// Print last 50 lines of output
 			lines := splitLines(string(output))
 			start := len(lines) - 50
 			if start < 0 {
 				start = 0
 			}
-			
+
 			fmt.Printf("%s❌ PDF compilation failed. Error log:%s\n", colorRed, colorReset)
 			for _, line := range lines[start:] {
 				fmt.Println(line)
@@ -246,30 +270,30 @@ func compilePDF() error {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
 func cleanFiles() {
 	fmt.Printf("%s🧹 Cleaning build artifacts...%s\n", colorYellow, colorReset)
-	
+
 	if err := os.RemoveAll("output"); err != nil {
 		fmt.Printf("%s❌ Error cleaning files: %v%s\n", colorRed, err, colorReset)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("%s✅ Clean complete%s\n", colorGreen, colorReset)
 }
 
 func validateYAML() {
 	fmt.Printf("%s🔍 Validating YAML files...%s\n", colorBlue, colorReset)
-	
+
 	// Try to build to validate
 	if err := buildResume(); err != nil {
 		fmt.Printf("%s❌ YAML validation failed: %v%s\n", colorRed, err, colorReset)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("%s✅ All YAML files appear valid%s\n", colorGreen, colorReset)
 }
 
@@ -279,18 +303,23 @@ func showLaTeX() {
 		fmt.Printf("%s❌ No resume.tex found. Run with -build first.%s\n", colorRed, colorReset)
 		os.Exit(1)
 	}
-	
+
 	fmt.Print(string(content))
 }
 
 func openPDF() {
 	pdfPath := "output/resume.pdf"
-	
+	if config, err := loadConfig("config.yaml"); err == nil {
+		if _, targetPDF, err := derivePDFPaths(config); err == nil {
+			pdfPath = targetPDF
+		}
+	}
+
 	if _, err := os.Stat(pdfPath); os.IsNotExist(err) {
-		fmt.Printf("%s❌ No resume.pdf found. Run with -build first.%s\n", colorRed, colorReset)
+		fmt.Printf("%s❌ No PDF found. Run with -build first.%s\n", colorRed, colorReset)
 		os.Exit(1)
 	}
-	
+
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
@@ -303,19 +332,19 @@ func openPDF() {
 		fmt.Printf("%s❌ Unsupported platform for opening PDF%s\n", colorRed, colorReset)
 		os.Exit(1)
 	}
-	
+
 	if err := cmd.Start(); err != nil {
 		fmt.Printf("%s❌ Error opening PDF: %v%s\n", colorRed, err, colorReset)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("%s✅ Opening PDF...%s\n", colorGreen, colorReset)
 }
 
 func splitLines(s string) []string {
 	var lines []string
 	var line string
-	
+
 	for _, char := range s {
 		if char == '\n' {
 			lines = append(lines, line)
@@ -324,10 +353,85 @@ func splitLines(s string) []string {
 			line += string(char)
 		}
 	}
-	
+
 	if line != "" {
 		lines = append(lines, line)
 	}
-	
+
 	return lines
+}
+
+func derivePDFPaths(config *Config) (string, string, error) {
+	baseName := strings.TrimSuffix(config.Output.Filename, filepath.Ext(config.Output.Filename))
+	if baseName == "" {
+		baseName = "resume"
+	}
+
+	sourcePDF := filepath.Join(config.Output.Directory, baseName+".pdf")
+
+	headerName, err := getHeaderName(config)
+	if err != nil {
+		return sourcePDF, sourcePDF, err
+	}
+
+	slug := slugifyName(headerName)
+	if slug == "" {
+		return sourcePDF, sourcePDF, nil
+	}
+
+	targetPDF := filepath.Join(config.Output.Directory, fmt.Sprintf("%s-%s.pdf", slug, baseName))
+	return sourcePDF, targetPDF, nil
+}
+
+func getHeaderName(config *Config) (string, error) {
+	var headerPath string
+	for _, section := range config.Sections {
+		if strings.EqualFold(section.Name, "header") {
+			headerPath = section.Content
+			break
+		}
+	}
+
+	if headerPath == "" {
+		return "", nil
+	}
+
+	content, err := loadYAML(headerPath)
+	if err != nil {
+		return "", err
+	}
+
+	if nameValue, ok := content["name"]; ok {
+		if name, ok := nameValue.(string); ok {
+			return name, nil
+		}
+	}
+
+	return "", nil
+}
+
+func slugifyName(input string) string {
+	lower := strings.ToLower(strings.TrimSpace(input))
+	if lower == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	lastDash := false
+
+	for _, r := range lower {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+
+		if !lastDash {
+			b.WriteRune('-')
+			lastDash = true
+		}
+	}
+
+	slug := strings.Trim(b.String(), "-")
+	return slug
 }
