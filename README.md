@@ -32,7 +32,6 @@ resume/
 │   └── resume.pdf      # Compiled PDF
 ├── config.yaml         # Build configuration
 ├── main.go            # Build system
-├── build.sh           # Build commands
 └── README.md          # This file
 ```
 

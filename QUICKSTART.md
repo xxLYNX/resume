@@ -62,7 +62,7 @@ sections:
 
 ### Compile to PDF
 ```bash
-./build.sh pdf
+go run main.go
 # Requires pdflatex - see INSTALL.md
 ```
 
@@ -79,12 +79,10 @@ resume/
 ├── templates/        ← LaTeX formatting (rarely change)
 ├── config.yaml       ← Control which sections appear
 ├── main.go          ← Build system (don't touch)
-└── build.sh         ← Quick commands
+└── README.md        ← Project docs
 ```
 
 ## Commands Reference
-
-### Using build.sh
 ```bash
 go run main.go           # Generate LaTeX and PDF (default)
 go run main.go -pdf      # Same as above
@@ -92,11 +90,6 @@ go run main.go -clean    # Remove output files
 go run main.go -validate # Check YAML syntax
 go run main.go -show     # View generated LaTeX
 go run main.go -open     # Open PDF in viewer
-```
-
-### Using Go directly
-```bash
-go run main.go       # Generate LaTeX
 ```
 
 ## Workflow Example
@@ -113,7 +106,6 @@ cat output/resume.tex
 
 # 4. Open the PDF
 go run main.go -open
-./build.sh open
 ```
 
 ## Tips
