@@ -8,6 +8,11 @@ sections:
     template: "templates/header.tex"
     content: "content/header.yaml"
     
+  - name: "objective"
+    enabled: true
+    template: "templates/objective.tex"
+    content: "content/objective.yaml"
+    
   - name: "education"
     enabled: true
     template: "templates/education.tex"

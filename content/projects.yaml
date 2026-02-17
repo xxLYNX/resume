@@ -3,8 +3,8 @@ projects:
     technologies: "C++, Python, Google Ceres Solver"
     date: "Sep. 2025 -- Dec. 2025"
     details:
-      - "Assessed performance of bundle adjustment algorithm error rate and overhead using Oxford RobotCar"
-      - "Benchmarked Levenberg-Marquardt and Dogleg algorithms using sparse schur"
+      - "Assessed bundle adjustment performance on Oxford RobotCar, resulting in root mean square error of 1.871 (LM) and 1.701 (Dogleg) and final cost from 55,897.7 to 46,164.6"
+      - "Benchmarked solver efficiency: Dogleg cut BA time from 128.45s (LM) to 65.42s and iterations from 353 to 167"
 
   - name: "Biometric Authentication Modalities Research"
     technologies: "IREX, FIPS 201-3, SP 800-76-2"
@@ -40,4 +40,4 @@ projects:
     date: "Feb. 2023 -- Present"
     details:
       - "Implemented a comprehensive SIEM (Security Information and Event Management) and SOAR (Security Orchestration, Automation, and Response) system for personal penetration testing projects"
-      - "Used for HackTheBox hacking labs and CTF events"
+      - "Used for HackTheBox hacking labs and personal malware reverse engineering hobby"

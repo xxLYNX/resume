@@ -1,6 +1,6 @@
 skills:
-  certifications: "Google Cybersecurity Professional Certificate, Security+ (exam scheduled for Jan.)"
-  languages: "Rust, C, C++, GoLang, Python, PowerShell, SQL, VBA"
+  certifications: "Google Cybersecurity Professional Certificate, Security+ (exam scheduled for Feb.)"
+  languages: "Rust, C, C++, GoLang, Python, PowerShell, SQL"
   securityTools: "OPNsense, Suricata, Wuzuh, Shuffle, Nessus, nMap, Ghidra, IDA CE, FireEye FLOSS, x64bdg, Autopsy, FTK Imager"
   developerTools: "Git, Docker, Google Cloud Platform, Vim, Visual Studio"
   other: "Eagle Scout, Scouting Heroism Award, Sons of the American Revolution member"
