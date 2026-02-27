@@ -35,9 +35,9 @@ projects:
       - "Conducted research on induced security risks inherent to SaaS, PaaS, and IaaS service models"
       - "Applied industry research in addition to NIST (SP) 800-210"
       
-  - name: "Personal Cybersecurity Lab"
-    technologies: "Suricata, Splunk, Docker, VMware Workstation"
+  - name: "Cybersecurity Lab"
+    technologies: "OPNsense, Suricata, Wazuh, Shuffle, Docker, VMware, Linux, FreeBSD, Nix"
     date: "Feb. 2023 -- Present"
     details:
-      - "Implemented a comprehensive SIEM (Security Information and Event Management) and SOAR (Security Orchestration, Automation, and Response) system for personal penetration testing projects"
-      - "Used for HackTheBox hacking labs and personal malware reverse engineering hobby"
+      - "Implemented a comprehensive SIEM (Security Information \\& Event Management) and SOAR (Security Orchestration, Automation, \\& Response) SOC style system for personal penetration testing projects"
+      - "Used for HackTheBox hacking labs and malware reverse engineering hobby"
