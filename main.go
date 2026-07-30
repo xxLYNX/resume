@@ -4,9 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"text/template"
@@ -191,7 +193,7 @@ func printHelp() {
 	fmt.Println("  -clean      Remove all generated files")
 	fmt.Println("  -validate   Check YAML files for syntax errors")
 	fmt.Println("  -show       Display the generated LaTeX file")
-	fmt.Println("  -open       Open the generated PDF")
+	fmt.Println("  -open       Open the generated PDF in your default browser")
 	fmt.Println("  -help       Show this help message")
 	fmt.Println("")
 }
@@ -320,25 +322,203 @@ func openPDF() {
 		os.Exit(1)
 	}
 
-	var cmd *exec.Cmd
+	absPath, err := filepath.Abs(pdfPath)
+	if err != nil {
+		fmt.Printf("%s❌ Error resolving PDF path: %v%s\n", colorRed, err, colorReset)
+		os.Exit(1)
+	}
+
+	fileURL := (&url.URL{Scheme: "file", Path: absPath}).String()
+	if err := openFileInBrowser(fileURL); err != nil {
+		fmt.Printf("%s❌ Error opening PDF in browser: %v%s\n", colorRed, err, colorReset)
+		os.Exit(1)
+	}
+
+	fmt.Printf("%s✅ Opening PDF in browser...%s\n", colorGreen, colorReset)
+}
+
+func openFileInBrowser(fileURL string) error {
+	var attempts []string
+
+	if browser := strings.TrimSpace(os.Getenv("BROWSER")); browser != "" {
+		if err := runBrowserSpec(browser, fileURL); err == nil {
+			return nil
+		} else {
+			attempts = append(attempts, fmt.Sprintf("$BROWSER (%q): %v", browser, err))
+		}
+	}
+
+	if runtime.GOOS == "linux" {
+		if err := openWithXDGDefaultBrowser(fileURL); err == nil {
+			return nil
+		} else {
+			attempts = append(attempts, fmt.Sprintf("xdg default browser: %v", err))
+		}
+	}
+
+	for _, name := range []string{
+		"firefox",
+		"zen-beta",
+		"zen",
+		"zen-browser",
+		"chromium",
+		"chromium-browser",
+		"google-chrome-stable",
+		"google-chrome",
+		"brave",
+		"brave-browser",
+		"microsoft-edge",
+	} {
+		if err := startCommand(name, fileURL); err == nil {
+			return nil
+		} else {
+			attempts = append(attempts, fmt.Sprintf("%s: %v", name, err))
+		}
+	}
+
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", pdfPath)
-	case "linux":
-		cmd = exec.Command("xdg-open", pdfPath)
+		if err := startCommand("open", fileURL); err == nil {
+			return nil
+		} else {
+			attempts = append(attempts, fmt.Sprintf("open: %v", err))
+		}
 	case "windows":
-		cmd = exec.Command("cmd", "/c", "start", pdfPath)
-	default:
-		fmt.Printf("%s❌ Unsupported platform for opening PDF%s\n", colorRed, colorReset)
-		os.Exit(1)
+		if err := startCommand("cmd", "/c", "start", "", fileURL); err == nil {
+			return nil
+		} else {
+			attempts = append(attempts, fmt.Sprintf("start: %v", err))
+		}
 	}
 
-	if err := cmd.Start(); err != nil {
-		fmt.Printf("%s❌ Error opening PDF: %v%s\n", colorRed, err, colorReset)
-		os.Exit(1)
+	if len(attempts) == 0 {
+		return fmt.Errorf("no browser found; set $BROWSER or install a web browser")
 	}
 
-	fmt.Printf("%s✅ Opening PDF...%s\n", colorGreen, colorReset)
+	return fmt.Errorf("%s", strings.Join(attempts, "; "))
+}
+
+func runBrowserSpec(browser, fileURL string) error {
+	if strings.Contains(browser, "%s") {
+		command := strings.ReplaceAll(browser, "%s", shellQuote(fileURL))
+		return exec.Command("sh", "-c", command).Start()
+	}
+
+	parts := strings.Fields(browser)
+	if len(parts) == 0 {
+		return fmt.Errorf("empty $BROWSER")
+	}
+
+	return startCommand(parts[0], append(parts[1:], fileURL)...)
+}
+
+func openWithXDGDefaultBrowser(fileURL string) error {
+	out, err := exec.Command("xdg-settings", "get", "default-web-browser").Output()
+	if err != nil {
+		return err
+	}
+
+	desktopFile := strings.TrimSpace(string(out))
+	if desktopFile == "" {
+		return fmt.Errorf("no default web browser configured")
+	}
+
+	desktopPath, err := findDesktopFile(desktopFile)
+	if err != nil {
+		return err
+	}
+
+	args, err := desktopExecCommand(desktopPath, fileURL)
+	if err != nil {
+		return err
+	}
+	if len(args) == 0 {
+		return fmt.Errorf("empty Exec in %s", desktopFile)
+	}
+
+	return startCommand(args[0], args[1:]...)
+}
+
+func startCommand(command string, args ...string) error {
+	if !filepath.IsAbs(command) {
+		path, err := exec.LookPath(command)
+		if err != nil {
+			return err
+		}
+		command = path
+	}
+
+	return exec.Command(command, args...).Start()
+}
+
+func findDesktopFile(name string) (string, error) {
+	searchDirs := []string{}
+
+	if home, err := os.UserHomeDir(); err == nil {
+		searchDirs = append(searchDirs, filepath.Join(home, ".local/share/applications"))
+	}
+
+	if dataDirs := os.Getenv("XDG_DATA_DIRS"); dataDirs != "" {
+		for _, dir := range strings.Split(dataDirs, ":") {
+			searchDirs = append(searchDirs, filepath.Join(dir, "applications"))
+		}
+	} else {
+		searchDirs = append(searchDirs, "/usr/local/share/applications", "/usr/share/applications")
+	}
+
+	for _, dir := range searchDirs {
+		candidate := filepath.Join(dir, name)
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("desktop file not found: %s", name)
+}
+
+func desktopExecCommand(desktopPath, fileURL string) ([]string, error) {
+	data, err := os.ReadFile(desktopPath)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
+		if !strings.HasPrefix(line, "Exec=") {
+			continue
+		}
+
+		execLine := strings.TrimSpace(strings.TrimPrefix(line, "Exec="))
+		execLine = expandDesktopExec(execLine, fileURL)
+		if execLine == "" {
+			continue
+		}
+
+		return strings.Fields(execLine), nil
+	}
+
+	return nil, fmt.Errorf("no Exec= line in %s", desktopPath)
+}
+
+var desktopFieldCodeRE = regexp.MustCompile(`%[a-zA-Z]`)
+
+func expandDesktopExec(execLine, fileURL string) string {
+	replacer := strings.NewReplacer(
+		"%u", fileURL,
+		"%U", fileURL,
+		"%f", fileURL,
+		"%F", fileURL,
+	)
+	execLine = replacer.Replace(execLine)
+	execLine = desktopFieldCodeRE.ReplaceAllString(execLine, "")
+	return strings.TrimSpace(execLine)
+}
+
+func shellQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+
+	return "'" + strings.ReplaceAll(value, "'", `'\'"\'"\'"`) + "'"
 }
 
 func splitLines(s string) []string {

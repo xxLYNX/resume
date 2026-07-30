@@ -36,8 +36,10 @@ projects:
       - "Applied industry research in addition to NIST (SP) 800-210"
       
   - name: "Cybersecurity Lab"
-    technologies: "OPNsense, Suricata, Wazuh, Shuffle, Docker, VMware, Linux, FreeBSD, Nix"
+    technologies: "NixOS, Proxmox, OPNsense, Suricata, Wazuh, PLG, Tailscale, Keycloak"
     date: "Feb. 2023 -- Present"
     details:
-      - "Implemented a comprehensive SIEM (Security Information \\& Event Management) and SOAR (Security Orchestration, Automation, \\& Response) SOC style system for personal penetration testing projects"
-      - "Used for HackTheBox hacking labs and malware reverse engineering hobby"
+      - "Maintain a declarative IAC NixOS monorepo (flake) as single source of truth"
+      - "SOC-style detection stack: OPNsense/Suricata NIPS at perimeter, Wazuh SIEM on all hosts, Grafana Alloy feeding Prometheus/Loki"
+      - "Self-hosted Git forge with CI pipelines for supply-chain checks (Trivy SBOM, nix audit); secrets via sops-nix/Age"
+      - "Zero-trust access with Tailscale and Keycloak OIDC/MFA; used for HackTheBox labs and malware reverse engineering"

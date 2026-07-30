@@ -5,7 +5,7 @@ experience:
     highlights:
       - "Conducted quality and security assurance audit of numerous Python and VBA applications written by third party contractors prior to production integration"
       - "Created application documentation and a writeup documenting the review process and sharing findings with stakeholders"
-      - "Audited using common industry tools including IDA CE, x64dbg, oletools, and DidierStevensSuite MS tooling"
+      - "Audited using common industry tools including Ghidra, x64dbg, oletools, and DidierStevensSuite MS tooling"
   
   - position: "eCommerce Department Manager and Trainer"
     date: "Sep. 2020 -- Jun. 2024"
