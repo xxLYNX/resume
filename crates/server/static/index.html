@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>jobdesk</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --border: #4444;
+      --muted: #888;
+      --err: #c44;
+      --accent: #48a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    header h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(320px, 42%) 1fr;
+      min-height: 0;
+    }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    }
+    .panel {
+      padding: 0.75rem 1rem;
+      overflow: auto;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      min-height: 0;
+    }
+    .panel.preview {
+      border-right: none;
+      padding: 0;
+    }
+    .meta { font-size: 0.85rem; color: var(--muted); }
+    .hash { font-family: ui-monospace, monospace; font-size: 0.72rem; word-break: break-all; }
+    button, select {
+      padding: 0.35rem 0.6rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    label { font-size: 0.9rem; display: flex; align-items: center; gap: 0.35rem; }
+    #status { font-size: 0.9rem; min-height: 1.25rem; }
+    #status.error { color: var(--err); }
+    #catalog-status.error { color: var(--err); }
+    pre.log {
+      font-size: 0.75rem;
+      background: #0001;
+      padding: 0.5rem;
+      overflow: auto;
+      max-height: 8rem;
+      white-space: pre-wrap;
+    }
+    #element-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      overflow: auto;
+      flex: 1;
+      min-height: 6rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    #element-list li {
+      padding: 0.4rem 0.5rem;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    #element-list li:hover { background: #0001; }
+    #element-list li.active {
+      background: color-mix(in srgb, var(--accent) 25%, transparent);
+      font-weight: 600;
+    }
+    #element-list .kind {
+      color: var(--muted);
+      font-size: 0.75rem;
+      display: block;
+    }
+    #payload-editor {
+      flex: 1;
+      min-height: 10rem;
+      font-family: ui-monospace, monospace;
+      font-size: 0.8rem;
+      width: 100%;
+      resize: vertical;
+    }
+    .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    iframe {
+      flex: 1;
+      width: 100%;
+      border: none;
+      min-height: 0;
+    }
+    .placeholder {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+    }
+    details summary { cursor: pointer; font-size: 0.85rem; }
+    .tabs { display: flex; gap: 0.25rem; }
+    .tabs button.active { font-weight: 600; border-color: var(--accent); }
+    .warn { color: #c80; font-size: 0.85rem; }
+    #app-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 4px; overflow: auto; max-height: 8rem; }
+    #app-list li { padding: 0.4rem 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+    #app-list li.active { background: color-mix(in srgb, var(--accent) 25%, transparent); font-weight: 600; }
+    #draft-composition { min-height: 8rem; font-family: ui-monospace, monospace; font-size: 0.75rem; width: 100%; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>jobdesk</h1>
+    <div class="tabs" role="tablist">
+      <button type="button" id="tab-catalog" class="active" role="tab">Catalog</button>
+      <button type="button" id="tab-apps" role="tab">Applications</button>
+    </div>
+    <label class="meta hidden" id="preview-mode-wrap">Preview
+      <select id="preview-mode">
+        <option value="draft">Application draft</option>
+        <option value="submitted">As submitted</option>
+      </select>
+    </label>
+    <button type="button" id="rebuild">Rebuild preview</button>
+    <span id="status" class="meta"></span>
+  </header>
+  <main>
+    <section class="panel" id="panel-catalog" aria-label="Catalog">
+      <div class="row">
+        <label>Kind
+          <select id="kind-filter">
+            <option value="">All</option>
+            <option value="header">header</option>
+            <option value="objective">objective</option>
+            <option value="education">education</option>
+            <option value="experience">experience</option>
+            <option value="project">project</option>
+            <option value="skills">skills</option>
+          </select>
+        </label>
+        <button type="button" id="reload-catalog">Reload</button>
+      </div>
+      <p class="meta" id="catalog-status">Loading catalog…</p>
+      <ul id="element-list"></ul>
+      <div class="row">
+        <label>Revision
+          <select id="revision-select" disabled></select>
+        </label>
+        <button type="button" id="save-revision" disabled>Save as new revision</button>
+      </div>
+      <textarea id="payload-editor" spellcheck="false" placeholder="Select an element…" disabled></textarea>
+      <p class="meta">Preview builds from SQLite (resolve pipeline). Export YAML to <code>workspace/staging/content/</code> via CLI; repo <code>content/</code> is import seed only.</p>
+      <details>
+        <summary>Last build</summary>
+        <p class="meta" id="engine"></p>
+        <p class="hash" id="hash"></p>
+        <pre class="log" id="log" hidden></pre>
+      </details>
+    </section>
+    <section class="panel hidden" id="panel-apps" aria-label="Applications">
+      <div class="row">
+        <input type="text" id="new-company" placeholder="Company" />
+        <input type="text" id="new-title" placeholder="Title" />
+        <button type="button" id="create-app">New application</button>
+        <button type="button" id="reload-apps">Reload</button>
+      </div>
+      <p class="meta" id="apps-status">Loading…</p>
+      <ul id="app-list"></ul>
+      <div id="app-detail" class="hidden">
+        <p class="meta" id="app-meta"></p>
+        <div class="row">
+          <button type="button" id="save-draft">Save draft composition</button>
+          <button type="button" id="reset-draft">Reset draft to catalog default</button>
+          <button type="button" id="submit-app">Submit (freeze manifest)</button>
+        </div>
+        <p class="warn hidden" id="draft-warn">Draft differs from last submission.</p>
+        <label class="meta">Draft composition (JSON)
+          <textarea id="draft-composition" spellcheck="false"></textarea>
+        </label>
+      </div>
+    </section>
+    <section class="panel preview" aria-label="PDF preview">
+      <iframe id="pdf" title="Resume PDF preview" hidden></iframe>
+      <div class="placeholder" id="placeholder">Building preview…</div>
+    </section>
+  </main>
+  <script>
+    const statusEl = document.getElementById("status");
+    const catalogStatus = document.getElementById("catalog-status");
+    const hashEl = document.getElementById("hash");
+    const engineEl = document.getElementById("engine");
+    const logEl = document.getElementById("log");
+    const iframe = document.getElementById("pdf");
+    const placeholder = document.getElementById("placeholder");
+    const rebuildBtn = document.getElementById("rebuild");
+    const kindFilter = document.getElementById("kind-filter");
+    const elementList = document.getElementById("element-list");
+    const revisionSelect = document.getElementById("revision-select");
+    const payloadEditor = document.getElementById("payload-editor");
+    const saveBtn = document.getElementById("save-revision");
+    const reloadCatalogBtn = document.getElementById("reload-catalog");
+    const tabCatalog = document.getElementById("tab-catalog");
+    const tabApps = document.getElementById("tab-apps");
+    const panelCatalog = document.getElementById("panel-catalog");
+    const panelApps = document.getElementById("panel-apps");
+    const appsStatus = document.getElementById("apps-status");
+    const appList = document.getElementById("app-list");
+    const appDetail = document.getElementById("app-detail");
+    const appMeta = document.getElementById("app-meta");
+    const draftEditor = document.getElementById("draft-composition");
+    const previewModeWrap = document.getElementById("preview-mode-wrap");
+    const previewMode = document.getElementById("preview-mode");
+    const draftWarn = document.getElementById("draft-warn");
+
+    let building = false;
+    let selectedElementId = null;
+    let revisionMap = new Map();
+    let selectedAppId = null;
+
+    function previewBody() {
+      const body = {};
+      if (selectedAppId) {
+        body.application_id = selectedAppId;
+        body.mode = previewMode.value;
+      }
+      return body;
+    }
+
+    async function rebuild() {
+      if (building) return;
+      building = true;
+      statusEl.classList.remove("error");
+      statusEl.textContent = "Building…";
+      logEl.hidden = true;
+      draftWarn.classList.add("hidden");
+
+      try {
+        const res = await fetch("/api/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(previewBody()),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          statusEl.textContent = "Build failed";
+          statusEl.classList.add("error");
+          hashEl.textContent = "";
+          engineEl.textContent = data.pdf_engine
+            ? "PDF engine: " + data.pdf_engine + " (compile failed)"
+            : "No PDF engine installed";
+          if (data.error) {
+            logEl.hidden = false;
+            logEl.textContent = data.error + (data.log_tail ? "\n\n" + data.log_tail : "");
+          }
+          placeholder.hidden = false;
+          iframe.hidden = true;
+          placeholder.textContent = "Fix errors and rebuild";
+          return;
+        }
+        const src = data.preview_source ? ` (${data.preview_source})` : "";
+        statusEl.textContent = "Preview updated" + src;
+        if (data.draft_differs_from_submission) {
+          draftWarn.classList.remove("hidden");
+        }
+        hashEl.textContent = data.content_hash || "";
+        engineEl.textContent = data.pdf_engine ? "PDF engine: " + data.pdf_engine : "";
+        iframe.src = data.pdf_url + "?t=" + Date.now();
+        iframe.hidden = false;
+        placeholder.hidden = true;
+      } catch (e) {
+        statusEl.textContent = "Request failed: " + e;
+        statusEl.classList.add("error");
+      } finally {
+        building = false;
+      }
+    }
+
+    async function loadCatalog() {
+      catalogStatus.classList.remove("error");
+      catalogStatus.textContent = "Loading…";
+      elementList.innerHTML = "";
+      const kind = kindFilter.value;
+      const url = kind ? `/api/catalog/elements?kind=${encodeURIComponent(kind)}` : "/api/catalog/elements";
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!res.ok) {
+          catalogStatus.textContent = data.error || "Failed to load catalog";
+          catalogStatus.classList.add("error");
+          return;
+        }
+        catalogStatus.textContent = `${data.length} element(s)`;
+        for (const el of data) {
+          const li = document.createElement("li");
+          li.dataset.id = el.id;
+          li.innerHTML = `<span class="kind">${el.kind} · rev ${el.latest_rev_number}</span>${el.id}`;
+          li.addEventListener("click", () => selectElement(el.id));
+          elementList.appendChild(li);
+        }
+      } catch (e) {
+        catalogStatus.textContent = String(e);
+        catalogStatus.classList.add("error");
+      }
+    }
+
+    async function selectElement(id) {
+      selectedElementId = id;
+      for (const li of elementList.querySelectorAll("li")) {
+        li.classList.toggle("active", li.dataset.id === id);
+      }
+      const res = await fetch(`/api/catalog/elements/${encodeURIComponent(id)}`);
+      const detail = await res.json();
+      if (!res.ok) {
+        catalogStatus.textContent = detail.error || "Load failed";
+        catalogStatus.classList.add("error");
+        return;
+      }
+      revisionMap.clear();
+      revisionSelect.innerHTML = "";
+      for (const rev of detail.revisions) {
+        revisionMap.set(rev.id, rev);
+        const opt = document.createElement("option");
+        opt.value = rev.id;
+        opt.textContent = `rev ${rev.rev_number} · ${rev.created_at.slice(0, 19)}`;
+        revisionSelect.appendChild(opt);
+      }
+      revisionSelect.disabled = detail.revisions.length === 0;
+      saveBtn.disabled = false;
+      payloadEditor.disabled = false;
+      if (detail.latest) {
+        revisionSelect.value = detail.latest.id;
+        setEditorPayload(detail.latest.payload);
+      }
+    }
+
+    function setEditorPayload(payload) {
+      payloadEditor.value = JSON.stringify(payload, null, 2);
+    }
+
+    revisionSelect.addEventListener("change", async () => {
+      const revId = revisionSelect.value;
+      const res = await fetch(`/api/catalog/revisions/${encodeURIComponent(revId)}`);
+      const rev = await res.json();
+      if (res.ok) setEditorPayload(rev.payload);
+    });
+
+    saveBtn.addEventListener("click", async () => {
+      if (!selectedElementId) return;
+      let payload;
+      try {
+        payload = JSON.parse(payloadEditor.value);
+      } catch (e) {
+        catalogStatus.textContent = "Invalid JSON: " + e.message;
+        catalogStatus.classList.add("error");
+        return;
+      }
+      saveBtn.disabled = true;
+      try {
+        const res = await fetch(
+          `/api/catalog/elements/${encodeURIComponent(selectedElementId)}/revisions`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ payload }),
+          }
+        );
+        const rev = await res.json();
+        if (!res.ok) {
+          catalogStatus.textContent = rev.error || "Save failed";
+          catalogStatus.classList.add("error");
+          return;
+        }
+        catalogStatus.textContent = `Saved rev ${rev.rev_number}`;
+        await selectElement(selectedElementId);
+        await loadCatalog();
+        await rebuild();
+      } catch (e) {
+        catalogStatus.textContent = String(e);
+        catalogStatus.classList.add("error");
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+
+    async function loadApplications() {
+      appsStatus.classList.remove("error");
+      appsStatus.textContent = "Loading…";
+      appList.innerHTML = "";
+      try {
+        const res = await fetch("/api/applications");
+        const data = await res.json();
+        if (!res.ok) {
+          appsStatus.textContent = data.error || "Failed";
+          appsStatus.classList.add("error");
+          return;
+        }
+        appsStatus.textContent = `${data.length} application(s)`;
+        for (const app of data) {
+          const li = document.createElement("li");
+          li.dataset.id = app.id;
+          li.textContent = `${app.company} — ${app.title} (${app.status})`;
+          li.addEventListener("click", () => selectApplication(app.id));
+          appList.appendChild(li);
+        }
+      } catch (e) {
+        appsStatus.textContent = String(e);
+        appsStatus.classList.add("error");
+      }
+    }
+
+    async function selectApplication(id) {
+      selectedAppId = id;
+      previewModeWrap.classList.remove("hidden");
+      for (const li of appList.querySelectorAll("li")) {
+        li.classList.toggle("active", li.dataset.id === id);
+      }
+      const res = await fetch(`/api/applications/${encodeURIComponent(id)}`);
+      const app = await res.json();
+      if (!res.ok) {
+        appsStatus.textContent = app.error || "Load failed";
+        return;
+      }
+      appDetail.classList.remove("hidden");
+      appMeta.textContent = `${app.title} @ ${app.company} · ${app.submissions.length} submission(s)`;
+      draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
+      await rebuild();
+    }
+
+    document.getElementById("create-app").addEventListener("click", async () => {
+      const company = document.getElementById("new-company").value.trim();
+      const title = document.getElementById("new-title").value.trim();
+      if (!company || !title) {
+        appsStatus.textContent = "Company and title required";
+        return;
+      }
+      const res = await fetch("/api/applications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company, title }),
+      });
+      const app = await res.json();
+      if (!res.ok) {
+        appsStatus.textContent = app.error || "Create failed";
+        return;
+      }
+      await loadApplications();
+      await selectApplication(app.id);
+    });
+
+    document.getElementById("save-draft").addEventListener("click", async () => {
+      if (!selectedAppId) return;
+      let draft_composition;
+      try {
+        draft_composition = JSON.parse(draftEditor.value);
+      } catch (e) {
+        appsStatus.textContent = "Invalid JSON: " + e.message;
+        return;
+      }
+      const res = await fetch(`/api/applications/${encodeURIComponent(selectedAppId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draft_composition }),
+      });
+      const app = await res.json();
+      if (!res.ok) {
+        appsStatus.textContent = app.error || "Save failed";
+        return;
+      }
+      appsStatus.textContent = "Draft saved";
+      draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
+      await rebuild();
+    });
+
+    document.getElementById("reset-draft").addEventListener("click", async () => {
+      if (!selectedAppId) return;
+      const res = await fetch(
+        `/api/applications/${encodeURIComponent(selectedAppId)}/reset-draft`,
+        { method: "POST" }
+      );
+      const app = await res.json();
+      if (!res.ok) {
+        appsStatus.textContent = app.error || "Reset failed";
+        return;
+      }
+      draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
+      appsStatus.textContent = "Draft reset to catalog default";
+      await rebuild();
+    });
+
+    document.getElementById("submit-app").addEventListener("click", async () => {
+      if (!selectedAppId) return;
+      const res = await fetch(`/api/applications/${encodeURIComponent(selectedAppId)}/submit`, {
+        method: "POST",
+      });
+      const sub = await res.json();
+      if (!res.ok) {
+        appsStatus.textContent = sub.error || "Submit failed";
+        return;
+      }
+      appsStatus.textContent = `Submitted · ${sub.content_hash.slice(0, 20)}…`;
+      await selectApplication(selectedAppId);
+      previewMode.value = "submitted";
+      await rebuild();
+    });
+
+    document.getElementById("reload-apps").addEventListener("click", loadApplications);
+    previewMode.addEventListener("change", rebuild);
+
+    tabCatalog.addEventListener("click", () => {
+      tabCatalog.classList.add("active");
+      tabApps.classList.remove("active");
+      panelCatalog.classList.remove("hidden");
+      panelApps.classList.add("hidden");
+      selectedAppId = null;
+      previewModeWrap.classList.add("hidden");
+      rebuild();
+    });
+    tabApps.addEventListener("click", () => {
+      tabApps.classList.add("active");
+      tabCatalog.classList.remove("active");
+      panelApps.classList.remove("hidden");
+      panelCatalog.classList.add("hidden");
+      loadApplications();
+    });
+
+    kindFilter.addEventListener("change", loadCatalog);
+    reloadCatalogBtn.addEventListener("click", loadCatalog);
+    rebuildBtn.addEventListener("click", rebuild);
+
+    loadCatalog().then(rebuild);
+  </script>
+</body>
+</html>

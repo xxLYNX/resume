@@ -1,0 +1,25 @@
+id = "classic"
+version = 1
+description = "Default resume theme migrated from the original Go builder"
+
+[sections.header]
+template = "sections/header.jinja.tex"
+
+[sections.objective]
+template = "sections/objective.jinja.tex"
+
+[sections.education]
+template = "sections/education.jinja.tex"
+optional_fields = ["highlights", "gpa"]
+
+[sections.experience]
+template = "sections/experience.jinja.tex"
+optional_fields = ["highlights"]
+
+[sections.projects]
+template = "sections/projects.jinja.tex"
+optional_fields = ["details"]
+
+[sections.skills]
+template = "sections/skills.jinja.tex"
+optional_fields = ["certifications", "languages", "securityTools", "other"]

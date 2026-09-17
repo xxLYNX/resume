@@ -1,0 +1,34 @@
+# jobdesk build configuration (Rust CLI)
+# Content is resolved from SQLite — not from paths below.
+# Go builder continues to use config.yaml + content/ + templates/.
+
+sections:
+  - name: "header"
+    enabled: true
+    template: "themes/classic/sections/header.jinja.tex"
+
+  - name: "objective"
+    enabled: true
+    template: "themes/classic/sections/objective.jinja.tex"
+
+  - name: "education"
+    enabled: true
+    template: "themes/classic/sections/education.jinja.tex"
+
+  - name: "experience"
+    enabled: true
+    template: "themes/classic/sections/experience.jinja.tex"
+
+  - name: "projects"
+    enabled: true
+    template: "themes/classic/sections/projects.jinja.tex"
+
+  - name: "skills"
+    enabled: true
+    template: "themes/classic/sections/skills.jinja.tex"
+
+output:
+  directory: "output"
+  filename: "resume.tex"
+
+preamble: "themes/classic/preamble.tex"

@@ -3,6 +3,10 @@ output/*.aux
 output/*.log
 output/*.out
 output/resume.tex
+*.pdf
+
+/target/
+/workspace/
 
 # Go
 resume-builder
@@ -14,3 +18,5 @@ resume-builder
 *.test
 *.out
 go.work
+
+note.md

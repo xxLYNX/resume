@@ -1,0 +1,15 @@
+[package]
+name = "render_tex"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+domain = { workspace = true }
+minijinja = { workspace = true }
+render_pdf = { workspace = true }
+resolve = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+sha2 = { workspace = true }
+store = { workspace = true }

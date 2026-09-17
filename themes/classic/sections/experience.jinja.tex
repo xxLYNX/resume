@@ -1,0 +1,15 @@
+\section{Professional Experience}
+  \resumeSubHeadingListStart
+{%- for row in experience %}
+
+    \resumeSubheading
+      { {{- row.position -}} }{ {{- row.date -}} }
+      { {{- row.company -}} }{}
+      \resumeItemListStart
+{%- for line in row.highlights %}
+        \resumeItem{ {{- line -}} }
+{%- endfor %}
+      \resumeItemListEnd
+{%- endfor %}
+
+  \resumeSubHeadingListEnd

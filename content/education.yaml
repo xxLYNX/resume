@@ -1,10 +1,9 @@
 education:
-  - degree: "Masters of Applied IT, Cyber Security Concentration"
-    date: "Aug. 2024 -- Dec. 2025"
-    school: "George Mason University | GPA: 3.82"
-    
-  - degree: "Bachelor of Applied Science, Cyber Security Concentration"
-    date: "Aug. 2021 -- Aug. 2024"
-    school: "George Mason University | GPA: 3.83"
-    highlights:
-      - Phi Kappa Phi Honor Society Member, Dean's List (2022-2024)
+- date: Aug. 2021 -- Aug. 2024
+  degree: Bachelor of Applied Science, Cyber Security Concentration
+  highlights:
+  - Phi Kappa Phi Honor Society Member, Dean's List (2022-2024)
+  school: 'George Mason University | GPA: 3.83'
+- date: Aug. 2024 -- Dec. 2025
+  degree: Masters of Applied IT, Cyber Security Concentration
+  school: 'George Mason University | GPA: 3.82'

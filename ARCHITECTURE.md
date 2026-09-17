@@ -1,0 +1,200 @@
+# Architecture — local job-search workspace
+
+Companion to [`CHECKLIST.md`](CHECKLIST.md). This doc is the **design source of truth**; checklist items map to **milestones** below. Check boxes as work lands.
+
+---
+
+## Product shape
+
+- [x] Documented: single Rust binary, local-first, no required cloud
+- [x] Default UX: `jobdesk serve` → browser on `127.0.0.1`
+- [x] Workspace directory: SQLite DB + preview artifacts (manifests later)
+- [x] CLI: `import`, `import --force`, `export`, `build`, `serve`
+
+**Default workspace layout** (path configurable, e.g. `./workspace/`):
+
+```
+workspace/
+  jobdesk.db
+  themes/              # user overrides; defaults embedded or shipped beside binary
+  artifacts/manifests/
+  artifacts/pdf/       # optional cache
+  export/              # YAML dumps for git / external editor
+```
+
+---
+
+## Domain model (implementation checklist)
+
+### Catalog
+
+- [x] `elements` table: stable `id`, `kind`, `sort_order`, timestamps
+- [x] `element_revisions` table: append-only `payload_json` per element (`rev_number`)
+- [x] Element kinds: `header`, `objective`, `experience`, `education`, `project`, `skills`
+- [ ] Payload schemas: **all display fields optional** (validation not enforced yet)
+- [x] UI/rule: edit wording → **new revision** (import skips existing; `--force` appends)
+
+### Skills (lightweight association)
+
+- [ ] `skills` table: `id`, `label`, `aliases_json`, `tags_json`
+- [ ] Resolver expands aliases for display; one canonical id internally
+- [ ] Optional later: NICE / external framework refs on skill row
+
+### Themes & templates
+
+- [ ] Theme bundle: `theme.toml` + `preamble.tex` + `sections/*.jinja.tex`
+- [ ] `theme_bundles` table or manifest: `id`, `version`, `files_hash`
+- [ ] MiniJinja: no auto-escape; `{% if field %}` for every optional column
+- [ ] Theme metadata: which fields the UI should offer per kind
+
+### Applications & submissions
+
+- [x] `applications`: posting URL, company, title, source, status, tags, `draft_composition_json`
+- [x] `submissions`: immutable `manifest_path`, `content_hash`, optional `pdf_path`, `is_canonical`
+- [x] Submit flow: resolve draft → write manifest (denormalized text + revision ids + theme hash)
+- [x] Interview prep: pick application → render from **manifest** (read-only), PDF optional
+- [ ] `presets` table (optional): saved compositions without posting URL
+
+### Similarity & quickfill
+
+- [ ] Application tags (manual v1)
+- [ ] Similarity score: Jaccard on element ids + tag overlap + title tokens
+- [ ] Quickfill: clone draft composition from top match
+
+---
+
+## Submission manifest (schema v1)
+
+- [x] `schema_version`
+- [x] `submitted_at`, `theme_id`, `theme_files_hash`
+- [x] `composition`: section order, `{ element_id, revision_id }` per item (element-level pin only)
+- [x] `resolved`: denormalized MiniJinja contexts per section
+- [x] `snapshot_hash` + `content_hash`: SHA-256 of canonical JSON
+
+---
+
+## Render pipeline
+
+- [ ] `resolve`: composition + catalog **or** manifest → `RenderModel`
+- [ ] `render_tex`: MiniJinja + theme → `resume.tex`
+- [ ] `render_pdf`: `PdfEngine` trait → Tectonic impl (pdflatex optional dev fallback)
+- [ ] Same pipeline for live preview, CLI `build`, and manifest reconstruction
+
+**Crate layout** (target):
+
+| Crate | Responsibility | Status |
+|-------|----------------|--------|
+| `domain` | Types, composition, manifest, legacy config | [x] |
+| `store` | SQLite, migrations, import/export | [x] |
+| `resolve` | Catalog / manifest → render model | [x] default + manifest |
+| `render_tex` | MiniJinja assembly | [x] legacy build |
+| `render_pdf` | Tectonic / pdflatex | [x] detect + compile |
+| `similarity` | Quickfill scoring | [ ] |
+| `server` | axum API + static UI | [x] preview v1 |
+| `jobdesk` (cli) | clap entrypoint | [x] `import`, `build` |
+
+---
+
+## Local web UI (later milestones)
+
+- [ ] Left: catalog / application draft editors
+- [ ] Right: PDF.js preview, build log, hash, draft-vs-submission warning
+- [ ] Debounced rebuild + SSE/WebSocket refresh
+- [ ] Application log search + “view as submitted”
+
+---
+
+## Milestone A — Engine parity (current focus)
+
+Match Go output using shared `content/*.yaml`; jobdesk build config is `settings/jobdesk.yaml` (Go keeps `config.yaml`).
+
+- [x] Cargo workspace scaffold
+- [x] `themes/classic/` MiniJinja section templates + preamble + `theme.toml`
+- [x] `jobdesk build`: read config, render `.tex` to `output/`
+- [x] `jobdesk build --pdf`: Tectonic or pdflatex when available
+- [x] `jobdesk import`: YAML → SQLite elements + revision 1
+- [x] Golden test: Rust `.tex` matches Go fixture (normalized whitespace)
+
+**Commands** (from repo root):
+
+```bash
+cargo run -p jobdesk -- import
+cargo run -p jobdesk -- build
+cargo run -p jobdesk -- build --pdf
+```
+
+Go: `config.yaml` + `templates/` (legacy, untouched). jobdesk: `settings/jobdesk.yaml` + `themes/classic/` (evolve templates here only).
+
+---
+
+## Milestone B — Minimal UI
+
+Recommended order (each step is usable on its own):
+
+1. [x] **`serve` + preview API** — localhost, `POST /api/preview` runs current `settings/jobdesk.yaml` build + PDF; right pane iframe PDF (debounce on load + manual rebuild).
+2. [x] **Catalog read API** — list elements/revisions from SQLite; left pane browser.
+3. [x] **Catalog write** — save revision (validated) + preview rebuild from SQLite (no repo `content/` sync).
+4. [ ] **2-pane polish** — file watch, richer forms (optional fields by kind).
+
+**Foundation:** `resolve` crate + default composition for preview/build; YAML export to `workspace/staging/content/` only. Per-job composition and applications remain Milestone C.
+
+- [x] `jobdesk serve` on localhost (default port 3847)
+- [x] 2-pane: catalog JSON editor + preview PDF
+- [ ] No applications yet
+
+---
+
+## Milestone C — Applications + submit
+
+- [x] Application CRUD + draft composition editor (JSON)
+- [x] Submit → `workspace/artifacts/manifests/*.json` + DB row
+- [x] View as submitted from manifest (preview mode)
+
+---
+
+## Milestone D — Tracker polish
+
+- [ ] Search, filters, status workflow
+- [ ] Tags + quickfill
+- [x] YAML export to staging (`jobdesk export`); import seed from repo `content/`
+
+---
+
+## Milestone E — Portfolio
+
+- [ ] `show_on_portfolio` on elements
+- [ ] Second theme or static HTML export
+
+---
+
+## Milestone F — UniFFI (optional)
+
+- [ ] Thin API over domain + store for native shells
+
+---
+
+## Migration from this repo
+
+- [ ] Map `content/*.yaml` list items → stable element ids (import command)
+- [ ] `settings/jobdesk.yaml` section order → default preset / legacy build config
+- [ ] Go `main.go` retained until Milestone A green; then README points to `jobdesk`
+
+---
+
+## Cross-reference
+
+| Doc | Role |
+|-----|------|
+| `CHECKLIST.md` | Product goals, glossary, phased todos |
+| `ARCHITECTURE.md` | Structure, schema, milestones (this file) |
+
+---
+
+## Changelog
+
+| Date | Change |
+|------|--------|
+| 2026-09-17 | Initial architecture + milestone checklists |
+| 2026-09-17 | Milestone A: Rust workspace, jobdesk import/build, classic theme |
+| 2026-09-17 | Milestone B step 1: `serve`, preview API, embedded UI |
+| 2026-09-17 | Pre–C review: [`REVIEW.md`](REVIEW.md); import/export/build polish |

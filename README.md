@@ -37,7 +37,16 @@ resume/
 
 ## 🚀 Quick Start
 
-### Prerequisites
+**Rust (`jobdesk`)** — see [`JOBDESK.md`](JOBDESK.md) and [`REVIEW.md`](REVIEW.md). **Go builder** — unchanged: `config.yaml` + `templates/`.
+
+```bash
+cargo run -p jobdesk -- import
+cargo run -p jobdesk -- build --pdf
+cargo run -p jobdesk -- serve --open   # local preview UI
+go run main.go          # legacy; still uses config.yaml
+```
+
+### Prerequisites (Go builder)
 - Go 1.21 or higher
 - pdflatex (for PDF compilation)
 

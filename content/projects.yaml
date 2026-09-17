@@ -1,45 +1,40 @@
 projects:
-  - name: "Self-Driving Car BA Algorithm Research"
-    technologies: "C++, Python, Google Ceres Solver"
-    date: "Sep. 2025 -- Dec. 2025"
-    details:
-      - "Assessed bundle adjustment performance on Oxford RobotCar, resulting in root mean square error of 1.871 (LM) and 1.701 (Dogleg) and final cost from 55,897.7 to 46,164.6"
-      - "Benchmarked solver efficiency: Dogleg cut BA time from 128.45s (LM) to 65.42s and iterations from 353 to 167"
-
-  - name: "Biometric Authentication Modalities Research"
-    technologies: "IREX, FIPS 201-3, SP 800-76-2"
-    date: "Jan. 2025 -- May 2025"
-    details:
-      - "Conducted research on biometric authentication modalities including fingerprint, iris, and facial recognition"
-      - "Analyzed tradeoffs in performance, security, and usability of each modality"
-
-  - name: "GhostRace CVE Research"
-    technologies: "C, Ghidra, x64dbg"
-    date: "Jan. 2024 -- May 2024"
-    details:
-      - "Researched and developed a Proof-of-concept exploit for CVE-2024-2193 (GhostRace)"
-      - "Analyzed previous branch-misprediction and speculative execution CPU vulnerabilities Spectre and Meltdown"
-            
-  - name: "Machine Learning Malware Detector"
-    technologies: "Python, Rust, MariaDB, Google Cloud"
-    date: "Aug. 2024 -- Present"
-    details:
-      - "Developed CI/CD pipeline for ingesting malware samples for supervised machine learning malware detection"
-      - "Ingested 201,549 Windows malware samples for training data using label encoder and padding each entry"
-      - "Achieved a malware detection accuracy of 94\\% with k-folded cross validation, comparing to train-test split baseline"
-      
-  - name: "Cloud Service Model Risk Assessment"
-    technologies: "Google Cloud, AWS"
-    date: "Aug. 2024 -- Dec. 2024"
-    details:
-      - "Conducted research on induced security risks inherent to SaaS, PaaS, and IaaS service models"
-      - "Applied industry research in addition to NIST (SP) 800-210"
-      
-  - name: "Cybersecurity Lab"
-    technologies: "NixOS, Proxmox, OPNsense, Suricata, Wazuh, PLG, Tailscale, Keycloak"
-    date: "Feb. 2023 -- Present"
-    details:
-      - "Maintain a declarative IAC NixOS monorepo (flake) as single source of truth"
-      - "SOC-style detection stack: OPNsense/Suricata NIPS at perimeter, Wazuh SIEM on all hosts, Grafana Alloy feeding Prometheus/Loki"
-      - "Self-hosted Git forge with CI pipelines for supply-chain checks (Trivy SBOM, nix audit); secrets via sops-nix/Age"
-      - "Zero-trust access with Tailscale and Keycloak OIDC/MFA; used for HackTheBox labs and malware reverse engineering"
+- date: Jan. 2025 -- May 2025
+  details:
+  - Conducted research on biometric authentication modalities including fingerprint, iris, and facial recognition
+  - Analyzed tradeoffs in performance, security, and usability of each modality
+  name: Biometric Authentication Modalities Research
+  technologies: IREX, FIPS 201-3, SP 800-76-2
+- date: Aug. 2024 -- Dec. 2024
+  details:
+  - Conducted research on induced security risks inherent to SaaS, PaaS, and IaaS service models
+  - Applied industry research in addition to NIST (SP) 800-210
+  name: Cloud Service Model Risk Assessment
+  technologies: Google Cloud, AWS
+- date: Feb. 2023 -- Present
+  details:
+  - Maintain a declarative IAC NixOS monorepo (flake) as single source of truth
+  - 'SOC-style detection stack: OPNsense/Suricata NIPS at perimeter, Wazuh SIEM on all hosts, Grafana Alloy feeding Prometheus/Loki'
+  - Self-hosted Git forge with CI pipelines for supply-chain checks (Trivy SBOM, nix audit); secrets via sops-nix/Age
+  - Zero-trust access with Tailscale and Keycloak OIDC/MFA; used for HackTheBox labs and malware reverse engineering
+  name: Cybersecurity Lab
+  technologies: NixOS, Proxmox, OPNsense, Suricata, Wazuh, PLG, Tailscale, Keycloak
+- date: Jan. 2024 -- May 2024
+  details:
+  - Researched and developed a Proof-of-concept exploit for CVE-2024-2193 (GhostRace)
+  - Analyzed previous branch-misprediction and speculative execution CPU vulnerabilities Spectre and Meltdown
+  name: GhostRace CVE Research
+  technologies: C, Ghidra, x64dbg
+- date: Aug. 2024 -- Present
+  details:
+  - Developed CI/CD pipeline for ingesting malware samples for supervised machine learning malware detection
+  - Ingested 201,549 Windows malware samples for training data using label encoder and padding each entry
+  - Achieved a malware detection accuracy of 94\% with k-folded cross validation, comparing to train-test split baseline
+  name: Machine Learning Malware Detector
+  technologies: Python, Rust, MariaDB, Google Cloud
+- date: Sep. 2025 -- Dec. 2025
+  details:
+  - Assessed bundle adjustment performance on Oxford RobotCar, resulting in root mean square error of 1.871 (LM) and 1.701 (Dogleg) and final cost from 55,897.7 to 46,164.6
+  - 'Benchmarked solver efficiency: Dogleg cut BA time from 128.45s (LM) to 65.42s and iterations from 353 to 167'
+  name: Self-Driving Car BA Algorithm Research
+  technologies: C++, Python, Google Ceres Solver

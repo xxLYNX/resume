@@ -1,0 +1,59 @@
+mod composition;
+mod manifest;
+mod validation;
+
+use serde::{Deserialize, Serialize};
+
+pub use composition::{Composition, CompositionItem, CompositionSection};
+pub use manifest::{
+    compute_content_hash, compute_snapshot_hash, SubmissionManifest, MANIFEST_SCHEMA_VERSION,
+};
+pub use validation::{validate_payload, ValidationError};
+
+/// Build config: section order + templates. Content comes from catalog resolve (jobdesk).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LegacyConfig {
+    pub sections: Vec<LegacySection>,
+    pub output: LegacyOutput,
+    pub preamble: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LegacySection {
+    pub name: String,
+    pub enabled: bool,
+    pub template: String,
+    /// Go builder only. jobdesk ignores this and resolves from SQLite.
+    #[serde(default)]
+    pub content: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LegacyOutput {
+    pub directory: String,
+    pub filename: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ElementKind {
+    Header,
+    Objective,
+    Experience,
+    Education,
+    Project,
+    Skills,
+}
+
+impl ElementKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Header => "header",
+            Self::Objective => "objective",
+            Self::Experience => "experience",
+            Self::Education => "education",
+            Self::Project => "project",
+            Self::Skills => "skills",
+        }
+    }
+}

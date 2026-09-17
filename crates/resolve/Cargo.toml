@@ -1,0 +1,10 @@
+[package]
+name = "resolve"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+domain = { workspace = true }
+serde_json = { workspace = true }
+store = { workspace = true }

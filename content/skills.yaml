@@ -1,5 +1,5 @@
 skills:
-  certifications: "Google Cybersecurity Professional Certificate, Security+ (exam scheduled for Aug.)"
-  languages: "C, GoLang, Python, Bash, SQL"
-  securityTools: "OPNsense, Suricata, Wuzuh, Shuffle, Nessus, nMap, Ghidra, FireEye FLOSS, x64bdg, Autopsy, FTK Imager"
-  other: "Phi Kappa Phi Honors, Eagle Scout, Scouting Heroism Award, Sons of the American Revolution member"
+  certifications: Google Cybersecurity Professional Certificate, Security+ (exam scheduled for Aug.)
+  languages: C, GoLang, Python, Bash, SQL
+  other: Phi Kappa Phi Honors, Eagle Scout, Scouting Heroism Award, Sons of the American Revolution member
+  securityTools: OPNsense, Suricata, Wuzuh, Shuffle, Nessus, nMap, Ghidra, FireEye FLOSS, x64bdg, Autopsy, FTK Imager

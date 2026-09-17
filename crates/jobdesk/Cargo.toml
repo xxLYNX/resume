@@ -1,0 +1,19 @@
+[package]
+name = "jobdesk"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "jobdesk"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+domain = { workspace = true }
+render_pdf = { workspace = true }
+render_tex = { workspace = true }
+serde_yaml = { workspace = true }
+server = { workspace = true }
+store = { workspace = true }
+tokio = { workspace = true }
