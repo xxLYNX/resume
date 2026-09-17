@@ -57,9 +57,9 @@ workspace/
 
 ### Similarity & quickfill
 
-- [ ] Application tags (manual v1)
-- [ ] Similarity score: Jaccard on element ids + tag overlap + title tokens
-- [ ] Quickfill: clone draft composition from top match
+- [x] Application tags (manual v1)
+- [x] Similarity score: Jaccard on element ids + tag overlap + title tokens (`similarity` crate)
+- [x] Quickfill: clone draft composition from top match (UI + API + `clone_from` on create)
 
 ---
 
@@ -89,7 +89,7 @@ workspace/
 | `resolve` | Catalog / manifest → render model | [x] default + manifest |
 | `render_tex` | MiniJinja assembly | [x] legacy build |
 | `render_pdf` | Tectonic / pdflatex | [x] detect + compile |
-| `similarity` | Quickfill scoring | [ ] |
+| `similarity` | Quickfill scoring | [x] |
 | `server` | axum API + static UI | [x] preview v1 |
 | `jobdesk` (cli) | clap entrypoint | [x] `import`, `build` |
 
@@ -154,9 +154,10 @@ Recommended order (each step is usable on its own):
 
 ## Milestone D — Tracker polish
 
-- [ ] Search, filters, status workflow
-- [ ] Tags + quickfill
+- [x] Search, filters, status workflow (UI + `GET /api/applications?q&status&tag`)
+- [x] Tags + quickfill (Jaccard similarity crate; clone on create / quickfill API)
 - [x] YAML export to staging (`jobdesk export`); import seed from repo `content/`
+- [x] CLI: `jobdesk application list|add|show|set-status`
 
 ---
 

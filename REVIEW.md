@@ -61,7 +61,9 @@ Snapshot before applications/submissions work. Tracks what we built, what we fix
 - Preview: catalog default, application draft, or canonical submission manifest
 - Draft-vs-submitted warning uses `snapshot_hash`
 
-Still deferred: presets table, similarity/quickfill, structured composition editor, PDF path on submit.
+**Milestone D:** search/filter, status workflow, tags, similarity + quickfill (see `similarity` crate).
+
+Still deferred: presets table, structured composition editor, PDF path on submit.
 
 ---
 

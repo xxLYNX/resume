@@ -122,7 +122,10 @@
     .tabs { display: flex; gap: 0.25rem; }
     .tabs button.active { font-weight: 600; border-color: var(--accent); }
     .warn { color: #c80; font-size: 0.85rem; }
-    #app-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 4px; overflow: auto; max-height: 8rem; }
+    #app-list, #similar-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 4px; overflow: auto; max-height: 8rem; }
+    #similar-list { border: none; max-height: none; }
+    #similar-list li { padding: 0.2rem 0; border: none; font-size: 0.8rem; }
+    #similar-list button { font-size: 0.75rem; margin-left: 0.35rem; }
     #app-list li { padding: 0.4rem 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
     #app-list li.active { background: color-mix(in srgb, var(--accent) 25%, transparent); font-weight: 600; }
     #draft-composition { min-height: 8rem; font-family: ui-monospace, monospace; font-size: 0.75rem; width: 100%; }
@@ -180,15 +183,40 @@
     </section>
     <section class="panel hidden" id="panel-apps" aria-label="Applications">
       <div class="row">
+        <input type="search" id="app-search" placeholder="Search company or title" />
+        <label class="meta">Status
+          <select id="app-status-filter">
+            <option value="">All</option>
+          </select>
+        </label>
+        <input type="text" id="app-tag-filter" placeholder="Tag filter" />
+        <button type="button" id="reload-apps">Apply filters</button>
+      </div>
+      <div class="row">
         <input type="text" id="new-company" placeholder="Company" />
         <input type="text" id="new-title" placeholder="Title" />
+        <input type="url" id="new-posting-url" placeholder="Posting URL (optional)" style="flex:1;min-width:12rem" />
+        <label class="meta">Clone draft from
+          <select id="clone-from-app"><option value="">Catalog default</option></select>
+        </label>
         <button type="button" id="create-app">New application</button>
-        <button type="button" id="reload-apps">Reload</button>
       </div>
       <p class="meta" id="apps-status">Loading…</p>
       <ul id="app-list"></ul>
       <div id="app-detail" class="hidden">
         <p class="meta" id="app-meta"></p>
+        <label class="meta">Posting URL
+          <input type="url" id="app-posting-url" placeholder="https://…" style="width:100%;margin-top:0.25rem" />
+        </label>
+        <div class="row">
+          <label class="meta">Status
+            <select id="app-status"></select>
+          </label>
+          <input type="text" id="app-tags" placeholder="tags (comma-separated)" style="flex:1;min-width:10rem" />
+          <button type="button" id="save-app-meta">Save details</button>
+        </div>
+        <p class="meta hidden" id="similar-hint"></p>
+        <ul id="similar-list" class="meta"></ul>
         <div class="row">
           <button type="button" id="save-draft">Save draft composition</button>
           <button type="button" id="reset-draft">Reset draft to catalog default</button>
@@ -232,8 +260,19 @@
     const previewModeWrap = document.getElementById("preview-mode-wrap");
     const previewMode = document.getElementById("preview-mode");
     const draftWarn = document.getElementById("draft-warn");
+    const appSearch = document.getElementById("app-search");
+    const appStatusFilter = document.getElementById("app-status-filter");
+    const appTagFilter = document.getElementById("app-tag-filter");
+    const appStatusSelect = document.getElementById("app-status");
+    const appTagsInput = document.getElementById("app-tags");
+    const similarHint = document.getElementById("similar-hint");
+    const similarList = document.getElementById("similar-list");
+    const cloneFromApp = document.getElementById("clone-from-app");
+    const appPostingUrl = document.getElementById("app-posting-url");
+    const newPostingUrl = document.getElementById("new-posting-url");
 
     let building = false;
+    let applicationStatuses = [];
     let selectedElementId = null;
     let revisionMap = new Map();
     let selectedAppId = null;
@@ -403,12 +442,47 @@
       }
     });
 
+    function appsQueryUrl() {
+      const params = new URLSearchParams();
+      const q = appSearch.value.trim();
+      const status = appStatusFilter.value;
+      const tag = appTagFilter.value.trim();
+      if (q) params.set("q", q);
+      if (status) params.set("status", status);
+      if (tag) params.set("tag", tag);
+      const qs = params.toString();
+      return qs ? `/api/applications?${qs}` : "/api/applications";
+    }
+
+    async function loadApplicationStatuses() {
+      const res = await fetch("/api/applications/statuses");
+      applicationStatuses = await res.json();
+      for (const sel of [appStatusFilter, appStatusSelect]) {
+        const keep = sel === appStatusFilter ? sel.querySelector('option[value=""]') : null;
+        sel.innerHTML = "";
+        if (keep) sel.appendChild(keep);
+        else if (sel === appStatusFilter) {
+          const o = document.createElement("option");
+          o.value = "";
+          o.textContent = "All";
+          sel.appendChild(o);
+        }
+        for (const st of applicationStatuses) {
+          const opt = document.createElement("option");
+          opt.value = st;
+          opt.textContent = st;
+          sel.appendChild(opt);
+        }
+      }
+    }
+
     async function loadApplications() {
       appsStatus.classList.remove("error");
       appsStatus.textContent = "Loading…";
       appList.innerHTML = "";
+      cloneFromApp.innerHTML = '<option value="">Catalog default</option>';
       try {
-        const res = await fetch("/api/applications");
+        const res = await fetch(appsQueryUrl());
         const data = await res.json();
         if (!res.ok) {
           appsStatus.textContent = data.error || "Failed";
@@ -419,14 +493,59 @@
         for (const app of data) {
           const li = document.createElement("li");
           li.dataset.id = app.id;
-          li.textContent = `${app.company} — ${app.title} (${app.status})`;
+          const tagStr = app.tags && app.tags.length ? ` · [${app.tags.join(", ")}]` : "";
+          li.textContent = `${app.company} — ${app.title} (${app.status})${tagStr}`;
           li.addEventListener("click", () => selectApplication(app.id));
           appList.appendChild(li);
+          const opt = document.createElement("option");
+          opt.value = app.id;
+          opt.textContent = `${app.company} — ${app.title}`;
+          cloneFromApp.appendChild(opt);
         }
       } catch (e) {
         appsStatus.textContent = String(e);
         appsStatus.classList.add("error");
       }
+    }
+
+    async function loadSimilar(appId) {
+      similarList.innerHTML = "";
+      similarHint.classList.add("hidden");
+      const res = await fetch(`/api/applications/${encodeURIComponent(appId)}/similar?limit=5`);
+      const matches = await res.json();
+      if (!res.ok || !matches.length) return;
+      similarHint.textContent = "Similar applications (quickfill copies draft composition):";
+      similarHint.classList.remove("hidden");
+      for (const m of matches) {
+        const li = document.createElement("li");
+        li.textContent = `~${m.overlap_percent}% overlap · ${m.company} — ${m.title}`;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "Quickfill";
+        btn.addEventListener("click", () => quickfillFrom(m.id));
+        li.appendChild(btn);
+        similarList.appendChild(li);
+      }
+    }
+
+    async function quickfillFrom(fromId) {
+      if (!selectedAppId) return;
+      const res = await fetch(
+        `/api/applications/${encodeURIComponent(selectedAppId)}/quickfill`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ from_application_id: fromId }),
+        }
+      );
+      const app = await res.json();
+      if (!res.ok) {
+        appsStatus.textContent = app.error || "Quickfill failed";
+        return;
+      }
+      draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
+      appsStatus.textContent = "Draft copied from similar application";
+      await rebuild();
     }
 
     async function selectApplication(id) {
@@ -442,10 +561,54 @@
         return;
       }
       appDetail.classList.remove("hidden");
-      appMeta.textContent = `${app.title} @ ${app.company} · ${app.submissions.length} submission(s)`;
+      renderAppMeta(app);
+      appPostingUrl.value = app.posting_url || "";
+      appStatusSelect.value = app.status;
+      appTagsInput.value = (app.tags || []).join(", ");
       draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
+      await loadSimilar(id);
       await rebuild();
     }
+
+    function renderAppMeta(app) {
+      const base = `${app.title} @ ${app.company} · ${app.submissions.length} submission(s)`;
+      if (app.posting_url) {
+        appMeta.innerHTML = `${base} · <a href="${escapeAttr(app.posting_url)}" target="_blank" rel="noopener noreferrer">Open posting</a>`;
+      } else {
+        appMeta.textContent = base;
+      }
+    }
+
+    function escapeAttr(s) {
+      return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    }
+
+    document.getElementById("save-app-meta").addEventListener("click", async () => {
+      if (!selectedAppId) return;
+      const tags = appTagsInput.value
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      const url = appPostingUrl.value.trim();
+      const res = await fetch(`/api/applications/${encodeURIComponent(selectedAppId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: appStatusSelect.value,
+          tags,
+          posting_url: url ? url : null,
+        }),
+      });
+      const app = await res.json();
+      if (!res.ok) {
+        appsStatus.textContent = app.error || "Save failed";
+        return;
+      }
+      appsStatus.textContent = "Details saved";
+      renderAppMeta(app);
+      appPostingUrl.value = app.posting_url || "";
+      await loadApplications();
+    });
 
     document.getElementById("create-app").addEventListener("click", async () => {
       const company = document.getElementById("new-company").value.trim();
@@ -454,10 +617,16 @@
         appsStatus.textContent = "Company and title required";
         return;
       }
+      const body = { company, title };
+      const postingUrl = newPostingUrl.value.trim();
+      if (postingUrl) body.posting_url = postingUrl;
+      if (cloneFromApp.value) {
+        body.clone_from_application_id = cloneFromApp.value;
+      }
       const res = await fetch("/api/applications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ company, title }),
+        body: JSON.stringify(body),
       });
       const app = await res.json();
       if (!res.ok) {
@@ -541,7 +710,7 @@
       tabCatalog.classList.remove("active");
       panelApps.classList.remove("hidden");
       panelCatalog.classList.add("hidden");
-      loadApplications();
+      loadApplicationStatuses().then(loadApplications);
     });
 
     kindFilter.addEventListener("change", loadCatalog);

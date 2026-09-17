@@ -1,0 +1,11 @@
+[package]
+name = "similarity"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+domain = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+domain = { workspace = true }

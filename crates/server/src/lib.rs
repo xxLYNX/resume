@@ -69,11 +69,20 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
             post(catalog::create_revision),
         )
         .route("/api/catalog/revisions/{id}", get(catalog::get_revision))
+        .route("/api/applications/statuses", get(applications::list_statuses))
         .route("/api/applications", get(applications::list_applications))
         .route("/api/applications", post(applications::create_application))
         .route("/api/applications/{id}", get(applications::get_application))
         .route("/api/applications/{id}", patch(applications::update_application))
         .route("/api/applications/{id}", delete(applications::delete_application))
+        .route(
+            "/api/applications/{id}/similar",
+            get(applications::list_similar),
+        )
+        .route(
+            "/api/applications/{id}/quickfill",
+            post(applications::quickfill_application),
+        )
         .route(
             "/api/applications/{id}/reset-draft",
             post(applications::reset_draft),

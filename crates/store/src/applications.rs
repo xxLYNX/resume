@@ -3,7 +3,8 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use domain::{Composition, SubmissionManifest};
+use domain::{validate_application_status, Composition, SubmissionManifest};
+use similarity::{rank_similar, RankInput, RankedMatch};
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -22,6 +23,19 @@ pub struct ApplicationSummary {
     pub updated_at: String,
     pub canonical_submission_id: Option<String>,
     pub canonical_content_hash: Option<String>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct ListApplicationsQuery {
+    /// Case-insensitive substring match on company or title.
+    #[serde(default)]
+    pub q: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    /// Application must include this tag.
+    #[serde(default)]
+    pub tag: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -73,6 +87,14 @@ pub struct CreateApplicationRequest {
     pub status: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Copy draft composition from an existing application instead of catalog default.
+    #[serde(default)]
+    pub clone_from_application_id: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct QuickfillRequest {
+    pub from_application_id: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -96,28 +118,123 @@ pub struct UpdateApplicationRequest {
 pub const DEFAULT_THEME_ID: &str = "classic";
 
 impl Store {
-    pub fn list_applications(&self) -> Result<Vec<ApplicationSummary>> {
+    pub fn list_applications(&self, filter: &ListApplicationsQuery) -> Result<Vec<ApplicationSummary>> {
         let conn = self.connection();
+        let q = filter
+            .q
+            .as_ref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_default();
+        let status = filter
+            .status
+            .as_ref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_default();
+        let tag = filter
+            .tag
+            .as_ref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_default();
+
         let mut stmt = conn.prepare(
-            "SELECT a.id, a.company, a.title, a.posting_url, a.status, a.updated_at,
+            "SELECT a.id, a.company, a.title, a.posting_url, a.status, a.updated_at, a.tags_json,
                     s.id, s.content_hash
              FROM applications a
              LEFT JOIN submissions s ON s.application_id = a.id AND s.is_canonical = 1
+             WHERE (?1 = '' OR a.company LIKE '%' || ?1 || '%' OR a.title LIKE '%' || ?1 || '%')
+               AND (?2 = '' OR a.status = ?2)
+               AND (?3 = '' OR EXISTS (
+                     SELECT 1 FROM json_each(a.tags_json) je WHERE je.value = ?3
+                   ))
              ORDER BY a.updated_at DESC",
         )?;
-        let rows = stmt.query_map([], |row| {
-            Ok(ApplicationSummary {
-                id: row.get(0)?,
-                company: row.get(1)?,
-                title: row.get(2)?,
-                posting_url: row.get(3)?,
-                status: row.get(4)?,
-                updated_at: row.get(5)?,
-                canonical_submission_id: row.get(6)?,
-                canonical_content_hash: row.get(7)?,
-            })
-        })?;
+        let rows = stmt.query_map(params![q, status, tag], map_application_summary)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn rank_similar_applications(
+        &self,
+        application_id: &str,
+        limit: usize,
+    ) -> Result<Vec<RankedMatch>> {
+        let source_detail = self
+            .get_application(application_id)?
+            .with_context(|| format!("unknown application `{application_id}`"))?;
+        let inputs = self.load_rank_inputs()?;
+        let source = RankInput {
+            id: &source_detail.id,
+            company: &source_detail.company,
+            title: &source_detail.title,
+            tags: &source_detail.tags,
+            composition: &source_detail.draft_composition,
+        };
+        Ok(rank_similar(
+            &source,
+            &inputs
+                .iter()
+                .map(|i| RankInput {
+                    id: &i.id,
+                    company: &i.company,
+                    title: &i.title,
+                    tags: &i.tags,
+                    composition: &i.composition,
+                })
+                .collect::<Vec<_>>(),
+            limit,
+        ))
+    }
+
+    pub fn quickfill_from_application(
+        &self,
+        target_id: &str,
+        from_id: &str,
+    ) -> Result<ApplicationDetail> {
+        let source = self
+            .get_application(from_id)?
+            .with_context(|| format!("unknown application `{from_id}`"))?;
+        self.update_application(
+            target_id,
+            UpdateApplicationRequest {
+                draft_composition: Some(source.draft_composition),
+                ..Default::default()
+            },
+        )
+    }
+
+    fn load_rank_inputs(&self) -> Result<Vec<RankInputRow>> {
+        let conn = self.connection();
+        let mut stmt = conn.prepare(
+            "SELECT id, company, title, tags_json, draft_composition_json FROM applications",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let tags_json: String = row.get(3)?;
+            let draft_json: String = row.get(4)?;
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                tags_json,
+                draft_json,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (id, company, title, tags_json, draft_json) = row?;
+            let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+            let composition: Composition = serde_json::from_str(&draft_json)
+                .with_context(|| format!("parse draft for application `{id}`"))?;
+            out.push(RankInputRow {
+                id,
+                company,
+                title,
+                tags,
+                composition,
+            });
+        }
+        Ok(out)
     }
 
     pub fn get_application(&self, application_id: &str) -> Result<Option<ApplicationDetail>> {
@@ -185,6 +302,8 @@ impl Store {
         req: CreateApplicationRequest,
         draft: Composition,
     ) -> Result<ApplicationDetail> {
+        let status = req.status.as_deref().unwrap_or("draft");
+        validate_application_status(status)?;
         self.insert_application(req, draft)
     }
 
@@ -196,7 +315,8 @@ impl Store {
         let conn = self.connection();
         let id = Uuid::new_v4().to_string();
         let now = now_rfc3339();
-        let status = req.status.unwrap_or_else(|| "draft".to_string());
+        let status = req.status.clone().unwrap_or_else(|| "draft".to_string());
+        validate_application_status(&status)?;
         let tags_json = serde_json::to_string(&req.tags)?;
         let draft_json = serde_json::to_string(&draft)?;
 
@@ -243,6 +363,7 @@ impl Store {
             None => existing.source,
         };
         let status = req.status.unwrap_or(existing.status);
+        validate_application_status(&status)?;
         let tags = req.tags.unwrap_or(existing.tags);
         let draft = req.draft_composition.unwrap_or(existing.draft_composition);
 
@@ -451,6 +572,30 @@ impl Store {
             None => Ok(None),
         }
     }
+}
+
+struct RankInputRow {
+    id: String,
+    company: String,
+    title: String,
+    tags: Vec<String>,
+    composition: Composition,
+}
+
+fn map_application_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<ApplicationSummary> {
+    let tags_json: String = row.get(6)?;
+    let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+    Ok(ApplicationSummary {
+        id: row.get(0)?,
+        company: row.get(1)?,
+        title: row.get(2)?,
+        posting_url: row.get(3)?,
+        status: row.get(4)?,
+        updated_at: row.get(5)?,
+        tags,
+        canonical_submission_id: row.get(7)?,
+        canonical_content_hash: row.get(8)?,
+    })
 }
 
 fn now_rfc3339() -> String {

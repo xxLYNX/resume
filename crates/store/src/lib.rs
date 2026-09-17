@@ -11,7 +11,8 @@ use rusqlite::Connection;
 
 pub use applications::{
     load_manifest_at, CreateApplicationRequest, ApplicationDetail, ApplicationSummary,
-    SubmissionDetail, SubmissionSummary, UpdateApplicationRequest, DEFAULT_THEME_ID,
+    ListApplicationsQuery, QuickfillRequest, SubmissionDetail, SubmissionSummary,
+    UpdateApplicationRequest, DEFAULT_THEME_ID,
 };
 pub use catalog::{
     kind_from_str, CreateRevisionRequest, ElementDetail, ElementSummary, RevisionDetail,

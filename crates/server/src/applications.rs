@@ -2,20 +2,29 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
+use domain::APPLICATION_STATUSES;
 use resolve::{default_composition, resolve_composition};
 use store::{
-    CreateApplicationRequest, Store, UpdateApplicationRequest, DEFAULT_THEME_ID,
+    CreateApplicationRequest, ListApplicationsQuery, QuickfillRequest, Store,
+    UpdateApplicationRequest, DEFAULT_THEME_ID,
 };
 
 use crate::AppState;
 
-pub async fn list_applications(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    with_store(state, |store| Ok(Json(store.list_applications()?))).await
+pub async fn list_statuses() -> Json<&'static [&'static str]> {
+    Json(APPLICATION_STATUSES)
+}
+
+pub async fn list_applications(
+    State(state): State<Arc<AppState>>,
+    Query(filter): Query<ListApplicationsQuery>,
+) -> impl IntoResponse {
+    with_store(state, move |store| Ok(Json(store.list_applications(&filter)?))).await
 }
 
 pub async fn create_application(
@@ -23,7 +32,14 @@ pub async fn create_application(
     Json(body): Json<CreateApplicationRequest>,
 ) -> impl IntoResponse {
     with_store(state, move |store| {
-        let draft = default_composition(store)?;
+        let draft = if let Some(ref clone_id) = body.clone_from_application_id {
+            store
+                .get_application(clone_id)?
+                .map(|a| a.draft_composition)
+                .ok_or_else(|| anyhow::anyhow!("clone_from application not found"))?
+        } else {
+            default_composition(store)?
+        };
         let app = store.create_application(body, draft)?;
         Ok((StatusCode::CREATED, Json(app)).into_response())
     })
@@ -76,6 +92,42 @@ pub async fn delete_application(
             )
                 .into_response())
         }
+    })
+    .await
+}
+
+pub async fn list_similar(
+    State(state): State<Arc<AppState>>,
+    Path(app_id): Path<String>,
+    Query(query): Query<SimilarQuery>,
+) -> impl IntoResponse {
+    let limit = query.limit.unwrap_or(5).clamp(1, 20);
+    with_store(state, move |store| {
+        let matches = store.rank_similar_applications(&app_id, limit)?;
+        Ok(Json(matches).into_response())
+    })
+    .await
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SimilarQuery {
+    pub limit: Option<usize>,
+}
+
+pub async fn quickfill_application(
+    State(state): State<Arc<AppState>>,
+    Path(app_id): Path<String>,
+    Json(body): Json<QuickfillRequest>,
+) -> impl IntoResponse {
+    with_store(state, move |store| {
+        if let Some(ref composition) = store
+            .get_application(&body.from_application_id)?
+            .map(|a| a.draft_composition)
+        {
+            resolve_composition(store, &composition)?;
+        }
+        let app = store.quickfill_from_application(&app_id, &body.from_application_id)?;
+        Ok(Json(app).into_response())
     })
     .await
 }

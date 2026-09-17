@@ -1,9 +1,13 @@
+mod application;
 mod composition;
 mod manifest;
 mod validation;
 
 use serde::{Deserialize, Serialize};
 
+pub use application::{
+    validate_application_status, InvalidStatus, APPLICATION_STATUSES,
+};
 pub use composition::{Composition, CompositionItem, CompositionSection};
 pub use manifest::{
     compute_content_hash, compute_snapshot_hash, SubmissionManifest, MANIFEST_SCHEMA_VERSION,

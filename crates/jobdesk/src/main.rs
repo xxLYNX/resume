@@ -5,7 +5,11 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use render_tex::jobdesk_build_to_dir;
 use server::{AppState, run as run_server};
-use store::{export_catalog_to_content, import_legacy_content, ImportOptions, Store, STAGING_CONTENT_DIR};
+use resolve::default_composition;
+use store::{
+    export_catalog_to_content, import_legacy_content, CreateApplicationRequest,
+    ListApplicationsQuery, Store, UpdateApplicationRequest, ImportOptions, STAGING_CONTENT_DIR,
+};
 
 #[derive(Parser)]
 #[command(name = "jobdesk", about = "Local job-search workspace (resume + tracker)")]
@@ -43,6 +47,11 @@ enum Commands {
         #[arg(long)]
         pdf: bool,
     },
+    /// Application tracker (list, add, show, set status)
+    Application {
+        #[command(subcommand)]
+        command: ApplicationCommands,
+    },
     /// Local web UI with live PDF preview
     Serve {
         #[arg(long, default_value = "settings/jobdesk.yaml")]
@@ -54,6 +63,36 @@ enum Commands {
         #[arg(long)]
         open: bool,
     },
+}
+
+#[derive(Subcommand)]
+enum ApplicationCommands {
+    /// List applications (optional filters)
+    List {
+        #[arg(long)]
+        q: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long)]
+        tag: Option<String>,
+    },
+    /// Create a new application
+    Add {
+        company: String,
+        title: String,
+        #[arg(long)]
+        posting_url: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long)]
+        tag: Vec<String>,
+        #[arg(long)]
+        clone_from: Option<String>,
+    },
+    /// Show one application (JSON)
+    Show { id: String },
+    /// Update application status
+    SetStatus { id: String, status: String },
 }
 
 #[tokio::main]
@@ -106,6 +145,82 @@ async fn main() -> Result<()> {
                 println!("Wrote {}", pdf_path.display());
             }
             println!("{}", result.content_hash);
+        }
+        Commands::Application { command } => {
+            let store = Store::open(&db_path).context(
+                "catalog database missing; run `jobdesk import` first",
+            )?;
+            match command {
+                ApplicationCommands::List { q, status, tag } => {
+                    let apps = store.list_applications(&ListApplicationsQuery {
+                        q,
+                        status,
+                        tag,
+                    })?;
+                    for app in apps {
+                        let tags = if app.tags.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" [{}]", app.tags.join(", "))
+                        };
+                        let url = app
+                            .posting_url
+                            .as_deref()
+                            .map(|u| format!("\t{u}"))
+                            .unwrap_or_default();
+                        println!(
+                            "{}\t{}\t{}\t{}{}{}",
+                            app.id, app.status, app.company, app.title, tags, url
+                        );
+                    }
+                }
+                ApplicationCommands::Add {
+                    company,
+                    title,
+                    posting_url,
+                    status,
+                    tag,
+                    clone_from,
+                } => {
+                    let draft = if let Some(ref clone_id) = clone_from {
+                        store
+                            .get_application(clone_id)?
+                            .map(|a| a.draft_composition)
+                            .with_context(|| format!("unknown application `{clone_id}`"))?
+                    } else {
+                        default_composition(&store)?
+                    };
+                    let app = store.create_application(
+                        CreateApplicationRequest {
+                            company,
+                            title,
+                            posting_url,
+                            source: None,
+                            status,
+                            tags: tag,
+                            clone_from_application_id: None,
+                        },
+                        draft,
+                    )?;
+                    println!("{}", app.id);
+                }
+                ApplicationCommands::Show { id } => {
+                    let app = store
+                        .get_application(&id)?
+                        .with_context(|| format!("unknown application `{id}`"))?;
+                    println!("{}", serde_json::to_string_pretty(&app)?);
+                }
+                ApplicationCommands::SetStatus { id, status } => {
+                    store.update_application(
+                        &id,
+                        UpdateApplicationRequest {
+                            status: Some(status),
+                            ..Default::default()
+                        },
+                    )?;
+                    println!("ok");
+                }
+            }
         }
         Commands::Serve {
             config,

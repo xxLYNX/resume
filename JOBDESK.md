@@ -36,7 +36,16 @@ cargo run -p jobdesk -- serve --open
 
 **Canonical data** lives in `workspace/jobdesk.db`. Repo `content/*.yaml` is **import seed only**; preview and `build` resolve sections from the catalog (no auto-sync to `content/`). Use `export` to inspect or backup YAML under `workspace/staging/content/`.
 
-**Applications (Milestone C):** use the **Applications** tab in `serve` — create a job, edit draft composition, **Submit** freezes a manifest under `workspace/artifacts/manifests/`, switch preview to **As submitted** for interview prep.
+**Applications:** use the **Applications** tab in `serve` — search/filter by status or tag, set workflow status, **Submit** freezes a manifest, preview **As submitted**, similar-app hints and **Quickfill**.
+
+```bash
+cargo run -p jobdesk -- application list
+cargo run -p jobdesk -- application list --status interview --tag sec
+cargo run -p jobdesk -- application add "Acme" "Engineer" --posting-url "https://…"
+cargo run -p jobdesk -- application add "Acme" "Engineer" --clone-from <uuid>
+cargo run -p jobdesk -- application show <uuid>
+cargo run -p jobdesk -- application set-status <uuid> interview
+```
 
 See [`REVIEW.md`](REVIEW.md) for deferred polish (presets, quickfill, structured forms).
 
