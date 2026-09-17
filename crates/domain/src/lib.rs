@@ -6,7 +6,9 @@ mod validation;
 use serde::{Deserialize, Serialize};
 
 pub use application::{
-    validate_application_status, InvalidStatus, APPLICATION_STATUSES,
+    phase_and_workflow_from_status, validate_application_status, validate_phase_and_workflow,
+    InvalidStatus, APPLICATION_PHASES, APPLICATION_STATUSES, DRAFT_WORKFLOW,
+    SUBMITTED_WORKFLOWS,
 };
 pub use composition::{Composition, CompositionItem, CompositionSection};
 pub use manifest::{

@@ -16,10 +16,8 @@ use axum::{
 };
 use domain::compute_snapshot_hash;
 use render_pdf::PdfEngine;
-use render_tex::{
-    jobdesk_build_composition_to_dir, jobdesk_build_resolved_to_dir, jobdesk_build_to_dir,
-};
-use resolve::{resolve_composition, resolve_from_manifest};
+use render_tex::jobdesk_build_aligned;
+use resolve::resolve_composition;
 use serde::{Deserialize, Serialize};
 use store::Store;
 use tower_http::trace::TraceLayer;
@@ -186,71 +184,49 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
     }
     let store = Store::open(&state.db_path)?;
 
-    if let Some(app_id) = &req.application_id {
-        let mode = req.mode.as_deref().unwrap_or("draft");
-        let canonical = store.get_canonical_submission_with_root(&state.workspace_dir, app_id)?;
-        let submission_snapshot = canonical
-            .as_ref()
-            .map(|s| s.manifest.snapshot_hash.clone());
+    let application_id = req.application_id.as_deref();
+    let mode = req.mode.as_deref().unwrap_or("draft");
 
-        return match mode {
-            "submitted" => {
-                let sub = canonical
-                    .ok_or_else(|| anyhow::anyhow!("no submission for this application yet"))?;
-                let resolved = resolve_from_manifest(&sub.manifest)?;
-                let build = jobdesk_build_resolved_to_dir(
-                    &state.root,
-                    &state.config_path,
-                    &state.preview_dir,
-                    &resolved,
-                    true,
-                )?;
-                Ok(PreviewBuildMeta {
-                    build,
-                    preview_source: "submitted".into(),
-                    submission_content_hash: submission_snapshot.clone(),
-                    draft_differs_from_submission: None,
-                })
-            }
-            _ => {
-                let app = store
-                    .get_application(app_id)?
-                    .ok_or_else(|| anyhow::anyhow!("application not found"))?;
-                let draft_snapshot = draft_snapshot_hash(&store, &app.draft_composition)?;
-                let differs = submission_snapshot
-                    .as_ref()
-                    .map(|h| h != &draft_snapshot)
-                    .unwrap_or(false);
-                let build = jobdesk_build_composition_to_dir(
-                    &store,
-                    &state.root,
-                    &state.config_path,
-                    &state.preview_dir,
-                    &app.draft_composition,
-                    true,
-                )?;
-                Ok(PreviewBuildMeta {
-                    build,
-                    preview_source: "application_draft".into(),
-                    submission_content_hash: submission_snapshot,
-                    draft_differs_from_submission: Some(differs),
-                })
-            }
-        };
-    }
+    let submission_snapshot = if let Some(app_id) = application_id {
+        store
+            .get_canonical_submission_with_root(&state.workspace_dir, app_id)?
+            .map(|s| s.manifest.snapshot_hash.clone())
+    } else {
+        None
+    };
 
-    let build = jobdesk_build_to_dir(
+    let build = jobdesk_build_aligned(
         &store,
+        &state.workspace_dir,
         &state.root,
         &state.config_path,
         &state.preview_dir,
         true,
+        application_id,
+        mode,
     )?;
+
+    let (preview_source, draft_differs) = match application_id {
+        Some(_) if mode == "submitted" => ("submitted".to_string(), None),
+        Some(app_id) => {
+            let app = store
+                .get_application(app_id)?
+                .ok_or_else(|| anyhow::anyhow!("application not found"))?;
+            let draft_snapshot = draft_snapshot_hash(&store, &app.draft_composition)?;
+            let differs = submission_snapshot
+                .as_ref()
+                .map(|h| h != &draft_snapshot)
+                .unwrap_or(false);
+            ("application_draft".to_string(), Some(differs))
+        }
+        None => ("catalog_default".to_string(), None),
+    };
+
     Ok(PreviewBuildMeta {
         build,
-        preview_source: "catalog_default".into(),
-        submission_content_hash: None,
-        draft_differs_from_submission: None,
+        preview_source,
+        submission_content_hash: submission_snapshot,
+        draft_differs_from_submission: draft_differs,
     })
 }
 

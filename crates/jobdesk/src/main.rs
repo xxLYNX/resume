@@ -1,15 +1,18 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use render_tex::jobdesk_build_to_dir;
+use resolve::{default_composition, resolve_composition};
 use server::{AppState, run as run_server};
-use resolve::default_composition;
 use store::{
     export_catalog_to_content, import_legacy_content, CreateApplicationRequest,
     ListApplicationsQuery, Store, UpdateApplicationRequest, ImportOptions, STAGING_CONTENT_DIR,
+    DEFAULT_THEME_ID,
 };
+
+use render_tex::jobdesk_build_aligned;
 
 #[derive(Parser)]
 #[command(name = "jobdesk", about = "Local job-search workspace (resume + tracker)")]
@@ -46,6 +49,12 @@ enum Commands {
         config: PathBuf,
         #[arg(long)]
         pdf: bool,
+        /// Build using an application's draft or canonical submission (same as serve preview)
+        #[arg(long)]
+        application: Option<String>,
+        /// With `--application`: `draft` (default) or `submitted`
+        #[arg(long, default_value = "draft")]
+        preview_mode: String,
     },
     /// Application tracker (list, add, show, set status)
     Application {
@@ -72,6 +81,8 @@ enum ApplicationCommands {
         #[arg(long)]
         q: Option<String>,
         #[arg(long)]
+        phase: Option<String>,
+        #[arg(long)]
         status: Option<String>,
         #[arg(long)]
         tag: Option<String>,
@@ -93,6 +104,26 @@ enum ApplicationCommands {
     Show { id: String },
     /// Update application status
     SetStatus { id: String, status: String },
+    /// Update tracker fields (only flags you pass are changed)
+    Update {
+        id: String,
+        #[arg(long)]
+        company: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        source: Option<String>,
+        #[arg(long)]
+        posting_url: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long)]
+        tag: Vec<String>,
+    },
+    /// Freeze draft composition to manifest (same as UI Submit)
+    Submit { id: String },
+    /// Delete an application and its submissions
+    Delete { id: String },
 }
 
 #[tokio::main]
@@ -130,7 +161,12 @@ async fn main() -> Result<()> {
                 println!("Mirrored export to {}", root.join("content").display());
             }
         }
-        Commands::Build { config, pdf } => {
+        Commands::Build {
+            config,
+            pdf,
+            application,
+            preview_mode,
+        } => {
             let store = Store::open(&db_path).context(
                 "catalog database missing; run `jobdesk import` first (seed from content/)",
             )?;
@@ -139,7 +175,16 @@ async fn main() -> Result<()> {
                 serde_yaml::from_str(&std::fs::read_to_string(&config_path)?)?;
             let out_dir = root.join(&legacy.output.directory);
 
-            let result = jobdesk_build_to_dir(&store, &root, &config_path, &out_dir, pdf)?;
+            let result = jobdesk_build_aligned(
+                &store,
+                &workspace,
+                &root,
+                &config_path,
+                &out_dir,
+                pdf,
+                application.as_deref(),
+                &preview_mode,
+            )?;
             println!("Wrote {}", result.tex_path.display());
             if let Some(pdf_path) = result.pdf_path {
                 println!("Wrote {}", pdf_path.display());
@@ -151,9 +196,10 @@ async fn main() -> Result<()> {
                 "catalog database missing; run `jobdesk import` first",
             )?;
             match command {
-                ApplicationCommands::List { q, status, tag } => {
+                ApplicationCommands::List { q, phase, status, tag } => {
                     let apps = store.list_applications(&ListApplicationsQuery {
                         q,
+                        phase,
                         status,
                         tag,
                     })?;
@@ -169,8 +215,8 @@ async fn main() -> Result<()> {
                             .map(|u| format!("\t{u}"))
                             .unwrap_or_default();
                         println!(
-                            "{}\t{}\t{}\t{}{}{}",
-                            app.id, app.status, app.company, app.title, tags, url
+                            "{}\t{}\t{}\t{}\t{}{}{}",
+                            app.id, app.phase, app.status, app.company, app.title, tags, url
                         );
                     }
                 }
@@ -211,14 +257,68 @@ async fn main() -> Result<()> {
                     println!("{}", serde_json::to_string_pretty(&app)?);
                 }
                 ApplicationCommands::SetStatus { id, status } => {
+                    use domain::{phase_and_workflow_from_status, DRAFT_WORKFLOW};
+                    let (phase, workflow) = if status == DRAFT_WORKFLOW {
+                        ("draft", DRAFT_WORKFLOW)
+                    } else {
+                        phase_and_workflow_from_status(&status)
+                    };
                     store.update_application(
                         &id,
                         UpdateApplicationRequest {
-                            status: Some(status),
+                            phase: Some(phase.to_string()),
+                            status: Some(workflow.to_string()),
                             ..Default::default()
                         },
                     )?;
                     println!("ok");
+                }
+                ApplicationCommands::Update {
+                    id,
+                    company,
+                    title,
+                    source,
+                    posting_url,
+                    status,
+                    tag,
+                } => {
+                    let req = UpdateApplicationRequest {
+                        company,
+                        title,
+                        source: source.map(Some),
+                        posting_url: posting_url.map(Some),
+                        status,
+                        tags: if tag.is_empty() { None } else { Some(tag) },
+                        ..Default::default()
+                    };
+                    store.update_application(&id, req)?;
+                    println!("ok");
+                }
+                ApplicationCommands::Submit { id } => {
+                    let app = store
+                        .get_application(&id)?
+                        .with_context(|| format!("unknown application `{id}`"))?;
+                    let resolved_map = resolve_composition(&store, &app.draft_composition)?;
+                    let mut resolved = BTreeMap::new();
+                    for (k, v) in resolved_map {
+                        resolved.insert(k, v);
+                    }
+                    let sub = store.submit_application(
+                        &id,
+                        &workspace,
+                        DEFAULT_THEME_ID,
+                        None,
+                        &app.draft_composition,
+                        resolved,
+                    )?;
+                    println!("{}", sub.content_hash);
+                }
+                ApplicationCommands::Delete { id } => {
+                    if store.delete_application(&id)? {
+                        println!("deleted");
+                    } else {
+                        anyhow::bail!("unknown application `{id}`");
+                    }
                 }
             }
         }

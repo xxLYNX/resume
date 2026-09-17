@@ -25,6 +25,10 @@ cargo run -p jobdesk -- export --mirror-repo-content
 # Build resume from SQLite + settings/jobdesk.yaml (requires import first)
 cargo run -p jobdesk -- build
 
+# Same sources as serve preview:
+cargo run -p jobdesk -- build --application <uuid>              # application draft
+cargo run -p jobdesk -- build --application <uuid> --preview-mode submitted
+
 # Also compile PDF when a engine is installed
 cargo run -p jobdesk -- build --pdf
 
@@ -45,7 +49,12 @@ cargo run -p jobdesk -- application add "Acme" "Engineer" --posting-url "https:/
 cargo run -p jobdesk -- application add "Acme" "Engineer" --clone-from <uuid>
 cargo run -p jobdesk -- application show <uuid>
 cargo run -p jobdesk -- application set-status <uuid> interview
+cargo run -p jobdesk -- application update <uuid> --company "Acme" --source LinkedIn
+cargo run -p jobdesk -- application submit <uuid>
+cargo run -p jobdesk -- application delete <uuid>
 ```
+
+**Phase vs workflow vs submit:** see [`docs/APPLICATION_LIFECYCLE.md`](docs/APPLICATION_LIFECYCLE.md). **`phase`** is `draft` or `submitted`; **`status`** is the pipeline label (or `draft` while preparing). Only **`Submit`** / `application submit` freezes a manifest — changing workflow to `interview` is tracker-only.
 
 See [`REVIEW.md`](REVIEW.md) for deferred polish (presets, quickfill, structured forms).
 

@@ -70,6 +70,58 @@ pub fn jobdesk_build_resolved_to_dir(
     )
 }
 
+/// Same build targets as `serve` preview: catalog default, application draft, or canonical submission.
+pub fn jobdesk_build_aligned(
+    store: &Store,
+    workspace: &Path,
+    project_root: &Path,
+    config_path: &Path,
+    output_dir: &Path,
+    compile_pdf: bool,
+    application_id: Option<&str>,
+    preview_mode: &str,
+) -> Result<LegacyBuildResult> {
+    match application_id {
+        None => jobdesk_build_to_dir(
+            store,
+            project_root,
+            config_path,
+            output_dir,
+            compile_pdf,
+        ),
+        Some(app_id) => match preview_mode {
+            "submitted" => {
+                let sub = store
+                    .get_canonical_submission_with_root(workspace, app_id)?
+                    .with_context(|| {
+                        format!("no canonical submission for application `{app_id}`")
+                    })?;
+                let resolved = resolve::resolve_from_manifest(&sub.manifest)?;
+                jobdesk_build_resolved_to_dir(
+                    project_root,
+                    config_path,
+                    output_dir,
+                    &resolved,
+                    compile_pdf,
+                )
+            }
+            _ => {
+                let app = store
+                    .get_application(app_id)?
+                    .with_context(|| format!("unknown application `{app_id}`"))?;
+                jobdesk_build_composition_to_dir(
+                    store,
+                    project_root,
+                    config_path,
+                    output_dir,
+                    &app.draft_composition,
+                    compile_pdf,
+                )
+            }
+        },
+    }
+}
+
 pub fn write_build_to_dir(
     project_root: &Path,
     config_path: &Path,

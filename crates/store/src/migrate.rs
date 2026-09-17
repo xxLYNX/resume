@@ -58,8 +58,19 @@ pub fn migrate(conn: &Connection) -> Result<()> {
         ",
     )?;
 
+    add_column_if_missing(conn, "applications", "phase", "TEXT NOT NULL DEFAULT 'draft'")?;
+
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '3')",
+        "UPDATE applications SET phase = 'submitted' WHERE status != 'draft'",
+        [],
+    )?;
+    conn.execute(
+        "UPDATE applications SET phase = 'draft', status = 'draft' WHERE status = 'draft'",
+        [],
+    )?;
+
+    conn.execute(
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '4')",
         [],
     )?;
     Ok(())

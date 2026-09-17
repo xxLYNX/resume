@@ -7,8 +7,11 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use domain::APPLICATION_STATUSES;
+use domain::{
+    APPLICATION_PHASES, DRAFT_WORKFLOW, SUBMITTED_WORKFLOWS,
+};
 use resolve::{default_composition, resolve_composition};
+use serde::Serialize;
 use store::{
     CreateApplicationRequest, ListApplicationsQuery, QuickfillRequest, Store,
     UpdateApplicationRequest, DEFAULT_THEME_ID,
@@ -16,8 +19,19 @@ use store::{
 
 use crate::AppState;
 
-pub async fn list_statuses() -> Json<&'static [&'static str]> {
-    Json(APPLICATION_STATUSES)
+#[derive(Serialize)]
+pub struct ApplicationLifecycleMeta {
+    pub phases: &'static [&'static str],
+    pub draft_workflow: &'static str,
+    pub submitted_workflows: &'static [&'static str],
+}
+
+pub async fn list_statuses() -> Json<ApplicationLifecycleMeta> {
+    Json(ApplicationLifecycleMeta {
+        phases: APPLICATION_PHASES,
+        draft_workflow: DRAFT_WORKFLOW,
+        submitted_workflows: SUBMITTED_WORKFLOWS,
+    })
 }
 
 pub async fn list_applications(

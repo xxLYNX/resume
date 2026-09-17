@@ -10,8 +10,8 @@ use resolve::ResolvedSections;
 use serde_json::Value as JsonValue;
 
 pub use legacy_build::{
-    hash_tex, jobdesk_build_composition_to_dir, jobdesk_build_resolved_to_dir,
-    jobdesk_build_to_dir, write_build_to_dir, LegacyBuildResult,
+    hash_tex, jobdesk_build_aligned, jobdesk_build_composition_to_dir,
+    jobdesk_build_resolved_to_dir, jobdesk_build_to_dir, write_build_to_dir, LegacyBuildResult,
 };
 
 /// File-based build (Go parity / tests): reads `content` paths from config.

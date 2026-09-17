@@ -3,7 +3,9 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use domain::{validate_application_status, Composition, SubmissionManifest};
+use domain::{
+    validate_phase_and_workflow, Composition, SubmissionManifest, DRAFT_WORKFLOW,
+};
 use similarity::{rank_similar, RankInput, RankedMatch};
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -19,6 +21,9 @@ pub struct ApplicationSummary {
     pub company: String,
     pub title: String,
     pub posting_url: Option<String>,
+    /// Super-status: `draft` (preparing) or `submitted` (sent at least once).
+    pub phase: String,
+    /// Pipeline label; `draft` when phase is draft, else a `SUBMITTED_WORKFLOWS` value.
     pub status: String,
     pub updated_at: String,
     pub canonical_submission_id: Option<String>,
@@ -33,6 +38,8 @@ pub struct ListApplicationsQuery {
     pub q: Option<String>,
     #[serde(default)]
     pub status: Option<String>,
+    #[serde(default)]
+    pub phase: Option<String>,
     /// Application must include this tag.
     #[serde(default)]
     pub tag: Option<String>,
@@ -45,6 +52,7 @@ pub struct ApplicationDetail {
     pub title: String,
     pub posting_url: Option<String>,
     pub source: Option<String>,
+    pub phase: String,
     pub status: String,
     pub tags: Vec<String>,
     pub draft_composition: Composition,
@@ -108,6 +116,8 @@ pub struct UpdateApplicationRequest {
     #[serde(default)]
     pub source: Option<Option<String>>,
     #[serde(default)]
+    pub phase: Option<String>,
+    #[serde(default)]
     pub status: Option<String>,
     #[serde(default)]
     pub tags: Option<Vec<String>>,
@@ -138,9 +148,15 @@ impl Store {
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .unwrap_or_default();
+        let phase = filter
+            .phase
+            .as_ref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_default();
 
         let mut stmt = conn.prepare(
-            "SELECT a.id, a.company, a.title, a.posting_url, a.status, a.updated_at, a.tags_json,
+            "SELECT a.id, a.company, a.title, a.posting_url, a.phase, a.status, a.updated_at, a.tags_json,
                     s.id, s.content_hash
              FROM applications a
              LEFT JOIN submissions s ON s.application_id = a.id AND s.is_canonical = 1
@@ -149,9 +165,10 @@ impl Store {
                AND (?3 = '' OR EXISTS (
                      SELECT 1 FROM json_each(a.tags_json) je WHERE je.value = ?3
                    ))
+               AND (?4 = '' OR a.phase = ?4)
              ORDER BY a.updated_at DESC",
         )?;
-        let rows = stmt.query_map(params![q, status, tag], map_application_summary)?;
+        let rows = stmt.query_map(params![q, status, tag, phase], map_application_summary)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
@@ -241,7 +258,7 @@ impl Store {
         let conn = self.connection();
         let row = conn
             .query_row(
-                "SELECT id, company, title, posting_url, source, status, tags_json,
+                "SELECT id, company, title, posting_url, source, phase, status, tags_json,
                         draft_composition_json, created_at, updated_at
                  FROM applications WHERE id = ?1",
                 [application_id],
@@ -257,6 +274,7 @@ impl Store {
                         row.get::<_, String>(7)?,
                         row.get::<_, String>(8)?,
                         row.get::<_, String>(9)?,
+                        row.get::<_, String>(10)?,
                     ))
                 },
             )
@@ -267,6 +285,7 @@ impl Store {
             title,
             posting_url,
             source,
+            phase,
             status,
             tags_json,
             draft_json,
@@ -288,6 +307,7 @@ impl Store {
             title,
             posting_url,
             source,
+            phase,
             status,
             tags,
             draft_composition,
@@ -302,8 +322,12 @@ impl Store {
         req: CreateApplicationRequest,
         draft: Composition,
     ) -> Result<ApplicationDetail> {
-        let status = req.status.as_deref().unwrap_or("draft");
-        validate_application_status(status)?;
+        if let Some(ref st) = req.status {
+            validate_phase_and_workflow("draft", st)?;
+            if st != DRAFT_WORKFLOW {
+                anyhow::bail!("new applications must start in draft phase (workflow `{st}`)");
+            }
+        }
         self.insert_application(req, draft)
     }
 
@@ -315,22 +339,24 @@ impl Store {
         let conn = self.connection();
         let id = Uuid::new_v4().to_string();
         let now = now_rfc3339();
-        let status = req.status.clone().unwrap_or_else(|| "draft".to_string());
-        validate_application_status(&status)?;
+        let phase = "draft".to_string();
+        let status = DRAFT_WORKFLOW.to_string();
+        validate_phase_and_workflow(&phase, &status)?;
         let tags_json = serde_json::to_string(&req.tags)?;
         let draft_json = serde_json::to_string(&draft)?;
 
         conn.execute(
             "INSERT INTO applications
-             (id, posting_url, company, title, source, status, tags_json,
+             (id, posting_url, company, title, source, phase, status, tags_json,
               draft_composition_json, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 id,
                 req.posting_url,
                 req.company,
                 req.title,
                 req.source,
+                phase,
                 status,
                 tags_json,
                 draft_json,
@@ -362,8 +388,20 @@ impl Store {
             Some(v) => v,
             None => existing.source,
         };
-        let status = req.status.unwrap_or(existing.status);
-        validate_application_status(&status)?;
+        let phase_touched = req.phase.is_some();
+        let status_touched = req.status.is_some();
+        let mut phase = req.phase.unwrap_or(existing.phase);
+        let mut status = req.status.unwrap_or(existing.status);
+
+        if phase_touched || status_touched {
+            (phase, status) = reconcile_phase_status(
+                &phase,
+                &status,
+                !existing.submissions.is_empty(),
+            )?;
+        }
+        validate_phase_and_workflow(&phase, &status)?;
+
         let tags = req.tags.unwrap_or(existing.tags);
         let draft = req.draft_composition.unwrap_or(existing.draft_composition);
 
@@ -374,8 +412,8 @@ impl Store {
         let conn = self.connection();
         conn.execute(
             "UPDATE applications SET
-                company = ?2, title = ?3, posting_url = ?4, source = ?5, status = ?6,
-                tags_json = ?7, draft_composition_json = ?8, updated_at = ?9
+                company = ?2, title = ?3, posting_url = ?4, source = ?5, phase = ?6, status = ?7,
+                tags_json = ?8, draft_composition_json = ?9, updated_at = ?10
              WHERE id = ?1",
             params![
                 application_id,
@@ -383,6 +421,7 @@ impl Store {
                 title,
                 posting_url,
                 source,
+                phase,
                 status,
                 tags_json,
                 draft_json,
@@ -456,7 +495,7 @@ impl Store {
         )?;
 
         conn.execute(
-            "UPDATE applications SET status = 'submitted', updated_at = ?2 WHERE id = ?1",
+            "UPDATE applications SET phase = 'submitted', status = 'submitted', updated_at = ?2 WHERE id = ?1",
             params![application_id, now_rfc3339()],
         )?;
 
@@ -582,19 +621,47 @@ struct RankInputRow {
     composition: Composition,
 }
 
+fn reconcile_phase_status(
+    phase: &str,
+    workflow: &str,
+    has_submission: bool,
+) -> Result<(String, String)> {
+    let phase = phase.to_string();
+    let workflow = workflow.to_string();
+
+    if phase == "draft" {
+        if has_submission {
+            anyhow::bail!(
+                "cannot return to draft phase after a submission; update pipeline workflow instead"
+            );
+        }
+        return Ok((phase, DRAFT_WORKFLOW.to_string()));
+    }
+
+    if phase == "submitted" {
+        if workflow == DRAFT_WORKFLOW {
+            return Ok((phase, "submitted".to_string()));
+        }
+        return Ok((phase, workflow));
+    }
+
+    anyhow::bail!("unknown phase `{phase}`")
+}
+
 fn map_application_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<ApplicationSummary> {
-    let tags_json: String = row.get(6)?;
+    let tags_json: String = row.get(7)?;
     let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
     Ok(ApplicationSummary {
         id: row.get(0)?,
         company: row.get(1)?,
         title: row.get(2)?,
         posting_url: row.get(3)?,
-        status: row.get(4)?,
-        updated_at: row.get(5)?,
+        phase: row.get(4)?,
+        status: row.get(5)?,
+        updated_at: row.get(6)?,
         tags,
-        canonical_submission_id: row.get(7)?,
-        canonical_content_hash: row.get(8)?,
+        canonical_submission_id: row.get(8)?,
+        canonical_content_hash: row.get(9)?,
     })
 }
 

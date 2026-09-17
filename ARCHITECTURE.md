@@ -31,7 +31,7 @@ workspace/
 - [x] `elements` table: stable `id`, `kind`, `sort_order`, timestamps
 - [x] `element_revisions` table: append-only `payload_json` per element (`rev_number`)
 - [x] Element kinds: `header`, `objective`, `experience`, `education`, `project`, `skills`
-- [ ] Payload schemas: **all display fields optional** (validation not enforced yet)
+- [x] Payload schemas: required shapes per `ElementKind` (`validate_payload` on save/import)
 - [x] UI/rule: edit wording → **new revision** (import skips existing; `--force` appends)
 
 ### Skills (lightweight association)
@@ -49,7 +49,7 @@ workspace/
 
 ### Applications & submissions
 
-- [x] `applications`: posting URL, company, title, source, status, tags, `draft_composition_json`
+- [x] `applications`: posting URL, company, title, source, **`phase`** + workflow **`status`**, tags, `draft_composition_json` (see [`docs/APPLICATION_LIFECYCLE.md`](docs/APPLICATION_LIFECYCLE.md))
 - [x] `submissions`: immutable `manifest_path`, `content_hash`, optional `pdf_path`, `is_canonical`
 - [x] Submit flow: resolve draft → write manifest (denormalized text + revision ids + theme hash)
 - [x] Interview prep: pick application → render from **manifest** (read-only), PDF optional
@@ -75,10 +75,10 @@ workspace/
 
 ## Render pipeline
 
-- [ ] `resolve`: composition + catalog **or** manifest → `RenderModel`
-- [ ] `render_tex`: MiniJinja + theme → `resume.tex`
-- [ ] `render_pdf`: `PdfEngine` trait → Tectonic impl (pdflatex optional dev fallback)
-- [ ] Same pipeline for live preview, CLI `build`, and manifest reconstruction
+- [x] `resolve`: composition + catalog **or** manifest → section JSON for templates
+- [x] `render_tex`: MiniJinja + theme → `resume.tex`
+- [x] `render_pdf`: Tectonic / pdflatex detect + compile (concrete enum, not a trait yet)
+- [x] Same pipeline for preview, CLI `build`, and manifest reconstruction via `jobdesk_build_aligned`
 
 **Crate layout** (target):
 
@@ -95,12 +95,12 @@ workspace/
 
 ---
 
-## Local web UI (later milestones)
+## Local web UI
 
-- [ ] Left: catalog / application draft editors
-- [ ] Right: PDF.js preview, build log, hash, draft-vs-submission warning
-- [ ] Debounced rebuild + SSE/WebSocket refresh
-- [ ] Application log search + “view as submitted”
+- [x] Left: catalog + application editors (JSON v1)
+- [x] Right: PDF iframe preview, build log, hash, draft-vs-submission warning
+- [ ] PDF.js (optional), SSE/WebSocket refresh
+- [x] Application search/filters + “view as submitted” preview mode
 
 ---
 
@@ -140,7 +140,7 @@ Recommended order (each step is usable on its own):
 
 - [x] `jobdesk serve` on localhost (default port 3847)
 - [x] 2-pane: catalog JSON editor + preview PDF
-- [ ] No applications yet
+- [x] Applications tab (tracker + draft composition)
 
 ---
 
@@ -163,6 +163,12 @@ Recommended order (each step is usable on its own):
 
 ## Milestone E — Portfolio
 
+Prep and scope: [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md) (composition UI, themes/hash, skills, presets, Save UX).
+
+- [ ] Compositional editing (visual pins, not JSON-only)
+- [ ] Theme bundles + `theme_files_hash` on submit
+- [ ] Catalog structured forms from `theme.toml`
+- [ ] Skills table + presets
 - [ ] `show_on_portfolio` on elements
 - [ ] Second theme or static HTML export
 
@@ -176,7 +182,7 @@ Recommended order (each step is usable on its own):
 
 ## Migration from this repo
 
-- [ ] Map `content/*.yaml` list items → stable element ids (import command)
+- [x] Map `content/*.yaml` list items → stable element ids (`jobdesk import`)
 - [ ] `settings/jobdesk.yaml` section order → default preset / legacy build config
 - [ ] Go `main.go` retained until Milestone A green; then README points to `jobdesk`
 

@@ -130,6 +130,18 @@
     #app-list li.active { background: color-mix(in srgb, var(--accent) 25%, transparent); font-weight: 600; }
     #draft-composition { min-height: 8rem; font-family: ui-monospace, monospace; font-size: 0.75rem; width: 100%; }
     .hidden { display: none !important; }
+    .app-beta-panel {
+      margin: 0.5rem 0;
+      padding: 0.75rem;
+      border: 1px dashed var(--accent);
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .app-beta-panel[hidden] { display: none !important; }
+    .app-beta-panel label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
+    #delete-app { color: var(--err); margin-left: auto; }
   </style>
 </head>
 <body>
@@ -184,8 +196,15 @@
     <section class="panel hidden" id="panel-apps" aria-label="Applications">
       <div class="row">
         <input type="search" id="app-search" placeholder="Search company or title" />
-        <label class="meta">Status
-          <select id="app-status-filter">
+        <label class="meta">Phase
+          <select id="app-phase-filter">
+            <option value="">All</option>
+            <option value="draft">draft</option>
+            <option value="submitted">submitted</option>
+          </select>
+        </label>
+        <label class="meta">Pipeline
+          <select id="app-workflow-filter">
             <option value="">All</option>
           </select>
         </label>
@@ -200,20 +219,46 @@
           <select id="clone-from-app"><option value="">Catalog default</option></select>
         </label>
         <button type="button" id="create-app">New application</button>
+        <button type="button" id="toggle-app-beta">Application-Beta</button>
+      </div>
+      <div id="app-beta-panel" class="app-beta-panel" hidden>
+        <p class="meta">Prototype: create flow in a panel (current row above unchanged).</p>
+        <label>Company <input type="text" id="beta-company" /></label>
+        <label>Title <input type="text" id="beta-title" /></label>
+        <label>Posting URL <input type="url" id="beta-posting-url" placeholder="https://…" /></label>
+        <label>Source <input type="text" id="beta-source" placeholder="LinkedIn, referral, …" /></label>
+        <label>Tags (comma-separated) <input type="text" id="beta-tags" /></label>
+        <label>Clone draft from
+          <select id="beta-clone-from"><option value="">Catalog default</option></select>
+        </label>
+        <button type="button" id="create-app-beta">Create application</button>
       </div>
       <p class="meta" id="apps-status">Loading…</p>
       <ul id="app-list"></ul>
       <div id="app-detail" class="hidden">
         <p class="meta" id="app-meta"></p>
+        <label class="meta">Company
+          <input type="text" id="app-company" style="width:100%;margin-top:0.25rem" />
+        </label>
+        <label class="meta">Title
+          <input type="text" id="app-title" style="width:100%;margin-top:0.25rem" />
+        </label>
         <label class="meta">Posting URL
           <input type="url" id="app-posting-url" placeholder="https://…" style="width:100%;margin-top:0.25rem" />
         </label>
+        <label class="meta">Source
+          <input type="text" id="app-source" placeholder="LinkedIn, referral, …" style="width:100%;margin-top:0.25rem" />
+        </label>
         <div class="row">
-          <label class="meta">Status
-            <select id="app-status"></select>
+          <label class="meta">Phase
+            <select id="app-phase"></select>
+          </label>
+          <label class="meta">Pipeline
+            <select id="app-workflow"></select>
           </label>
           <input type="text" id="app-tags" placeholder="tags (comma-separated)" style="flex:1;min-width:10rem" />
-          <button type="button" id="save-app-meta">Save details</button>
+          <button type="button" id="save-app-meta">Save</button>
+          <button type="button" id="delete-app">Delete</button>
         </div>
         <p class="meta hidden" id="similar-hint"></p>
         <ul id="similar-list" class="meta"></ul>
@@ -261,18 +306,26 @@
     const previewMode = document.getElementById("preview-mode");
     const draftWarn = document.getElementById("draft-warn");
     const appSearch = document.getElementById("app-search");
-    const appStatusFilter = document.getElementById("app-status-filter");
+    const appPhaseFilter = document.getElementById("app-phase-filter");
+    const appWorkflowFilter = document.getElementById("app-workflow-filter");
     const appTagFilter = document.getElementById("app-tag-filter");
-    const appStatusSelect = document.getElementById("app-status");
+    const appPhaseSelect = document.getElementById("app-phase");
+    const appWorkflowSelect = document.getElementById("app-workflow");
     const appTagsInput = document.getElementById("app-tags");
     const similarHint = document.getElementById("similar-hint");
     const similarList = document.getElementById("similar-list");
     const cloneFromApp = document.getElementById("clone-from-app");
     const appPostingUrl = document.getElementById("app-posting-url");
     const newPostingUrl = document.getElementById("new-posting-url");
+    const appCompany = document.getElementById("app-company");
+    const appTitle = document.getElementById("app-title");
+    const appSource = document.getElementById("app-source");
+    const deleteAppBtn = document.getElementById("delete-app");
+    const appBetaPanel = document.getElementById("app-beta-panel");
+    const betaCloneFrom = document.getElementById("beta-clone-from");
 
     let building = false;
-    let applicationStatuses = [];
+    let lifecycleMeta = { phases: [], draft_workflow: "draft", submitted_workflows: [] };
     let selectedElementId = null;
     let revisionMap = new Map();
     let selectedAppId = null;
@@ -445,35 +498,69 @@
     function appsQueryUrl() {
       const params = new URLSearchParams();
       const q = appSearch.value.trim();
-      const status = appStatusFilter.value;
+      const phase = appPhaseFilter.value;
+      const workflow = appWorkflowFilter.value;
       const tag = appTagFilter.value.trim();
       if (q) params.set("q", q);
-      if (status) params.set("status", status);
+      if (phase) params.set("phase", phase);
+      if (workflow) params.set("status", workflow);
       if (tag) params.set("tag", tag);
       const qs = params.toString();
       return qs ? `/api/applications?${qs}` : "/api/applications";
     }
 
-    async function loadApplicationStatuses() {
-      const res = await fetch("/api/applications/statuses");
-      applicationStatuses = await res.json();
-      for (const sel of [appStatusFilter, appStatusSelect]) {
-        const keep = sel === appStatusFilter ? sel.querySelector('option[value=""]') : null;
-        sel.innerHTML = "";
-        if (keep) sel.appendChild(keep);
-        else if (sel === appStatusFilter) {
-          const o = document.createElement("option");
-          o.value = "";
-          o.textContent = "All";
-          sel.appendChild(o);
-        }
-        for (const st of applicationStatuses) {
+    function fillWorkflowSelect(select, includeAll) {
+      const current = select.value;
+      select.innerHTML = "";
+      if (includeAll) {
+        const all = document.createElement("option");
+        all.value = "";
+        all.textContent = "All";
+        select.appendChild(all);
+      }
+      for (const st of lifecycleMeta.submitted_workflows) {
+        const opt = document.createElement("option");
+        opt.value = st;
+        opt.textContent = st;
+        select.appendChild(opt);
+      }
+      if ([...select.options].some((o) => o.value === current)) {
+        select.value = current;
+      }
+    }
+
+    function syncDetailWorkflowOptions(phase, hasSubmission) {
+      appPhaseSelect.innerHTML = "";
+      for (const p of lifecycleMeta.phases) {
+        const opt = document.createElement("option");
+        opt.value = p;
+        opt.textContent = p;
+        if (p === "draft" && hasSubmission) opt.disabled = true;
+        appPhaseSelect.appendChild(opt);
+      }
+      appPhaseSelect.value = phase;
+      appWorkflowSelect.innerHTML = "";
+      if (phase === "draft") {
+        const opt = document.createElement("option");
+        opt.value = lifecycleMeta.draft_workflow;
+        opt.textContent = lifecycleMeta.draft_workflow;
+        appWorkflowSelect.appendChild(opt);
+        appWorkflowSelect.disabled = true;
+      } else {
+        appWorkflowSelect.disabled = false;
+        for (const st of lifecycleMeta.submitted_workflows) {
           const opt = document.createElement("option");
           opt.value = st;
           opt.textContent = st;
-          sel.appendChild(opt);
+          appWorkflowSelect.appendChild(opt);
         }
       }
+    }
+
+    async function loadApplicationStatuses() {
+      const res = await fetch("/api/applications/statuses");
+      lifecycleMeta = await res.json();
+      fillWorkflowSelect(appWorkflowFilter, true);
     }
 
     async function loadApplications() {
@@ -481,6 +568,7 @@
       appsStatus.textContent = "Loading…";
       appList.innerHTML = "";
       cloneFromApp.innerHTML = '<option value="">Catalog default</option>';
+      betaCloneFrom.innerHTML = '<option value="">Catalog default</option>';
       try {
         const res = await fetch(appsQueryUrl());
         const data = await res.json();
@@ -494,13 +582,15 @@
           const li = document.createElement("li");
           li.dataset.id = app.id;
           const tagStr = app.tags && app.tags.length ? ` · [${app.tags.join(", ")}]` : "";
-          li.textContent = `${app.company} — ${app.title} (${app.status})${tagStr}`;
+          li.textContent = `${app.company} — ${app.title} (${app.phase} · ${app.status})${tagStr}`;
           li.addEventListener("click", () => selectApplication(app.id));
           appList.appendChild(li);
           const opt = document.createElement("option");
           opt.value = app.id;
           opt.textContent = `${app.company} — ${app.title}`;
           cloneFromApp.appendChild(opt);
+          const betaOpt = opt.cloneNode(true);
+          betaCloneFrom.appendChild(betaOpt);
         }
       } catch (e) {
         appsStatus.textContent = String(e);
@@ -562,8 +652,12 @@
       }
       appDetail.classList.remove("hidden");
       renderAppMeta(app);
+      appCompany.value = app.company || "";
+      appTitle.value = app.title || "";
       appPostingUrl.value = app.posting_url || "";
-      appStatusSelect.value = app.status;
+      appSource.value = app.source || "";
+      syncDetailWorkflowOptions(app.phase, app.submissions.length > 0);
+      appWorkflowSelect.value = app.status;
       appTagsInput.value = (app.tags || []).join(", ");
       draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
       await loadSimilar(id);
@@ -590,13 +684,18 @@
         .map((t) => t.trim())
         .filter(Boolean);
       const url = appPostingUrl.value.trim();
+      const source = appSource.value.trim();
       const res = await fetch(`/api/applications/${encodeURIComponent(selectedAppId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status: appStatusSelect.value,
+          company: appCompany.value.trim(),
+          title: appTitle.value.trim(),
+          phase: appPhaseSelect.value,
+          status: appWorkflowSelect.value,
           tags,
           posting_url: url ? url : null,
+          source: source ? source : null,
         }),
       });
       const app = await res.json();
@@ -604,10 +703,70 @@
         appsStatus.textContent = app.error || "Save failed";
         return;
       }
-      appsStatus.textContent = "Details saved";
+      appsStatus.textContent = "Saved";
       renderAppMeta(app);
+      appCompany.value = app.company || "";
+      appTitle.value = app.title || "";
       appPostingUrl.value = app.posting_url || "";
+      appSource.value = app.source || "";
       await loadApplications();
+    });
+
+    deleteAppBtn.addEventListener("click", async () => {
+      if (!selectedAppId) return;
+      if (!confirm("Delete this application and its submissions?")) return;
+      const id = selectedAppId;
+      const res = await fetch(`/api/applications/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        appsStatus.textContent = data.error || "Delete failed";
+        return;
+      }
+      selectedAppId = null;
+      appDetail.classList.add("hidden");
+      previewModeWrap.classList.add("hidden");
+      appsStatus.textContent = "Application deleted";
+      await loadApplications();
+      await rebuild();
+    });
+
+    document.getElementById("toggle-app-beta").addEventListener("click", () => {
+      appBetaPanel.hidden = !appBetaPanel.hidden;
+    });
+
+    document.getElementById("create-app-beta").addEventListener("click", async () => {
+      const company = document.getElementById("beta-company").value.trim();
+      const title = document.getElementById("beta-title").value.trim();
+      if (!company || !title) {
+        appsStatus.textContent = "Company and title required";
+        return;
+      }
+      const body = { company, title };
+      const postingUrl = document.getElementById("beta-posting-url").value.trim();
+      const source = document.getElementById("beta-source").value.trim();
+      const tags = document.getElementById("beta-tags").value
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      if (postingUrl) body.posting_url = postingUrl;
+      if (source) body.source = source;
+      if (tags.length) body.tags = tags;
+      if (betaCloneFrom.value) body.clone_from_application_id = betaCloneFrom.value;
+      const res = await fetch("/api/applications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const app = await res.json();
+      if (!res.ok) {
+        appsStatus.textContent = app.error || "Create failed";
+        return;
+      }
+      appBetaPanel.hidden = true;
+      await loadApplications();
+      await selectApplication(app.id);
     });
 
     document.getElementById("create-app").addEventListener("click", async () => {
@@ -691,6 +850,11 @@
       await selectApplication(selectedAppId);
       previewMode.value = "submitted";
       await rebuild();
+    });
+
+    appPhaseSelect.addEventListener("change", () => {
+      const hasSub = appPhaseSelect.querySelector('option[value="draft"]:disabled') != null;
+      syncDetailWorkflowOptions(appPhaseSelect.value, hasSub);
     });
 
     document.getElementById("reload-apps").addEventListener("click", loadApplications);
