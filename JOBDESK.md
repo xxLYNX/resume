@@ -1,46 +1,35 @@
-# jobdesk (Rust)
+# jobdesk CLI
 
-Local job-search workspace CLI. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for design and milestone checklists.
+Local workspace binary. Design and milestones: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Prerequisites
 
-- Rust toolchain (`cargo`)
-- PDF (optional): [Tectonic](https://tectonic-typesetting.github.io/) or TeX Live (`pdflatex`)
+- Rust (`cargo`)
+- PDF (optional): Tectonic or `pdflatex`
 
 ## Commands
 
 From the repository root:
 
 ```bash
-# Import content/*.yaml into workspace/jobdesk.db (skips existing elements)
 cargo run -p jobdesk -- import
-cargo run -p jobdesk -- import --force   # append file content as new revisions
+cargo run -p jobdesk -- import --force   # append YAML as new revisions for existing elements
 
-# Export DB → workspace/staging/content/ (does not touch repo content/)
-cargo run -p jobdesk -- export
+cargo run -p jobdesk -- export            # workspace/staging/content/
+cargo run -p jobdesk -- export --mirror-repo-content   # also overwrite repo content/ (intentional)
 
-# Optional: also mirror export into repo content/ (overwrites seed YAML)
-cargo run -p jobdesk -- export --mirror-repo-content
-
-# Build resume from SQLite + settings/jobdesk.yaml (requires import first)
 cargo run -p jobdesk -- build
-
-# Same sources as serve preview:
-cargo run -p jobdesk -- build --application <uuid>              # application draft
+cargo run -p jobdesk -- build --pdf
+cargo run -p jobdesk -- build --application <uuid>
 cargo run -p jobdesk -- build --application <uuid> --preview-mode submitted
 
-# Also compile PDF when a engine is installed
-cargo run -p jobdesk -- build --pdf
-
-# Local preview UI (http://127.0.0.1:3847)
-cargo run -p jobdesk -- import   # required once for catalog pane
 cargo run -p jobdesk -- serve
 cargo run -p jobdesk -- serve --open
 ```
 
-**Canonical data** lives in `workspace/jobdesk.db`. Repo `content/*.yaml` is **import seed only**; preview and `build` resolve sections from the catalog (no auto-sync to `content/`). Use `export` to inspect or backup YAML under `workspace/staging/content/`.
+**Data:** `workspace/jobdesk.db` is canonical. `content/*.yaml` is import seed; use `import` / `export` when you want file round-trips.
 
-**Applications:** use the **Applications** tab in `serve` — search/filter by status or tag, set workflow status, **Submit** freezes a manifest, preview **As submitted**, similar-app hints and **Quickfill**.
+**Applications** (tracker + composition + submit) are easiest in `serve`. CLI:
 
 ```bash
 cargo run -p jobdesk -- application list
@@ -49,28 +38,20 @@ cargo run -p jobdesk -- application add "Acme" "Engineer" --posting-url "https:/
 cargo run -p jobdesk -- application add "Acme" "Engineer" --clone-from <uuid>
 cargo run -p jobdesk -- application show <uuid>
 cargo run -p jobdesk -- application set-status <uuid> interview
-cargo run -p jobdesk -- application update <uuid> --company "Acme" --source LinkedIn
+cargo run -p jobdesk -- application update <uuid> --company "Acme"
 cargo run -p jobdesk -- application submit <uuid>
 cargo run -p jobdesk -- application delete <uuid>
 ```
 
-**Phase vs workflow vs submit:** see [`docs/APPLICATION_LIFECYCLE.md`](docs/APPLICATION_LIFECYCLE.md). **`phase`** is `draft` or `submitted`; **`status`** is the pipeline label (or `draft` while preparing). Only **`Submit`** / `application submit` freezes a manifest — changing workflow to `interview` is tracker-only.
+**Phase vs workflow vs Submit:** [`docs/APPLICATION_LIFECYCLE.md`](docs/APPLICATION_LIFECYCLE.md). Only **Submit** freezes a manifest.
 
-See [`REVIEW.md`](REVIEW.md) for deferred polish (presets, quickfill, structured forms).
+## Options
 
-Options:
-
-- `--root .` — project root (default: current directory)
-- `--workspace workspace` — SQLite and artifacts directory (default: `workspace/`)
+- `--root .` — project root
+- `--workspace workspace` — DB and artifacts directory
 
 ## Tests
 
 ```bash
 cargo test
 ```
-
-Golden LaTeX output is compared to `tests/fixtures/golden_resume.tex` (from the original Go builder) with whitespace normalization.
-
-## Go builder
-
-Unchanged: `go run main.go` reads **`config.yaml`** and **`templates/`** (Go `text/template`). jobdesk reads **`settings/jobdesk.yaml`** and **`themes/classic/`** (MiniJinja). The original theme under `templates/` is not modified by jobdesk work.

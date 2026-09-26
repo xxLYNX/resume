@@ -56,7 +56,8 @@ workspace/
 - [x] Submit flow: resolve draft → write manifest (denormalized text + revision ids + theme hash)
 - [x] Interview prep: pick application → render from **manifest** (read-only), PDF optional
 - [x] `presets` table: saved compositions without posting URL
-- [ ] **Application content picker** UI: per application, enable/disable **sections (collections)** and **include toggles per catalog element**; preview/submit render only included elements (see [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md))
+- [x] **Application content picker** UI: per application, enable/disable **sections (collections)** and **include toggles per catalog element**; preview/submit render only included elements (see [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md))
+- [ ] **Future collections:** tools, certifications, awards as separate kinds/sections (deferred; skills blob covers certifications text today)
 
 ### Similarity & quickfill
 
@@ -107,26 +108,22 @@ workspace/
 
 ---
 
-## Milestone A — Engine parity (current focus)
+## Milestone A — Render engine
 
-Match Go output using shared `content/*.yaml`; jobdesk build config is `settings/jobdesk.yaml` (Go keeps `config.yaml`).
+LaTeX output locked to a golden fixture; catalog resolve + classic theme.
 
 - [x] Cargo workspace scaffold
 - [x] `themes/classic/` MiniJinja section templates + preamble + `theme.toml`
-- [x] `jobdesk build`: read config, render `.tex` to `output/`
+- [x] `jobdesk build`: `settings/jobdesk.yaml` + SQLite resolve → `.tex`
 - [x] `jobdesk build --pdf`: Tectonic or pdflatex when available
-- [x] `jobdesk import`: YAML → SQLite elements + revision 1
-- [x] Golden test: Rust `.tex` matches Go fixture (normalized whitespace)
-
-**Commands** (from repo root):
+- [x] `jobdesk import`: seed YAML → SQLite elements + revision 1
+- [x] Golden test: normalized `.tex` matches `tests/fixtures/golden_resume.tex`
 
 ```bash
 cargo run -p jobdesk -- import
 cargo run -p jobdesk -- build
 cargo run -p jobdesk -- build --pdf
 ```
-
-Go: `config.yaml` + `templates/` (legacy, untouched). jobdesk: `settings/jobdesk.yaml` + `themes/classic/` (evolve templates here only).
 
 ---
 
@@ -137,7 +134,7 @@ Recommended order (each step is usable on its own):
 1. [x] **`serve` + preview API** — localhost, `POST /api/preview` runs current `settings/jobdesk.yaml` build + PDF; right pane iframe PDF (debounce on load + manual rebuild).
 2. [x] **Catalog read API** — list elements/revisions from SQLite; left pane browser.
 3. [x] **Catalog write** — save revision (validated) + preview rebuild from SQLite (no repo `content/` sync).
-4. [ ] **2-pane polish** — file watch, richer forms (optional fields by kind).
+4. [x] **2-pane polish** — structured catalog forms from `theme.toml` (optional fields by kind).
 
 **Foundation:** `resolve` crate + default composition for preview/build; YAML export to `workspace/staging/content/` only. Per-job composition and applications remain Milestone C.
 
@@ -172,7 +169,6 @@ Prep: [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md). Implement on a **dev b
 - [x] **Application content picker** — section/collection on-off + include toggles for each catalog element in that collection (content choice per posting; theme separate)
 - [x] Theme bundles + `theme_files_hash` on submit (snapshot under `workspace/artifacts/theme_snapshots/`)
 - [x] Catalog structured forms from `theme.toml` metadata (JSON toggle remains)
-- [ ] File watch on `content/` → notify / suggest import (no auto-overwrite DB)
 - [x] Presets (saved compositions without a job row)
 - [ ] Submission history UI per application
 - [x] Application Save UX — help text (Save vs composition vs Submit); optional further merge of actions TBD
@@ -202,11 +198,10 @@ Spec: [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md). **Next letter 
 
 ---
 
-## Migration from this repo
+## Import seed
 
 - [x] Map `content/*.yaml` list items → stable element ids (`jobdesk import`)
-- [ ] `settings/jobdesk.yaml` section order → default preset / legacy build config
-- [ ] Go `main.go` retained until Milestone A green; then README points to `jobdesk`
+- [ ] `settings/jobdesk.yaml` section order → default preset (optional)
 
 ---
 
@@ -226,4 +221,4 @@ Spec: [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md). **Next letter 
 | 2026-09-17 | Initial architecture + milestone checklists |
 | 2026-09-17 | Milestone A: Rust workspace, jobdesk import/build, classic theme |
 | 2026-09-17 | Milestone B step 1: `serve`, preview API, embedded UI |
-| 2026-09-17 | Pre–C review: [`REVIEW.md`](REVIEW.md); import/export/build polish |
+| 2026-09-26 | Removed legacy Go builder; jobdesk-only docs and product surface |

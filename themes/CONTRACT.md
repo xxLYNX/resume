@@ -1,6 +1,6 @@
 # Theme contract (jobdesk)
 
-Third-party themes target **jobdesk**, not Go. Go `templates/` is legacy and out of scope.
+Third-party themes target **jobdesk** only. Section templates are MiniJinja; content comes from resolved catalog/composition JSON.
 
 ## Mental model
 

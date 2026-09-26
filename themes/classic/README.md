@@ -1,10 +1,10 @@
-# Classic theme (jobdesk)
+# Classic theme
 
-Reference theme for jobdesk. **Go `templates/` is legacy and not maintained.**
+Reference bundle for jobdesk. Copy this directory when authoring a new theme.
 
 - **Contract:** [`../CONTRACT.md`](../CONTRACT.md)
-- **Macros:** `macros/resume.jinja.tex` — import as `classic_macros` in section templates
-- **Edits:** this directory only (`theme.toml`, preamble, sections, macros)
-- Configured from [`settings/jobdesk.yaml`](../../settings/jobdesk.yaml) (section list merges into theme bundle over time)
+- **Authoring guide:** [`../README.md`](../README.md)
+- **Macros:** `macros/resume.jinja.tex` (registered as `classic_macros` in `theme.toml`)
+- **Build config:** [`../../settings/jobdesk.yaml`](../../settings/jobdesk.yaml)
 
-Golden parity: `cargo test -p render_tex` compares normalized `.tex` to `tests/fixtures/golden_resume.tex`.
+Golden parity: `cargo test -p render_tex`.

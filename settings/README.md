@@ -1,9 +1,5 @@
 # Settings
 
-Configuration for **jobdesk** (Rust). These files are not used by the Go builder.
+**`jobdesk.yaml`** — section order and template paths for the default build. Content always comes from the SQLite catalog (and application composition when building for an app).
 
-| File | Purpose |
-|------|---------|
-| `jobdesk.yaml` | Section order, content paths, and **classic** theme (`themes/classic/`) |
-
-The Go builder uses [`config.yaml`](../config.yaml) and [`templates/`](../templates/) only. Do not point Go at Jinja templates under `themes/`.
+Point templates at files under `themes/<id>/`. See [`../themes/README.md`](../themes/README.md).

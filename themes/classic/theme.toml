@@ -1,6 +1,6 @@
 id = "classic"
 version = 1
-description = "Default resume theme migrated from the original Go builder"
+description = "Default reference resume theme for jobdesk"
 contract_version = 1
 
 [macros]

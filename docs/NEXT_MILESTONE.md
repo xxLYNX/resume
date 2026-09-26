@@ -1,87 +1,45 @@
 # Milestone E — composition, themes, catalog UX
 
-**Finish on branch `dev/ui-composition` before merge or Milestone F.** External skill **frameworks** (O\*NET, NICE, ESCO, …) are **F only** — see [`MILESTONE_F_SKILLS.md`](MILESTONE_F_SKILLS.md).
+**Finish on branch `dev/ui-composition` before merge or Milestone F.** Skill **frameworks** (O\*NET, NICE, ESCO, …) are **F only** — [`MILESTONE_F_SKILLS.md`](MILESTONE_F_SKILLS.md).
 
-## Priority themes
+## Application content picker (done)
 
-### Application content picker (core E UX — not done)
+Per posting, choose **what content** the resume contains (independent of **theme**):
 
-When you apply to a **specific posting**, you choose **what content** that resume contains. That decision is **per application**. It may match a previous application exactly (same elements and revisions); **theme** is independent and can change without redoing content choices.
+1. **Section on/off** — whole blocks included or omitted.
+2. **Per-element include** — catalog lists all elements in a collection; toggles + revision picker for included rows.
 
-Two levels of choice:
+**Model:** `draft_composition` → `{ sections: [{ section_key, items: [{ element_id, revision_id }] }] }`. Omitted sections are skipped at render. **Submit** freezes the same shape in the manifest.
 
-1. **Section / collection included or omitted** — top-level blocks you want on the compiled resume for this application (e.g. header, objective, education, experience, projects, skills; target model also **tools**, **certifications**, **awards** as separate collections when catalog + theme support them).
-2. **Which elements inside each collection** — the catalog holds many elements per collection (e.g. 10 projects). For this application you **include only the elements you consider relevant**; excluded elements stay in the catalog but **do not appear in preview or submit output**. Inclusion is at **element** level (whole job, whole project, whole education row — fields and bullets live on that element’s pinned **revision**), not ad-hoc bullet picking across elements.
+**Collections today:** header, objective, education, experience, projects, skills.
 
-The UI goal: for each enabled section, show the **full catalog list** for that collection with **include toggles** (and revision picker where wording matters), not only “add a row from a dropdown.”
+**Later (not blocking E):** separate catalog sections for **tools**, **certifications**, and **awards** — same picker pattern when kinds + theme exist.
 
-**Data model (unchanged):** `draft_composition` → sections with `items: [{ element_id, revision_id }, …]`; omitted sections or empty `items` mean that block is not rendered. Submit freezes the same shape in the manifest.
+Creating new catalog elements stays in the **Catalog** tab / `import`, not in the picker.
 
-**Today vs target collections**
+## Themes & manifest pinning (done)
 
-| Collection (target) | In catalog / classic theme today |
-|---------------------|----------------------------------|
-| header, objective, education, experience, projects | Yes (`ElementKind` + import) |
-| skills | Yes (often one element `skills.main`) |
-| tools, certifications, awards | **Not yet** — may be new kinds/sections + theme; picker UX should extend the same pattern when they exist |
+- Theme bundles: `theme.toml` + preamble + sections + optional macros.
+- **Submit** sets `theme_files_hash` and copies a snapshot under `workspace/artifacts/theme_snapshots/` for “view as submitted.”
 
-**Done (v1, interim):** row-based composition editor (add/remove/reorder, element + revision selects; JSON in details). **Replace/augment with the content picker** above.
+## Presets (done)
 
-**Not this feature:** O\*NET / NICE / ESCO keyword frameworks (**Milestone F**). **Creating** new catalog elements (new job row) remains import seed and/or catalog forms — separate from include toggles.
+Saved compositions without a posting row; clone to a new application or quickfill.
 
-### Compositional editing (implementation note)
+## Save UX (open)
 
-Presets and quickfill copy a saved **content set** (composition), not a theme. Visual editor work continues under **Application content picker**.
+Three actions today: **Save** (tracker fields), **Save composition** (draft pins), **Submit** (manifest). Help text exists; optional merge/stricter phase rules TBD — discuss before changing.
 
-### Themes & manifest pinning
-
-- Ship **theme bundles** as first-class (`theme.toml` + preamble + section templates).
-- **`theme_bundles`** table or manifest registry: `id`, `version`, **files hash**.
-- On **Submit**, set `theme_files_hash` on manifest v1 so “view as submitted” uses the same template bundle, not whatever changed on disk since apply.
-
-### Application **Save** UX
-
-- **Done (minor):** tracker button label **Save**; help text for Save vs Save composition vs Submit.
-- **Still E:** optional single-action save, stricter phase/pipeline rules before first manifest (if we keep separate buttons).
-
----
-
-## Explained backlog items
-
-### Catalog UI: structured forms + `theme.toml`
-
-**Structured forms:** `themes/classic/theme.toml` already lists sections and `optional_fields` (e.g. education `highlights`, `gpa`). The catalog pane should render **typed fields** per element kind from that metadata instead of one JSON blob — only show columns the theme can render (`{% if field %}`).
-
-**File watch:** repo `content/` remains **import seed**. Optional watcher: external edit to YAML → notify UI or suggest `import --force`. Canonical data stays SQLite; no auto-overwrite of `content/`.
-
-### Presets (E)
-
-Saved **compositions** (section pins + theme id) **without** a posting row — like old `config.yaml` “profiles.” Clone preset → new application or quickfill.
-
-**Skills catalog + external frameworks:** **Milestone F** — canonical skill ids, aliases, tags, `framework_refs` (O\*NET, NICE, ESCO, …). Not E.
-
----
-
-## E completion checklist (merge when all checked)
+## E completion checklist
 
 - [x] Theme snapshot + `theme_files_hash` on submit
-- [x] Presets API + tab; clone preset → application
+- [x] Presets API + tab
 - [x] Structured catalog fields + JSON toggle
-- [x] Visual composition editor (row-based)
-- [x] **Application content picker** — section on/off + per-element include toggles (all theme/catalog collections today)
-- [ ] **Submission history** UI (list manifests for app; open “as submitted”)
-- [ ] **File watch** on repo `content/` → suggest `import` / `--force` (no auto-overwrite DB)
-- [ ] Remaining Save/phase UX polish (if any after inclusion UI)
-- [ ] Smoke-tested `serve` path end-to-end
+- [x] Application content picker (section + element toggles, live draft preview)
+- [ ] **Submission history** UI — list manifests per app; open any past send (today: latest canonical only in preview)
+- [ ] Remaining **Save / phase** polish (if any)
+- [ ] Smoke-tested `serve` end-to-end
 
-**After E (master or small fixes):** PDF cache on submit; PDF.js / SSE; CLI `watch`; Go README cleanup. Portfolio → **G**; UniFFI → **H**.
+**Dropped for jobdesk-only workflow:** file watch on repo `content/`. Canonical data is the DB; use **Catalog** / **`import`** / **`export`** instead of watching seed YAML.
 
----
-
-## Branch workflow
-
-```bash
-git checkout -b dev/ui-composition   # example
-# … UI work …
-# merge when happy
-```
+**After E:** PDF cache on submit; PDF.js / SSE; optional CLI conveniences. Portfolio → **G**; UniFFI → **H**.
