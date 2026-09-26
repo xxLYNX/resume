@@ -17,8 +17,10 @@ use axum::{
     Json, Router,
 };
 use domain::compute_snapshot_hash;
-use render_pdf::PdfEngine;
-use render_tex::{jobdesk_build_aligned, jobdesk_build_composition_to_dir};
+use render_pdf::{write_tex_and_compile, PdfEngine};
+use render_tex::{
+    jobdesk_build_aligned, jobdesk_build_composition_to_dir, LegacyBuildResult,
+};
 use resolve::{default_composition, resolve_composition};
 use serde::{Deserialize, Serialize};
 use store::Store;
@@ -39,7 +41,7 @@ pub struct AppState {
     pub preview_dir: PathBuf,
     pub db_path: PathBuf,
     pub workspace_dir: PathBuf,
-    pub preview_cache: Arc<Mutex<PreviewCache>>,
+    preview_cache: Arc<Mutex<PreviewCache>>,
 }
 
 impl AppState {
@@ -289,32 +291,52 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
         }
     }
 
-    let build = match (application_id, mode, req.draft_composition.as_ref()) {
-        (Some(_), "submitted", _) | (None, _, _) | (Some(_), _, None) => jobdesk_build_aligned(
-            &store,
-            &state.workspace_dir,
-            &state.root,
-            &state.config_path,
-            &state.preview_dir,
-            true,
-            application_id,
-            mode,
-        )?,
-        (Some(_), _, Some(composition)) => {
-            resolve_composition(&store, composition)?;
-            jobdesk_build_composition_to_dir(
-                &store,
-                &state.root,
-                &state.config_path,
-                &state.preview_dir,
-                composition,
-                true,
-            )?
-        }
-    };
+    let mut build = run_preview_build(state, &store, req, application_id, mode, false)?;
 
     let (preview_source, draft_differs) =
         preview_meta(&store, state, req, application_id, mode, &submission_snapshot)?;
+
+    let reuse_pdf = if pdf_path.is_file() {
+        match state.preview_cache.lock() {
+            Ok(cache)
+                if cache.content_hash.as_deref() == Some(build.content_hash.as_str()) =>
+            {
+                cache.pdf_engine.clone()
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    if let Some(pdf_engine) = reuse_pdf {
+        if let Ok(mut cache) = state.preview_cache.lock() {
+            cache.cache_key = Some(cache_key);
+        }
+        return Ok(PreviewBuildMeta {
+            build: LegacyBuildResult {
+                tex: String::new(),
+                tex_path: build.tex_path,
+                pdf_path: Some(pdf_path),
+                content_hash: build.content_hash,
+                pdf_engine: Some(pdf_engine),
+            },
+            preview_source,
+            submission_content_hash: submission_snapshot,
+            draft_differs_from_submission: draft_differs,
+            unchanged: true,
+        });
+    }
+
+    let tex_name = build
+        .tex_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("resume.tex");
+    let compiled = write_tex_and_compile(&build.tex, &state.preview_dir, tex_name)
+        .context("PDF compilation failed")?;
+    build.pdf_path = Some(compiled);
+    build.pdf_engine = PdfEngine::detect().map(|e| e.name().to_string());
 
     if let Ok(mut cache) = state.preview_cache.lock() {
         cache.cache_key = Some(cache_key);
@@ -329,6 +351,39 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
         draft_differs_from_submission: draft_differs,
         unchanged: false,
     })
+}
+
+fn run_preview_build(
+    state: &AppState,
+    store: &Store,
+    req: &PreviewRequest,
+    application_id: Option<&str>,
+    mode: &str,
+    compile_pdf: bool,
+) -> Result<LegacyBuildResult> {
+    match (application_id, mode, req.draft_composition.as_ref()) {
+        (Some(_), "submitted", _) | (None, _, _) | (Some(_), _, None) => jobdesk_build_aligned(
+            store,
+            &state.workspace_dir,
+            &state.root,
+            &state.config_path,
+            &state.preview_dir,
+            compile_pdf,
+            application_id,
+            mode,
+        ),
+        (Some(_), _, Some(composition)) => {
+            resolve_composition(store, composition)?;
+            jobdesk_build_composition_to_dir(
+                store,
+                &state.root,
+                &state.config_path,
+                &state.preview_dir,
+                composition,
+                compile_pdf,
+            )
+        }
+    }
 }
 
 fn preview_meta(

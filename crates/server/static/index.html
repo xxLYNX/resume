@@ -308,7 +308,7 @@
     <section class="panel preview" aria-label="PDF preview">
       <div class="preview-pane">
         <iframe id="pdf" title="Resume PDF preview"></iframe>
-        <div class="placeholder visible" id="placeholder">Building preview…</div>
+        <div class="placeholder" id="placeholder">Building preview…</div>
       </div>
     </section>
   </main>
@@ -391,7 +391,6 @@
     let previewDebounce = null;
     let previewRebuildQueued = false;
     let lastPreviewContentHash = null;
-    let previewOverlayTimer = null;
 
     function setPreviewPlaceholder(message, visible) {
       placeholder.textContent = message;
@@ -415,11 +414,7 @@
       statusEl.classList.remove("error");
       logEl.hidden = true;
       draftWarn.classList.add("hidden");
-      clearTimeout(previewOverlayTimer);
-      previewOverlayTimer = setTimeout(
-        () => setPreviewPlaceholder("Building preview…", true),
-        250
-      );
+      setPreviewPlaceholder("", false);
 
       try {
         const res = await fetch("/api/preview", {
@@ -428,7 +423,6 @@
           body: JSON.stringify(previewBody()),
         });
         const data = await res.json();
-        clearTimeout(previewOverlayTimer);
         if (!data.ok) {
           statusEl.textContent = "Build failed";
           statusEl.classList.add("error");
@@ -453,22 +447,18 @@
         engineEl.textContent = data.pdf_engine ? "PDF engine: " + data.pdf_engine : "";
 
         if (data.unchanged) {
-          statusEl.textContent = "Preview up to date" + src;
-          setPreviewPlaceholder("", false);
           return;
         }
 
-        statusEl.textContent = "Preview updated" + src;
         const hash = data.content_hash || "";
         if (hash && hash === lastPreviewContentHash) {
-          setPreviewPlaceholder("", false);
+          statusEl.textContent = "Preview up to date" + src;
           return;
         }
+        statusEl.textContent = "Preview updated" + src;
         lastPreviewContentHash = hash;
         iframe.src = data.pdf_url + "?t=" + Date.now();
-        setPreviewPlaceholder("", false);
       } catch (e) {
-        clearTimeout(previewOverlayTimer);
         statusEl.textContent = "Request failed: " + e;
         statusEl.classList.add("error");
         setPreviewPlaceholder("Preview unavailable", true);
