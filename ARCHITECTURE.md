@@ -38,7 +38,7 @@ workspace/
 
 - [ ] `skills` table: `id`, `label`, `aliases_json`, `tags_json`, `framework_refs_json`
 - [ ] Resolver expands aliases for display; one canonical id internally
-- [ ] Framework refs (NICE KSAs, ESCO URIs, etc.) — see [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md)
+- [ ] Framework refs (O\*NET, NICE KSAs, ESCO URIs, etc.) — see [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md)
 
 ### Themes & templates
 
@@ -53,7 +53,8 @@ workspace/
 - [x] `submissions`: immutable `manifest_path`, `content_hash`, optional `pdf_path`, `is_canonical`
 - [x] Submit flow: resolve draft → write manifest (denormalized text + revision ids + theme hash)
 - [x] Interview prep: pick application → render from **manifest** (read-only), PDF optional
-- [ ] `presets` table (optional): saved compositions without posting URL
+- [x] `presets` table: saved compositions without posting URL
+- [ ] **Application content picker** UI: per application, enable/disable **sections (collections)** and **include toggles per catalog element**; preview/submit render only included elements (see [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md))
 
 ### Similarity & quickfill
 
@@ -165,12 +166,14 @@ Recommended order (each step is usable on its own):
 
 Prep: [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md). Implement on a **dev branch** before merging to `master`.
 
-- [x] Compositional editing (visual pins, not JSON-only)
+- [x] Interim composition editor (element + revision rows; JSON in details)
+- [ ] **Application content picker** — section/collection on-off + include toggles for each catalog element in that collection (content choice per posting; theme separate)
 - [x] Theme bundles + `theme_files_hash` on submit (snapshot under `workspace/artifacts/theme_snapshots/`)
 - [x] Catalog structured forms from `theme.toml` metadata (JSON toggle remains)
-- [ ] Optional file watch on `content/` (deferred polish)
+- [ ] File watch on `content/` → notify / suggest import (no auto-overwrite DB)
 - [x] Presets (saved compositions without a job row)
-- [x] Application Save UX polish (Save vs composition vs Submit — help text in UI)
+- [ ] Submission history UI per application
+- [x] Application Save UX — help text (Save vs composition vs Submit); optional further merge of actions TBD
 
 ---
 

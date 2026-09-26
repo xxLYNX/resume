@@ -10,7 +10,7 @@ UniFFI and portfolio move to **G** and **H** (see [`ARCHITECTURE.md`](../ARCHITE
 
 - One catalog element `skills.main` holds all skills text for LaTeX.
 - Application **tags** are job-tracker labels, not canonical skill ids.
-- CHECKLIST [`framework_refs`](../CHECKLIST.md) (NICE KSAs, ESCO, etc.) were never modeled.
+- CHECKLIST [`framework_refs`](../CHECKLIST.md) (O\*NET / ONET, NICE KSAs, ESCO, etc.) were never modeled. **Deliberately deferred until E is complete** — frameworks are not composition toggles.
 
 ---
 
@@ -34,10 +34,13 @@ Structured optional refs, e.g.:
 
 ```json
 {
+  "onet": { "element_id": "...", "occupation_code": "15-1212.00" },
   "nice": { "work_role": "...", "ksa_ids": ["K0001", "S0002"] },
   "esco": { "uri": "http://data.europa.eu/esco/skill/..." }
 }
 ```
+
+Store **refs only** in v1 (lookup / enrichment / future JD matching). Same pattern for other taxonomies the user adds via import files.
 
 **v1 F scope:** store and edit refs; **import** from bundled or user-supplied mapping files (CSV/JSON). **Not** required to auto-rewrite resume bullets from NICE text.
 
@@ -59,7 +62,7 @@ Structured optional refs, e.g.:
 - [ ] Import/migrate from current `skills.main` revision blob → catalog rows
 - [ ] CRUD API + minimal UI (list/edit skill, aliases, tags, framework refs)
 - [ ] Resolver: composition → render model with chosen aliases
-- [ ] Optional: import NICE/ESCO enrichment file into `framework_refs`
+- [ ] Optional: import enrichment files (O\*NET, NICE, ESCO, …) into `framework_refs`
 - [ ] Docs: how refs relate to job tags vs skill tags
 
 ---
@@ -68,7 +71,7 @@ Structured optional refs, e.g.:
 
 | Item | Milestone |
 |------|-----------|
-| Visual composition editor | E |
+| Application content picker (section + element inclusion) | E — list collections first; per-skill rows when F splits `skills.main` |
 | Theme bundles / `theme_files_hash` | E |
 | Presets (full composition, no job) | E |
 | Portfolio / public site | G |

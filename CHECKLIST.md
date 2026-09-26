@@ -52,8 +52,8 @@ You are not missing anything obvious: **the thing that matters for a job posting
 An **application** row is roughly:
 
 - **Posting identity:** URL (primary), plus company, title, location, source (LinkedIn, Greenhouse, etc.).
-- **Resume composition:** ordered list of sections; each section lists **entry id + revision id** (not “latest” unless you explicitly choose that at submit time).
-- **Theme** id used for that build.
+- **Resume composition (content for this posting):** which **sections/collections** appear, and which **catalog elements** are included in each (each pin is **entry id + revision id** — whole element, not bullet-level). Same content can be reused across applications; **theme** is chosen separately and does not drive inclusion.
+- **Theme** id used for that build (layout/templates only).
 - **Lifecycle:** draft → submitted → rejected/interview/offer/withdrawn.
 - **Link to submission(s):** you may submit twice (e.g. corrected typo)—each submit creates a new **submission** row; mark one as canonical for “what they saw.”
 
