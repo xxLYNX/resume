@@ -29,7 +29,7 @@ pub struct LegacySection {
     pub name: String,
     pub enabled: bool,
     pub template: String,
-    /// Go builder only. jobdesk ignores this and resolves from SQLite.
+    /// File-based test fixtures only. jobdesk resolves content from SQLite.
     #[serde(default)]
     pub content: Option<String>,
 }

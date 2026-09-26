@@ -1,6 +1,5 @@
-# jobdesk build configuration (Rust CLI)
-# Content is resolved from SQLite — not from paths below.
-# Go builder continues to use config.yaml + content/ + templates/.
+# jobdesk build configuration
+# Section list + templates. Content is resolved from SQLite (catalog + composition).
 
 sections:
   - name: "header"

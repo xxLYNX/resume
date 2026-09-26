@@ -15,7 +15,7 @@ pub use legacy_build::{
     jobdesk_build_resolved_to_dir, jobdesk_build_to_dir, write_build_to_dir, LegacyBuildResult,
 };
 
-/// File-based build (Go parity / tests): reads `content` paths from config.
+/// File-based build for tests: reads YAML `content` paths from a build config fixture.
 pub fn build_legacy_resume(config_path: &Path, project_root: &Path) -> Result<String> {
     let config_text = fs::read_to_string(config_path)
         .with_context(|| format!("read config {}", config_path.display()))?;
@@ -167,7 +167,7 @@ mod tests {
     use store::{import_legacy_content, ImportOptions, Store};
 
     #[test]
-    fn jobdesk_build_matches_go_golden() {
+    fn jobdesk_build_matches_golden_fixture() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let golden_path = root.join("tests/fixtures/golden_resume.tex");
         if !golden_path.exists() {
