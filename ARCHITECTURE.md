@@ -167,7 +167,7 @@ Recommended order (each step is usable on its own):
 Prep: [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md). Implement on a **dev branch** before merging to `master`.
 
 - [x] Interim composition editor (element + revision rows; JSON in details)
-- [ ] **Application content picker** — section/collection on-off + include toggles for each catalog element in that collection (content choice per posting; theme separate)
+- [x] **Application content picker** — section/collection on-off + include toggles for each catalog element in that collection (content choice per posting; theme separate)
 - [x] Theme bundles + `theme_files_hash` on submit (snapshot under `workspace/artifacts/theme_snapshots/`)
 - [x] Catalog structured forms from `theme.toml` metadata (JSON toggle remains)
 - [ ] File watch on `content/` → notify / suggest import (no auto-overwrite DB)

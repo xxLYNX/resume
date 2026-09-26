@@ -68,7 +68,7 @@ Saved **compositions** (section pins + theme id) **without** a posting row — l
 - [x] Presets API + tab; clone preset → application
 - [x] Structured catalog fields + JSON toggle
 - [x] Visual composition editor (row-based)
-- [ ] **Application content picker** — section on/off + per-element include toggles (all supported collections)
+- [x] **Application content picker** — section on/off + per-element include toggles (all theme/catalog collections today)
 - [ ] **Submission history** UI (list manifests for app; open “as submitted”)
 - [ ] **File watch** on repo `content/` → suggest `import` / `--force` (no auto-overwrite DB)
 - [ ] Remaining Save/phase UX polish (if any after inclusion UI)
