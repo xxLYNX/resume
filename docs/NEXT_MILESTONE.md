@@ -4,6 +4,8 @@
 
 **Active work:** [`MILESTONE_F_SKILLS.md`](MILESTONE_F_SKILLS.md) — skills table, aliases, tags, `framework_refs` (O\*NET, NICE, ESCO, …).
 
+**Parallel branch:** [`MILESTONE_I_APPLICATION_LEDGER.md`](MILESTONE_I_APPLICATION_LEDGER.md) on `dev/application-ledger` — application metadata + ledger PDF export (does not block F).
+
 ```bash
 git checkout master
 git merge dev/ui-composition   # after review

@@ -265,6 +265,44 @@
           <input type="text" id="app-source" placeholder="LinkedIn, referral, …" style="width:100%;margin-top:0.25rem" />
         </label>
         <div class="row">
+          <label class="meta">Employment
+            <select id="app-employment-type">
+              <option value="">—</option>
+              <option value="full_time">Full-time</option>
+              <option value="part_time">Part-time</option>
+              <option value="contract">Contract</option>
+              <option value="internship">Internship</option>
+            </select>
+          </label>
+          <label class="meta">Work mode
+            <select id="app-work-mode">
+              <option value="">—</option>
+              <option value="remote">Remote</option>
+              <option value="hybrid">Hybrid</option>
+              <option value="on_site">In-person</option>
+            </select>
+          </label>
+          <label class="meta">Location
+            <input type="text" id="app-location" placeholder="City / region (hybrid or in-person)" style="min-width:12rem" />
+          </label>
+        </div>
+        <div class="row">
+          <label class="meta">Pay unit
+            <select id="app-pay-unit">
+              <option value="">—</option>
+              <option value="annual">Annual</option>
+              <option value="hourly">Hourly</option>
+            </select>
+          </label>
+          <label class="meta">Pay min
+            <input type="number" id="app-pay-min" min="0" step="any" placeholder="e.g. 120000" style="width:7rem" />
+          </label>
+          <label class="meta">Pay max
+            <input type="number" id="app-pay-max" min="0" step="any" placeholder="optional" style="width:7rem" />
+          </label>
+        </div>
+        <p class="help">Hourly rates show an estimated yearly equivalent on export (2080 h full-time / 1040 h part-time or internship).</p>
+        <div class="row">
           <label class="meta">Phase
             <select id="app-phase"></select>
           </label>
@@ -356,6 +394,12 @@
     const appCompany = document.getElementById("app-company");
     const appTitle = document.getElementById("app-title");
     const appSource = document.getElementById("app-source");
+    const appEmploymentType = document.getElementById("app-employment-type");
+    const appWorkMode = document.getElementById("app-work-mode");
+    const appLocation = document.getElementById("app-location");
+    const appPayUnit = document.getElementById("app-pay-unit");
+    const appPayMin = document.getElementById("app-pay-min");
+    const appPayMax = document.getElementById("app-pay-max");
     const deleteAppBtn = document.getElementById("delete-app");
     const submitAppBtn = document.getElementById("submit-app");
 
@@ -391,6 +435,50 @@
     let previewDebounce = null;
     let previewRebuildQueued = false;
     let lastPreviewContentHash = null;
+
+    function readCompensationFromDom() {
+      const unit = appPayUnit.value || null;
+      const minRaw = appPayMin.value.trim();
+      const maxRaw = appPayMax.value.trim();
+      const min = minRaw ? Number(minRaw) : null;
+      const max = maxRaw ? Number(maxRaw) : null;
+      if (!unit && min == null && max == null) return {};
+      return { unit, min, max };
+    }
+
+    function fillCompensationFields(comp) {
+      const c = comp || {};
+      appPayUnit.value = c.unit || "";
+      appPayMin.value = c.min != null && c.min !== "" ? c.min : "";
+      appPayMax.value = c.max != null && c.max !== "" ? c.max : "";
+    }
+
+    function fillApplicationMetaFields(app) {
+      appEmploymentType.value = app?.employment_type || "";
+      appWorkMode.value = app?.work_mode || "";
+      appLocation.value = app?.location || "";
+      fillCompensationFields(app?.compensation);
+    }
+
+    function clearApplicationMetaFields() {
+      appEmploymentType.value = "";
+      appWorkMode.value = "";
+      appLocation.value = "";
+      fillCompensationFields({});
+    }
+
+    function applicationMetaPayload() {
+      const employment_type = appEmploymentType.value || null;
+      const work_mode = appWorkMode.value || null;
+      const location = appLocation.value.trim() || null;
+      const compensation = readCompensationFromDom();
+      const body = {};
+      if (employment_type) body.employment_type = employment_type;
+      if (work_mode) body.work_mode = work_mode;
+      if (location) body.location = location;
+      if (Object.keys(compensation).length) body.compensation = compensation;
+      return body;
+    }
 
     function setPreviewPlaceholder(message, visible) {
       placeholder.textContent = message;
@@ -1096,6 +1184,7 @@
       appPostingUrl.value = "";
       appSource.value = "";
       appTagsInput.value = "";
+      clearApplicationMetaFields();
       cloneFromApp.value = "";
       cloneFromPreset.value = "";
       syncDetailWorkflowOptions("draft", false);
@@ -1134,6 +1223,7 @@
       appTitle.value = app.title || "";
       appPostingUrl.value = app.posting_url || "";
       appSource.value = app.source || "";
+      fillApplicationMetaFields(app);
       syncDetailWorkflowOptions(app.phase, app.submissions.length > 0);
       appWorkflowSelect.value = app.status;
       appTagsInput.value = (app.tags || []).join(", ");
@@ -1182,7 +1272,7 @@
 
       let appId = selectedAppId;
       if (!appId) {
-        const createBody = { company, title, tags };
+        const createBody = { company, title, tags, ...applicationMetaPayload() };
         if (url) createBody.posting_url = url;
         if (source) createBody.source = source;
         if (cloneFromApp.value) createBody.clone_from_application_id = cloneFromApp.value;
@@ -1212,6 +1302,7 @@
           tags,
           posting_url: url ? url : null,
           source: source ? source : null,
+          ...applicationMetaPayload(),
           draft_composition,
         }),
       });
@@ -1230,6 +1321,7 @@
       appTitle.value = app.title || "";
       appPostingUrl.value = app.posting_url || "";
       appSource.value = app.source || "";
+      fillApplicationMetaFields(app);
       draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
       await renderCompositionEditor(app.draft_composition);
       await loadApplications();

@@ -246,6 +246,10 @@ async fn main() -> Result<()> {
                             tags: tag,
                             clone_from_application_id: None,
                             clone_from_preset_id: None,
+                            employment_type: None,
+                            work_mode: None,
+                            location: None,
+                            compensation: None,
                         },
                         draft,
                     )?;

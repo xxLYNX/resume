@@ -1,4 +1,5 @@
 mod application;
+mod compensation;
 mod composition;
 mod manifest;
 mod validation;
@@ -9,6 +10,10 @@ pub use application::{
     phase_and_workflow_from_status, validate_application_status, validate_phase_and_workflow,
     InvalidStatus, APPLICATION_PHASES, APPLICATION_STATUSES, DRAFT_WORKFLOW,
     SUBMITTED_WORKFLOWS,
+};
+pub use compensation::{
+    annual_equivalent, format_compensation, validate_application_meta, validate_compensation,
+    ApplicationMetaError, Compensation, EMPLOYMENT_TYPES, PAY_UNITS, WORK_MODES,
 };
 pub use composition::{Composition, CompositionItem, CompositionSection};
 pub use manifest::{

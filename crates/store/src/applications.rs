@@ -4,7 +4,8 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use domain::{
-    validate_phase_and_workflow, Composition, SubmissionManifest, DRAFT_WORKFLOW,
+    validate_application_meta, validate_phase_and_workflow, Compensation, Composition,
+    SubmissionManifest, DRAFT_WORKFLOW,
 };
 use similarity::{rank_similar, RankInput, RankedMatch};
 use rusqlite::{params, OptionalExtension};
@@ -55,6 +56,14 @@ pub struct ApplicationDetail {
     pub phase: String,
     pub status: String,
     pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub employment_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    #[serde(default)]
+    pub compensation: Compensation,
     pub draft_composition: Composition,
     pub created_at: String,
     pub updated_at: String,
@@ -101,6 +110,14 @@ pub struct CreateApplicationRequest {
     /// Copy composition from a saved preset.
     #[serde(default)]
     pub clone_from_preset_id: Option<String>,
+    #[serde(default)]
+    pub employment_type: Option<String>,
+    #[serde(default)]
+    pub work_mode: Option<String>,
+    #[serde(default)]
+    pub location: Option<String>,
+    #[serde(default)]
+    pub compensation: Option<Compensation>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -126,6 +143,14 @@ pub struct UpdateApplicationRequest {
     pub tags: Option<Vec<String>>,
     #[serde(default)]
     pub draft_composition: Option<Composition>,
+    #[serde(default)]
+    pub employment_type: Option<Option<String>>,
+    #[serde(default)]
+    pub work_mode: Option<Option<String>>,
+    #[serde(default)]
+    pub location: Option<Option<String>>,
+    #[serde(default)]
+    pub compensation: Option<Compensation>,
 }
 
 pub const DEFAULT_THEME_ID: &str = "classic";
@@ -262,6 +287,7 @@ impl Store {
         let row = conn
             .query_row(
                 "SELECT id, company, title, posting_url, source, phase, status, tags_json,
+                        employment_type, work_mode, location, compensation_json,
                         draft_composition_json, created_at, updated_at
                  FROM applications WHERE id = ?1",
                 [application_id],
@@ -275,9 +301,13 @@ impl Store {
                         row.get::<_, String>(5)?,
                         row.get::<_, String>(6)?,
                         row.get::<_, String>(7)?,
-                        row.get::<_, String>(8)?,
-                        row.get::<_, String>(9)?,
-                        row.get::<_, String>(10)?,
+                        row.get::<_, Option<String>>(8)?,
+                        row.get::<_, Option<String>>(9)?,
+                        row.get::<_, Option<String>>(10)?,
+                        row.get::<_, String>(11)?,
+                        row.get::<_, String>(12)?,
+                        row.get::<_, String>(13)?,
+                        row.get::<_, String>(14)?,
                     ))
                 },
             )
@@ -291,6 +321,10 @@ impl Store {
             phase,
             status,
             tags_json,
+            employment_type,
+            work_mode,
+            location,
+            compensation_json,
             draft_json,
             created_at,
             updated_at,
@@ -300,6 +334,8 @@ impl Store {
         };
 
         let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+        let compensation: Compensation =
+            serde_json::from_str(&compensation_json).unwrap_or_default();
         let draft_composition: Composition = serde_json::from_str(&draft_json)
             .context("parse draft_composition_json")?;
         let submissions = self.list_submissions_for_app(&id)?;
@@ -313,6 +349,10 @@ impl Store {
             phase,
             status,
             tags,
+            employment_type,
+            work_mode,
+            location,
+            compensation,
             draft_composition,
             created_at,
             updated_at,
@@ -347,12 +387,25 @@ impl Store {
         validate_phase_and_workflow(&phase, &status)?;
         let tags_json = serde_json::to_string(&req.tags)?;
         let draft_json = serde_json::to_string(&draft)?;
+        let employment_type = req.employment_type.clone();
+        let work_mode = req.work_mode.clone();
+        let location = req.location.clone();
+        let compensation = req.compensation.clone().unwrap_or_default();
+        validate_application_meta(
+            employment_type.as_deref(),
+            work_mode.as_deref(),
+            location.as_deref(),
+            &compensation,
+        )
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let compensation_json = serde_json::to_string(&compensation)?;
 
         conn.execute(
             "INSERT INTO applications
              (id, posting_url, company, title, source, phase, status, tags_json,
+              employment_type, work_mode, location, compensation_json,
               draft_composition_json, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             params![
                 id,
                 req.posting_url,
@@ -362,6 +415,10 @@ impl Store {
                 phase,
                 status,
                 tags_json,
+                employment_type,
+                work_mode,
+                location,
+                compensation_json,
                 draft_json,
                 now,
                 now,
@@ -407,16 +464,38 @@ impl Store {
 
         let tags = req.tags.unwrap_or(existing.tags);
         let draft = req.draft_composition.unwrap_or(existing.draft_composition);
+        let employment_type = match req.employment_type {
+            Some(v) => v,
+            None => existing.employment_type,
+        };
+        let work_mode = match req.work_mode {
+            Some(v) => v,
+            None => existing.work_mode,
+        };
+        let location = match req.location {
+            Some(v) => v,
+            None => existing.location,
+        };
+        let compensation = req.compensation.unwrap_or(existing.compensation);
+        validate_application_meta(
+            employment_type.as_deref(),
+            work_mode.as_deref(),
+            location.as_deref(),
+            &compensation,
+        )
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
 
         let now = now_rfc3339();
         let tags_json = serde_json::to_string(&tags)?;
         let draft_json = serde_json::to_string(&draft)?;
+        let compensation_json = serde_json::to_string(&compensation)?;
 
         let conn = self.connection();
         conn.execute(
             "UPDATE applications SET
                 company = ?2, title = ?3, posting_url = ?4, source = ?5, phase = ?6, status = ?7,
-                tags_json = ?8, draft_composition_json = ?9, updated_at = ?10
+                tags_json = ?8, employment_type = ?9, work_mode = ?10, location = ?11,
+                compensation_json = ?12, draft_composition_json = ?13, updated_at = ?14
              WHERE id = ?1",
             params![
                 application_id,
@@ -427,6 +506,10 @@ impl Store {
                 phase,
                 status,
                 tags_json,
+                employment_type,
+                work_mode,
+                location,
+                compensation_json,
                 draft_json,
                 now,
             ],

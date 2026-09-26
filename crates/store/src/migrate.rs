@@ -82,8 +82,18 @@ pub fn migrate(conn: &Connection) -> Result<()> {
         ",
     )?;
 
+    add_column_if_missing(conn, "applications", "employment_type", "TEXT")?;
+    add_column_if_missing(conn, "applications", "work_mode", "TEXT")?;
+    add_column_if_missing(conn, "applications", "location", "TEXT")?;
+    add_column_if_missing(
+        conn,
+        "applications",
+        "compensation_json",
+        "TEXT NOT NULL DEFAULT '{}'",
+    )?;
+
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '5')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '6')",
         [],
     )?;
     Ok(())
