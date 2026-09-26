@@ -277,14 +277,13 @@
             <select id="app-workflow"></select>
           </label>
           <input type="text" id="app-tags" placeholder="tags (comma-separated)" style="flex:1;min-width:10rem" />
-          <button type="button" id="save-app-meta">Save</button>
+          <button type="button" id="save-app">Save</button>
           <button type="button" id="delete-app">Delete</button>
         </div>
         <p class="meta hidden" id="similar-hint"></p>
         <ul id="similar-list" class="meta"></ul>
-        <p class="help"><strong>Save</strong> updates tracker fields only. <strong>Save composition</strong> stores section pins below. <strong>Submit</strong> freezes a manifest (does not replace Save).</p>
+        <p class="help"><strong>Save</strong> stores tracker fields and resume content below. <strong>Submit</strong> freezes a manifest (what you sent); it does not replace Save.</p>
         <div class="row">
-          <button type="button" id="save-draft">Save composition</button>
           <button type="button" id="reset-draft">Reset to catalog default</button>
           <button type="button" id="submit-app">Submit (freeze manifest)</button>
         </div>
@@ -1070,8 +1069,16 @@
       return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
     }
 
-    document.getElementById("save-app-meta").addEventListener("click", async () => {
+    document.getElementById("save-app").addEventListener("click", async () => {
       if (!selectedAppId) return;
+      notifyCompositionChanged();
+      let draft_composition;
+      try {
+        draft_composition = compositionFromEditorDom();
+      } catch (e) {
+        appsStatus.textContent = "Invalid composition: " + e.message;
+        return;
+      }
       const tags = appTagsInput.value
         .split(",")
         .map((t) => t.trim())
@@ -1089,6 +1096,7 @@
           tags,
           posting_url: url ? url : null,
           source: source ? source : null,
+          draft_composition,
         }),
       });
       const app = await res.json();
@@ -1102,7 +1110,10 @@
       appTitle.value = app.title || "";
       appPostingUrl.value = app.posting_url || "";
       appSource.value = app.source || "";
+      draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
+      await renderCompositionEditor(app.draft_composition);
       await loadApplications();
+      await rebuild();
     });
 
     deleteAppBtn.addEventListener("click", async () => {
@@ -1186,32 +1197,6 @@
       }
       await loadApplications();
       await selectApplication(app.id);
-    });
-
-    document.getElementById("save-draft").addEventListener("click", async () => {
-      if (!selectedAppId) return;
-      notifyCompositionChanged();
-      let draft_composition;
-      try {
-        draft_composition = compositionFromEditorDom();
-      } catch (e) {
-        appsStatus.textContent = "Invalid composition: " + e.message;
-        return;
-      }
-      const res = await fetch(`/api/applications/${encodeURIComponent(selectedAppId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft_composition }),
-      });
-      const app = await res.json();
-      if (!res.ok) {
-        appsStatus.textContent = app.error || "Save failed";
-        return;
-      }
-      appsStatus.textContent = "Composition saved";
-      draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
-      await renderCompositionEditor(app.draft_composition);
-      await rebuild();
     });
 
     document.getElementById("reset-draft").addEventListener("click", async () => {

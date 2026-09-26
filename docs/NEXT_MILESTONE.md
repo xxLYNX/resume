@@ -26,9 +26,10 @@ Creating new catalog elements stays in the **Catalog** tab / `import`, not in th
 
 Saved compositions without a posting row; clone to a new application or quickfill.
 
-## Save UX (open)
+## Save UX
 
-Three actions today: **Save** (tracker fields), **Save composition** (draft pins), **Submit** (manifest). Help text exists; optional merge/stricter phase rules TBD — discuss before changing.
+- [x] Single **Save** — tracker fields + content picker composition in one PATCH.
+- [ ] Stricter phase/pipeline rules in UI before first manifest (optional).
 
 ## E completion checklist
 
@@ -37,7 +38,7 @@ Three actions today: **Save** (tracker fields), **Save composition** (draft pins
 - [x] Structured catalog fields + JSON toggle
 - [x] Application content picker (section + element toggles, live draft preview)
 - [ ] **Submission history** UI — list manifests per app; open any past send (today: latest canonical only in preview)
-- [ ] Remaining **Save / phase** polish (if any)
+- [ ] Optional **phase / pipeline** UI polish (if any)
 - [ ] Smoke-tested `serve` end-to-end
 
 **Dropped for jobdesk-only workflow:** file watch on repo `content/`. Canonical data is the DB; use **Catalog** / **`import`** / **`export`** instead of watching seed YAML.

@@ -171,7 +171,7 @@ Prep: [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md). Implement on a **dev b
 - [x] Catalog structured forms from `theme.toml` metadata (JSON toggle remains)
 - [x] Presets (saved compositions without a job row)
 - [ ] Submission history UI per application
-- [x] Application Save UX — help text (Save vs composition vs Submit); optional further merge of actions TBD
+- [x] Application Save UX — one **Save** for tracker + composition; **Submit** freezes manifest
 
 ---
 
