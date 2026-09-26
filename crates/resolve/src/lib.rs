@@ -1,3 +1,5 @@
+mod normalize;
+
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
@@ -49,7 +51,10 @@ pub fn resolve_composition(store: &Store, composition: &Composition) -> Result<R
 
     for section in &composition.sections {
         let payloads = load_item_payloads(store, &section.items)?;
-        let ctx = section_context(&section.section_key, payloads)?;
+        let ctx = normalize::normalize_section_value(
+            &section.section_key,
+            section_context(&section.section_key, payloads)?,
+        );
         out.insert(section.section_key.clone(), ctx);
     }
 
