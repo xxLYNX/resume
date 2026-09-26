@@ -130,18 +130,9 @@
     #app-list li.active { background: color-mix(in srgb, var(--accent) 25%, transparent); font-weight: 600; }
     #draft-composition { min-height: 8rem; font-family: ui-monospace, monospace; font-size: 0.75rem; width: 100%; }
     .hidden { display: none !important; }
-    .app-beta-panel {
-      margin: 0.5rem 0;
-      padding: 0.75rem;
-      border: 1px dashed var(--accent);
-      border-radius: 6px;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .app-beta-panel[hidden] { display: none !important; }
-    .app-beta-panel label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
     #delete-app { color: var(--err); margin-left: auto; }
+    #close-app-detail { margin-right: auto; }
+    .detail-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.35rem; }
     #payload-form label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; margin-bottom: 0.5rem; }
     #payload-form input, #payload-form textarea { font-size: 0.85rem; padding: 0.25rem; }
     .composition-section { border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; margin-bottom: 0.5rem; }
@@ -166,10 +157,10 @@
       <button type="button" id="tab-apps" role="tab">Applications</button>
       <button type="button" id="tab-presets" role="tab">Presets</button>
     </div>
-    <label class="meta hidden" id="preview-mode-wrap">Preview
+    <label class="meta hidden" id="preview-mode-wrap" title="Which resume snapshot drives the PDF on the right">Preview
       <select id="preview-mode">
-        <option value="draft">Application draft</option>
-        <option value="submitted">As submitted</option>
+        <option value="draft">Current draft</option>
+        <option value="submitted">Last submit</option>
       </select>
     </label>
     <button type="button" id="rebuild">Rebuild preview</button>
@@ -228,35 +219,26 @@
         <input type="text" id="app-tag-filter" placeholder="Tag filter" />
         <button type="button" id="reload-apps">Apply filters</button>
       </div>
-      <div class="row">
-        <input type="text" id="new-company" placeholder="Company" />
-        <input type="text" id="new-title" placeholder="Title" />
-        <input type="url" id="new-posting-url" placeholder="Posting URL (optional)" style="flex:1;min-width:12rem" />
-        <label class="meta">Clone draft from
-          <select id="clone-from-app"><option value="">Catalog default</option></select>
-        </label>
-        <label class="meta">Or preset
-          <select id="clone-from-preset"><option value="">—</option></select>
-        </label>
-        <button type="button" id="create-app">New application</button>
-        <button type="button" id="toggle-app-beta">Application-Beta</button>
+      <div class="row" id="app-list-toolbar">
+        <button type="button" id="new-app">New application</button>
       </div>
-      <div id="app-beta-panel" class="app-beta-panel" hidden>
-        <p class="meta">Prototype: create flow in a panel (current row above unchanged).</p>
-        <label>Company <input type="text" id="beta-company" /></label>
-        <label>Title <input type="text" id="beta-title" /></label>
-        <label>Posting URL <input type="url" id="beta-posting-url" placeholder="https://…" /></label>
-        <label>Source <input type="text" id="beta-source" placeholder="LinkedIn, referral, …" /></label>
-        <label>Tags (comma-separated) <input type="text" id="beta-tags" /></label>
-        <label>Clone draft from
-          <select id="beta-clone-from"><option value="">Catalog default</option></select>
-        </label>
-        <button type="button" id="create-app-beta">Create application</button>
+      <div id="app-list-body">
+        <p class="meta" id="apps-status">Loading…</p>
+        <ul id="app-list"></ul>
       </div>
-      <p class="meta" id="apps-status">Loading…</p>
-      <ul id="app-list"></ul>
       <div id="app-detail" class="hidden">
-        <p class="meta" id="app-meta"></p>
+        <div class="detail-head">
+          <button type="button" id="close-app-detail">Close</button>
+          <p class="meta" id="app-meta" style="margin:0"></p>
+        </div>
+        <div class="row hidden" id="app-create-clone-row">
+          <label class="meta">Start content from
+            <select id="clone-from-app"><option value="">Catalog default</option></select>
+          </label>
+          <label class="meta">Or preset
+            <select id="clone-from-preset"><option value="">—</option></select>
+          </label>
+        </div>
         <label class="meta">Company
           <input type="text" id="app-company" style="width:100%;margin-top:0.25rem" />
         </label>
@@ -336,6 +318,9 @@
     const panelApps = document.getElementById("panel-apps");
     const appsStatus = document.getElementById("apps-status");
     const appList = document.getElementById("app-list");
+    const appListBody = document.getElementById("app-list-body");
+    const appListToolbar = document.getElementById("app-list-toolbar");
+    const appCreateCloneRow = document.getElementById("app-create-clone-row");
     const appDetail = document.getElementById("app-detail");
     const appMeta = document.getElementById("app-meta");
     const draftEditor = document.getElementById("draft-composition");
@@ -353,13 +338,11 @@
     const similarList = document.getElementById("similar-list");
     const cloneFromApp = document.getElementById("clone-from-app");
     const appPostingUrl = document.getElementById("app-posting-url");
-    const newPostingUrl = document.getElementById("new-posting-url");
     const appCompany = document.getElementById("app-company");
     const appTitle = document.getElementById("app-title");
     const appSource = document.getElementById("app-source");
     const deleteAppBtn = document.getElementById("delete-app");
-    const appBetaPanel = document.getElementById("app-beta-panel");
-    const betaCloneFrom = document.getElementById("beta-clone-from");
+    const submitAppBtn = document.getElementById("submit-app");
 
     let building = false;
     let lifecycleMeta = { phases: [], draft_workflow: "draft", submitted_workflows: [] };
@@ -957,7 +940,6 @@
       appsStatus.textContent = "Loading…";
       appList.innerHTML = "";
       cloneFromApp.innerHTML = '<option value="">Catalog default</option>';
-      betaCloneFrom.innerHTML = '<option value="">Catalog default</option>';
       try {
         const res = await fetch(appsQueryUrl());
         const data = await res.json();
@@ -978,8 +960,6 @@
           opt.value = app.id;
           opt.textContent = `${app.company} — ${app.title}`;
           cloneFromApp.appendChild(opt);
-          const betaOpt = opt.cloneNode(true);
-          betaCloneFrom.appendChild(betaOpt);
         }
       } catch (e) {
         appsStatus.textContent = String(e);
@@ -1028,8 +1008,85 @@
       await rebuild();
     }
 
+    function isCreateMode() {
+      return !appDetail.classList.contains("hidden") && selectedAppId === null;
+    }
+
+    function setAppsListVisible(visible) {
+      appListBody.classList.toggle("hidden", !visible);
+      appListToolbar.classList.toggle("hidden", !visible);
+    }
+
+    function closeApplicationDetail() {
+      selectedAppId = null;
+      appDetail.classList.add("hidden");
+      appCreateCloneRow.classList.add("hidden");
+      setAppsListVisible(true);
+      previewModeWrap.classList.add("hidden");
+      for (const li of appList.querySelectorAll("li")) li.classList.remove("active");
+      rebuild();
+    }
+
+    async function applyCreateCloneSource() {
+      if (!isCreateMode()) return;
+      let composition;
+      try {
+        if (cloneFromApp.value) {
+          const res = await fetch(
+            `/api/applications/${encodeURIComponent(cloneFromApp.value)}`
+          );
+          const app = await res.json();
+          if (!res.ok) throw new Error(app.error || "Load failed");
+          composition = app.draft_composition;
+        } else if (cloneFromPreset.value) {
+          const res = await fetch(`/api/presets/${encodeURIComponent(cloneFromPreset.value)}`);
+          const preset = await res.json();
+          if (!res.ok) throw new Error(preset.error || "Load failed");
+          composition = preset.composition;
+        } else {
+          composition = await fetchDefaultComposition();
+        }
+        draftEditor.value = JSON.stringify(composition, null, 2);
+        await renderCompositionEditor(composition);
+      } catch (e) {
+        appsStatus.textContent = String(e);
+      }
+    }
+
+    async function openNewApplicationForm() {
+      selectedAppId = null;
+      setAppsListVisible(false);
+      appDetail.classList.remove("hidden");
+      appCreateCloneRow.classList.remove("hidden");
+      previewModeWrap.classList.add("hidden");
+      appMeta.textContent = "New application — posting details and resume content below";
+      appCompany.value = "";
+      appTitle.value = "";
+      appPostingUrl.value = "";
+      appSource.value = "";
+      appTagsInput.value = "";
+      cloneFromApp.value = "";
+      cloneFromPreset.value = "";
+      syncDetailWorkflowOptions("draft", false);
+      appWorkflowSelect.value = lifecycleMeta.draft_workflow || "draft";
+      similarHint.classList.add("hidden");
+      similarList.innerHTML = "";
+      deleteAppBtn.classList.add("hidden");
+      submitAppBtn.classList.add("hidden");
+      draftWarn.classList.add("hidden");
+      const composition = await fetchDefaultComposition();
+      draftEditor.value = JSON.stringify(composition, null, 2);
+      await refreshCatalogByKind();
+      await renderCompositionEditor(composition);
+      await rebuild();
+    }
+
     async function selectApplication(id) {
       selectedAppId = id;
+      setAppsListVisible(false);
+      appCreateCloneRow.classList.add("hidden");
+      deleteAppBtn.classList.remove("hidden");
+      submitAppBtn.classList.remove("hidden");
       previewModeWrap.classList.remove("hidden");
       for (const li of appList.querySelectorAll("li")) {
         li.classList.toggle("active", li.dataset.id === id);
@@ -1070,7 +1127,7 @@
     }
 
     document.getElementById("save-app").addEventListener("click", async () => {
-      if (!selectedAppId) return;
+      if (!selectedAppId && appDetail.classList.contains("hidden")) return;
       notifyCompositionChanged();
       let draft_composition;
       try {
@@ -1085,12 +1142,40 @@
         .filter(Boolean);
       const url = appPostingUrl.value.trim();
       const source = appSource.value.trim();
-      const res = await fetch(`/api/applications/${encodeURIComponent(selectedAppId)}`, {
+      const company = appCompany.value.trim();
+      const title = appTitle.value.trim();
+      if (!company || !title) {
+        appsStatus.textContent = "Company and title required";
+        return;
+      }
+
+      let appId = selectedAppId;
+      if (!appId) {
+        const createBody = { company, title, tags };
+        if (url) createBody.posting_url = url;
+        if (source) createBody.source = source;
+        if (cloneFromApp.value) createBody.clone_from_application_id = cloneFromApp.value;
+        if (cloneFromPreset.value) createBody.clone_from_preset_id = cloneFromPreset.value;
+        const createRes = await fetch("/api/applications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(createBody),
+        });
+        const created = await createRes.json();
+        if (!createRes.ok) {
+          appsStatus.textContent = created.error || "Create failed";
+          return;
+        }
+        appId = created.id;
+        selectedAppId = appId;
+      }
+
+      const res = await fetch(`/api/applications/${encodeURIComponent(appId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          company: appCompany.value.trim(),
-          title: appTitle.value.trim(),
+          company,
+          title,
           phase: appPhaseSelect.value,
           status: appWorkflowSelect.value,
           tags,
@@ -1105,6 +1190,10 @@
         return;
       }
       appsStatus.textContent = "Saved";
+      appCreateCloneRow.classList.add("hidden");
+      deleteAppBtn.classList.remove("hidden");
+      submitAppBtn.classList.remove("hidden");
+      previewModeWrap.classList.remove("hidden");
       renderAppMeta(app);
       appCompany.value = app.company || "";
       appTitle.value = app.title || "";
@@ -1113,6 +1202,10 @@
       draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
       await renderCompositionEditor(app.draft_composition);
       await loadApplications();
+      for (const li of appList.querySelectorAll("li")) {
+        li.classList.toggle("active", li.dataset.id === appId);
+      }
+      await loadSimilar(appId);
       await rebuild();
     });
 
@@ -1128,75 +1221,27 @@
         appsStatus.textContent = data.error || "Delete failed";
         return;
       }
-      selectedAppId = null;
-      appDetail.classList.add("hidden");
-      previewModeWrap.classList.add("hidden");
+      closeApplicationDetail();
       appsStatus.textContent = "Application deleted";
       await loadApplications();
       await rebuild();
     });
 
-    document.getElementById("toggle-app-beta").addEventListener("click", () => {
-      appBetaPanel.hidden = !appBetaPanel.hidden;
+    document.getElementById("new-app").addEventListener("click", () => {
+      openNewApplicationForm();
     });
 
-    document.getElementById("create-app-beta").addEventListener("click", async () => {
-      const company = document.getElementById("beta-company").value.trim();
-      const title = document.getElementById("beta-title").value.trim();
-      if (!company || !title) {
-        appsStatus.textContent = "Company and title required";
-        return;
-      }
-      const body = { company, title };
-      const postingUrl = document.getElementById("beta-posting-url").value.trim();
-      const source = document.getElementById("beta-source").value.trim();
-      const tags = document.getElementById("beta-tags").value
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-      if (postingUrl) body.posting_url = postingUrl;
-      if (source) body.source = source;
-      if (tags.length) body.tags = tags;
-      if (betaCloneFrom.value) body.clone_from_application_id = betaCloneFrom.value;
-      const res = await fetch("/api/applications", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const app = await res.json();
-      if (!res.ok) {
-        appsStatus.textContent = app.error || "Create failed";
-        return;
-      }
-      appBetaPanel.hidden = true;
-      await loadApplications();
-      await selectApplication(app.id);
+    document.getElementById("close-app-detail").addEventListener("click", () => {
+      closeApplicationDetail();
     });
 
-    document.getElementById("create-app").addEventListener("click", async () => {
-      const company = document.getElementById("new-company").value.trim();
-      const title = document.getElementById("new-title").value.trim();
-      if (!company || !title) {
-        appsStatus.textContent = "Company and title required";
-        return;
-      }
-      const body = { company, title };
-      const postingUrl = newPostingUrl.value.trim();
-      if (postingUrl) body.posting_url = postingUrl;
-      if (cloneFromApp.value) body.clone_from_application_id = cloneFromApp.value;
-      if (cloneFromPreset.value) body.clone_from_preset_id = cloneFromPreset.value;
-      const res = await fetch("/api/applications", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const app = await res.json();
-      if (!res.ok) {
-        appsStatus.textContent = app.error || "Create failed";
-        return;
-      }
-      await loadApplications();
-      await selectApplication(app.id);
+    cloneFromApp.addEventListener("change", () => {
+      cloneFromPreset.value = "";
+      applyCreateCloneSource();
+    });
+    cloneFromPreset.addEventListener("change", () => {
+      cloneFromApp.value = "";
+      applyCreateCloneSource();
     });
 
     document.getElementById("reset-draft").addEventListener("click", async () => {
