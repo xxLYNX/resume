@@ -9,6 +9,7 @@ members = [
     "crates/server",
     "crates/resolve",
     "crates/similarity",
+    "crates/theme",
 ]
 
 [workspace.package]
@@ -36,4 +37,5 @@ thiserror = "2"
 server = { path = "crates/server" }
 similarity = { path = "crates/similarity" }
 store = { path = "crates/store" }
+theme = { path = "crates/theme" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

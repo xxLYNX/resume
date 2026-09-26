@@ -98,6 +98,9 @@ pub struct CreateApplicationRequest {
     /// Copy draft composition from an existing application instead of catalog default.
     #[serde(default)]
     pub clone_from_application_id: Option<String>,
+    /// Copy composition from a saved preset.
+    #[serde(default)]
+    pub clone_from_preset_id: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]

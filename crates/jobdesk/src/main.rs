@@ -245,6 +245,7 @@ async fn main() -> Result<()> {
                             status,
                             tags: tag,
                             clone_from_application_id: None,
+                            clone_from_preset_id: None,
                         },
                         draft,
                     )?;
@@ -303,11 +304,17 @@ async fn main() -> Result<()> {
                     for (k, v) in resolved_map {
                         resolved.insert(k, v);
                     }
+                    let snap_dir = workspace.join("artifacts/theme_snapshots");
+                    let theme_files_hash = theme::ensure_theme_snapshot(
+                        &root,
+                        DEFAULT_THEME_ID,
+                        &snap_dir,
+                    )?;
                     let sub = store.submit_application(
                         &id,
                         &workspace,
                         DEFAULT_THEME_ID,
-                        None,
+                        Some(theme_files_hash),
                         &app.draft_composition,
                         resolved,
                     )?;

@@ -142,6 +142,16 @@
     .app-beta-panel[hidden] { display: none !important; }
     .app-beta-panel label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
     #delete-app { color: var(--err); margin-left: auto; }
+    #payload-form label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; margin-bottom: 0.5rem; }
+    #payload-form input, #payload-form textarea { font-size: 0.85rem; padding: 0.25rem; }
+    .composition-section { border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; margin-bottom: 0.5rem; }
+    .composition-section h4 { margin: 0 0 0.35rem; font-size: 0.85rem; text-transform: capitalize; }
+    .comp-row { display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.35rem; font-size: 0.8rem; }
+    .comp-row select { max-width: 12rem; font-size: 0.8rem; }
+    #preset-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 4px; max-height: 10rem; overflow: auto; }
+    #preset-list li { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.85rem; }
+    #preset-list li.active { background: color-mix(in srgb, var(--accent) 25%, transparent); font-weight: 600; }
+    .help { font-size: 0.8rem; color: var(--muted); margin: 0.25rem 0; }
   </style>
 </head>
 <body>
@@ -150,6 +160,7 @@
     <div class="tabs" role="tablist">
       <button type="button" id="tab-catalog" class="active" role="tab">Catalog</button>
       <button type="button" id="tab-apps" role="tab">Applications</button>
+      <button type="button" id="tab-presets" role="tab">Presets</button>
     </div>
     <label class="meta hidden" id="preview-mode-wrap">Preview
       <select id="preview-mode">
@@ -183,7 +194,9 @@
           <select id="revision-select" disabled></select>
         </label>
         <button type="button" id="save-revision" disabled>Save as new revision</button>
+        <label class="meta"><input type="checkbox" id="catalog-json-mode" /> Edit as JSON</label>
       </div>
+      <div id="payload-form" hidden></div>
       <textarea id="payload-editor" spellcheck="false" placeholder="Select an element…" disabled></textarea>
       <p class="meta">Preview builds from SQLite (resolve pipeline). Export YAML to <code>workspace/staging/content/</code> via CLI; repo <code>content/</code> is import seed only.</p>
       <details>
@@ -217,6 +230,9 @@
         <input type="url" id="new-posting-url" placeholder="Posting URL (optional)" style="flex:1;min-width:12rem" />
         <label class="meta">Clone draft from
           <select id="clone-from-app"><option value="">Catalog default</option></select>
+        </label>
+        <label class="meta">Or preset
+          <select id="clone-from-preset"><option value="">—</option></select>
         </label>
         <button type="button" id="create-app">New application</button>
         <button type="button" id="toggle-app-beta">Application-Beta</button>
@@ -262,15 +278,32 @@
         </div>
         <p class="meta hidden" id="similar-hint"></p>
         <ul id="similar-list" class="meta"></ul>
+        <p class="help"><strong>Save</strong> updates tracker fields only. <strong>Save composition</strong> stores section pins below. <strong>Submit</strong> freezes a manifest (does not replace Save).</p>
         <div class="row">
-          <button type="button" id="save-draft">Save draft composition</button>
-          <button type="button" id="reset-draft">Reset draft to catalog default</button>
+          <button type="button" id="save-draft">Save composition</button>
+          <button type="button" id="reset-draft">Reset to catalog default</button>
           <button type="button" id="submit-app">Submit (freeze manifest)</button>
         </div>
         <p class="warn hidden" id="draft-warn">Draft differs from last submission.</p>
-        <label class="meta">Draft composition (JSON)
+        <div id="composition-editor" class="meta">Select an application to edit composition.</div>
+        <details>
+          <summary class="meta">Draft composition (JSON)</summary>
           <textarea id="draft-composition" spellcheck="false"></textarea>
-        </label>
+        </details>
+      </div>
+    </section>
+    <section class="panel hidden" id="panel-presets" aria-label="Presets">
+      <p class="meta">Saved compositions (no posting row). Clone into a new application from the Applications tab.</p>
+      <div class="row">
+        <input type="text" id="new-preset-name" placeholder="Preset name" style="flex:1" />
+        <button type="button" id="save-preset-from-default">Save catalog default as preset</button>
+      </div>
+      <p class="meta" id="presets-status">Loading…</p>
+      <ul id="preset-list"></ul>
+      <div id="preset-detail" class="hidden">
+        <p class="meta" id="preset-meta"></p>
+        <button type="button" id="delete-preset">Delete preset</button>
+        <button type="button" id="update-preset-composition">Update preset from catalog default</button>
       </div>
     </section>
     <section class="panel preview" aria-label="PDF preview">
@@ -329,6 +362,17 @@
     let selectedElementId = null;
     let revisionMap = new Map();
     let selectedAppId = null;
+    let themeInfo = null;
+    let catalogByKind = {};
+    let elementDetailCache = new Map();
+    let selectedPresetId = null;
+    let currentFieldSchema = [];
+    const payloadForm = document.getElementById("payload-form");
+    const catalogJsonMode = document.getElementById("catalog-json-mode");
+    const compositionEditor = document.getElementById("composition-editor");
+    const tabPresets = document.getElementById("tab-presets");
+    const panelPresets = document.getElementById("panel-presets");
+    const cloneFromPreset = document.getElementById("clone-from-preset");
 
     function previewBody() {
       const body = {};
@@ -388,6 +432,273 @@
       }
     }
 
+    async function loadThemeInfo() {
+      const res = await fetch("/api/themes/classic");
+      if (res.ok) themeInfo = await res.json();
+    }
+
+    async function refreshCatalogByKind() {
+      catalogByKind = {};
+      for (const kind of ["header", "objective", "education", "experience", "project", "skills"]) {
+        const res = await fetch(`/api/catalog/elements?kind=${encodeURIComponent(kind)}`);
+        if (res.ok) catalogByKind[kind] = await res.json();
+      }
+    }
+
+    async function getElementDetail(id) {
+      if (elementDetailCache.has(id)) return elementDetailCache.get(id);
+      const res = await fetch(`/api/catalog/elements/${encodeURIComponent(id)}`);
+      const detail = await res.json();
+      if (res.ok) elementDetailCache.set(id, detail);
+      return detail;
+    }
+
+    function getNested(obj, path) {
+      const parts = path.split(".");
+      let cur = obj;
+      for (const p of parts) {
+        if (cur == null) return undefined;
+        cur = cur[p];
+      }
+      return cur;
+    }
+
+    function setNested(obj, path, value) {
+      const parts = path.split(".");
+      let cur = obj;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const p = parts[i];
+        if (typeof cur[p] !== "object" || cur[p] === null) cur[p] = {};
+        cur = cur[p];
+      }
+      cur[parts[parts.length - 1]] = value;
+    }
+
+    function payloadFromForm() {
+      const payload = {};
+      for (const field of currentFieldSchema) {
+        const el = payloadForm.querySelector(`[data-field-key="${field.key}"]`);
+        if (!el) continue;
+        if (field.field_type === "string_list") {
+          const lines = el.value.split("\n").map((s) => s.trim()).filter(Boolean);
+          if (lines.length) setNested(payload, field.key, lines);
+        } else if (field.field_type === "text" || field.field_type === "string") {
+          const v = el.value.trim();
+          if (v) setNested(payload, field.key, v);
+        }
+      }
+      return payload;
+    }
+
+    async function renderPayloadForm(kind, payload) {
+      currentFieldSchema = [];
+      payloadForm.innerHTML = "";
+      const res = await fetch(`/api/catalog/field-schema?kind=${encodeURIComponent(kind)}`);
+      if (!res.ok) return;
+      currentFieldSchema = await res.json();
+      for (const field of currentFieldSchema) {
+        const label = document.createElement("label");
+        label.textContent = field.label + (field.optional ? " (optional)" : "");
+        let input;
+        if (field.field_type === "string_list") {
+          input = document.createElement("textarea");
+          input.rows = 4;
+          const val = getNested(payload, field.key);
+          input.value = Array.isArray(val) ? val.join("\n") : "";
+        } else if (field.field_type === "text") {
+          input = document.createElement("textarea");
+          input.rows = 3;
+          input.value = getNested(payload, field.key) || "";
+        } else {
+          input = document.createElement("input");
+          input.type = "text";
+          input.value = getNested(payload, field.key) || "";
+        }
+        input.dataset.fieldKey = field.key;
+        label.appendChild(input);
+        payloadForm.appendChild(label);
+      }
+    }
+
+    function syncCatalogEditorVisibility() {
+      const json = catalogJsonMode.checked;
+      payloadEditor.hidden = !json;
+      payloadForm.hidden = json;
+    }
+
+    catalogJsonMode.addEventListener("change", syncCatalogEditorVisibility);
+
+    function sectionOrder() {
+      if (!themeInfo || !themeInfo.sections) {
+        return ["header", "objective", "education", "experience", "projects", "skills"];
+      }
+      return Object.keys(themeInfo.sections);
+    }
+
+    function kindForSection(sectionKey) {
+      if (themeInfo?.sections?.[sectionKey]?.element_kind) {
+        return themeInfo.sections[sectionKey].element_kind;
+      }
+      return sectionKey === "projects" ? "project" : sectionKey;
+    }
+
+    function compositionFromEditorDom() {
+      const sections = [];
+      for (const sectionKey of sectionOrder()) {
+        const block = compositionEditor.querySelector(`[data-section="${sectionKey}"]`);
+        if (!block) continue;
+        const items = [];
+        for (const row of block.querySelectorAll(".comp-row")) {
+          const elementId = row.querySelector(".comp-element")?.value;
+          const revisionId = row.querySelector(".comp-revision")?.value;
+          if (elementId && revisionId) {
+            items.push({ element_id: elementId, revision_id: revisionId });
+          }
+        }
+        if (items.length) sections.push({ section_key: sectionKey, items });
+      }
+      return { sections };
+    }
+
+    async function fillRevisionSelect(select, elementId, selectedRevId) {
+      select.innerHTML = "";
+      const detail = await getElementDetail(elementId);
+      if (!detail?.revisions) return;
+      for (const rev of detail.revisions) {
+        const opt = document.createElement("option");
+        opt.value = rev.id;
+        opt.textContent = `rev ${rev.rev_number}`;
+        select.appendChild(opt);
+      }
+      if (selectedRevId && [...select.options].some((o) => o.value === selectedRevId)) {
+        select.value = selectedRevId;
+      } else if (detail.latest) {
+        select.value = detail.latest.id;
+      }
+    }
+
+    async function renderCompositionEditor(composition) {
+      compositionEditor.innerHTML = "";
+      const compSections = new Map((composition?.sections || []).map((s) => [s.section_key, s.items || []]));
+      for (const sectionKey of sectionOrder()) {
+        const wrap = document.createElement("div");
+        wrap.className = "composition-section";
+        wrap.dataset.section = sectionKey;
+        const h = document.createElement("h4");
+        h.textContent = sectionKey.replace(/_/g, " ");
+        wrap.appendChild(h);
+        const items = compSections.get(sectionKey) || [];
+        const kind = kindForSection(sectionKey);
+        const rowsHost = document.createElement("div");
+        rowsHost.className = "comp-rows";
+        wrap.appendChild(rowsHost);
+
+        async function addRow(item) {
+          const row = document.createElement("div");
+          row.className = "comp-row";
+          const elSel = document.createElement("select");
+          elSel.className = "comp-element";
+          for (const el of catalogByKind[kind] || []) {
+            const opt = document.createElement("option");
+            opt.value = el.id;
+            opt.textContent = el.id;
+            elSel.appendChild(opt);
+          }
+          const revSel = document.createElement("select");
+          revSel.className = "comp-revision";
+          const up = document.createElement("button");
+          up.type = "button";
+          up.textContent = "↑";
+          const down = document.createElement("button");
+          down.type = "button";
+          down.textContent = "↓";
+          const rm = document.createElement("button");
+          rm.type = "button";
+          rm.textContent = "Remove";
+          row.append(elSel, revSel, up, down, rm);
+          rowsHost.appendChild(row);
+          if (item?.element_id) elSel.value = item.element_id;
+          elSel.addEventListener("change", () => fillRevisionSelect(revSel, elSel.value));
+          await fillRevisionSelect(revSel, elSel.value, item?.revision_id);
+          up.addEventListener("click", () => {
+            const prev = row.previousElementSibling;
+            if (prev) rowsHost.insertBefore(row, prev);
+            syncCompositionToTextarea();
+          });
+          down.addEventListener("click", () => {
+            const next = row.nextElementSibling;
+            if (next) rowsHost.insertBefore(next, row);
+            syncCompositionToTextarea();
+          });
+          rm.addEventListener("click", () => {
+            row.remove();
+            syncCompositionToTextarea();
+          });
+          elSel.addEventListener("change", syncCompositionToTextarea);
+          revSel.addEventListener("change", syncCompositionToTextarea);
+        }
+
+        for (const item of items) await addRow(item);
+        if (!items.length && (catalogByKind[kind] || []).length) {
+          await addRow(null);
+        }
+
+        const addBtn = document.createElement("button");
+        addBtn.type = "button";
+        addBtn.textContent = "Add row";
+        addBtn.addEventListener("click", async () => {
+          await addRow(null);
+          syncCompositionToTextarea();
+        });
+        wrap.appendChild(addBtn);
+        compositionEditor.appendChild(wrap);
+      }
+    }
+
+    function syncCompositionToTextarea() {
+      draftEditor.value = JSON.stringify(compositionFromEditorDom(), null, 2);
+    }
+
+    async function loadPresets() {
+      const status = document.getElementById("presets-status");
+      const list = document.getElementById("preset-list");
+      status.textContent = "Loading…";
+      list.innerHTML = "";
+      cloneFromPreset.innerHTML = '<option value="">—</option>';
+      try {
+        const res = await fetch("/api/presets");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed");
+        status.textContent = `${data.length} preset(s)`;
+        for (const p of data) {
+          const li = document.createElement("li");
+          li.textContent = p.name;
+          li.dataset.id = p.id;
+          li.addEventListener("click", () => selectPreset(p.id));
+          list.appendChild(li);
+          const opt = document.createElement("option");
+          opt.value = p.id;
+          opt.textContent = p.name;
+          cloneFromPreset.appendChild(opt);
+        }
+      } catch (e) {
+        status.textContent = String(e);
+      }
+    }
+
+    async function selectPreset(id) {
+      selectedPresetId = id;
+      for (const li of document.getElementById("preset-list").querySelectorAll("li")) {
+        li.classList.toggle("active", li.dataset.id === id);
+      }
+      const res = await fetch(`/api/presets/${encodeURIComponent(id)}`);
+      const preset = await res.json();
+      if (!res.ok) return;
+      document.getElementById("preset-detail").classList.remove("hidden");
+      document.getElementById("preset-meta").textContent =
+        `${preset.name} · theme ${preset.theme_id} · updated ${preset.updated_at.slice(0, 19)}`;
+    }
+
     async function loadCatalog() {
       catalogStatus.classList.remove("error");
       catalogStatus.textContent = "Loading…";
@@ -443,6 +754,8 @@
       if (detail.latest) {
         revisionSelect.value = detail.latest.id;
         setEditorPayload(detail.latest.payload);
+        await renderPayloadForm(detail.kind, detail.latest.payload);
+        syncCatalogEditorVisibility();
       }
     }
 
@@ -461,7 +774,9 @@
       if (!selectedElementId) return;
       let payload;
       try {
-        payload = JSON.parse(payloadEditor.value);
+        payload = catalogJsonMode.checked
+          ? JSON.parse(payloadEditor.value)
+          : payloadFromForm();
       } catch (e) {
         catalogStatus.textContent = "Invalid JSON: " + e.message;
         catalogStatus.classList.add("error");
@@ -634,6 +949,7 @@
         return;
       }
       draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
+      await renderCompositionEditor(app.draft_composition);
       appsStatus.textContent = "Draft copied from similar application";
       await rebuild();
     }
@@ -660,6 +976,8 @@
       appWorkflowSelect.value = app.status;
       appTagsInput.value = (app.tags || []).join(", ");
       draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
+      await refreshCatalogByKind();
+      await renderCompositionEditor(app.draft_composition);
       await loadSimilar(id);
       await rebuild();
     }
@@ -779,9 +1097,8 @@
       const body = { company, title };
       const postingUrl = newPostingUrl.value.trim();
       if (postingUrl) body.posting_url = postingUrl;
-      if (cloneFromApp.value) {
-        body.clone_from_application_id = cloneFromApp.value;
-      }
+      if (cloneFromApp.value) body.clone_from_application_id = cloneFromApp.value;
+      if (cloneFromPreset.value) body.clone_from_preset_id = cloneFromPreset.value;
       const res = await fetch("/api/applications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -798,11 +1115,12 @@
 
     document.getElementById("save-draft").addEventListener("click", async () => {
       if (!selectedAppId) return;
+      syncCompositionToTextarea();
       let draft_composition;
       try {
-        draft_composition = JSON.parse(draftEditor.value);
+        draft_composition = compositionFromEditorDom();
       } catch (e) {
-        appsStatus.textContent = "Invalid JSON: " + e.message;
+        appsStatus.textContent = "Invalid composition: " + e.message;
         return;
       }
       const res = await fetch(`/api/applications/${encodeURIComponent(selectedAppId)}`, {
@@ -815,8 +1133,9 @@
         appsStatus.textContent = app.error || "Save failed";
         return;
       }
-      appsStatus.textContent = "Draft saved";
+      appsStatus.textContent = "Composition saved";
       draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
+      await renderCompositionEditor(app.draft_composition);
       await rebuild();
     });
 
@@ -832,8 +1151,80 @@
         return;
       }
       draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
+      await renderCompositionEditor(app.draft_composition);
       appsStatus.textContent = "Draft reset to catalog default";
       await rebuild();
+    });
+
+    async function fetchDefaultComposition() {
+      const res = await fetch("/api/composition/default");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "default composition failed");
+      return data;
+    }
+
+    document.getElementById("save-preset-from-default").addEventListener("click", async () => {
+      const name = document.getElementById("new-preset-name").value.trim();
+      if (!name) {
+        document.getElementById("presets-status").textContent = "Name required";
+        return;
+      }
+      let composition;
+      try {
+        composition = await fetchDefaultComposition();
+      } catch (e) {
+        document.getElementById("presets-status").textContent = String(e);
+        return;
+      }
+      const res = await fetch("/api/presets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, composition }),
+      });
+      const preset = await res.json();
+      if (!res.ok) {
+        document.getElementById("presets-status").textContent = preset.error || "Save failed";
+        return;
+      }
+      document.getElementById("new-preset-name").value = "";
+      await loadPresets();
+      await selectPreset(preset.id);
+    });
+
+    document.getElementById("delete-preset").addEventListener("click", async () => {
+      if (!selectedPresetId || !confirm("Delete this preset?")) return;
+      const res = await fetch(`/api/presets/${encodeURIComponent(selectedPresetId)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        document.getElementById("presets-status").textContent = "Delete failed";
+        return;
+      }
+      selectedPresetId = null;
+      document.getElementById("preset-detail").classList.add("hidden");
+      await loadPresets();
+    });
+
+    document.getElementById("update-preset-composition").addEventListener("click", async () => {
+      if (!selectedPresetId) return;
+      let composition;
+      try {
+        composition = await fetchDefaultComposition();
+      } catch (e) {
+        document.getElementById("presets-status").textContent = String(e);
+        return;
+      }
+      const res = await fetch(`/api/presets/${encodeURIComponent(selectedPresetId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ composition }),
+      });
+      if (!res.ok) {
+        document.getElementById("presets-status").textContent = "Update failed";
+        return;
+      }
+      await loadPresets();
+      await selectPreset(selectedPresetId);
     });
 
     document.getElementById("submit-app").addEventListener("click", async () => {
@@ -860,28 +1251,42 @@
     document.getElementById("reload-apps").addEventListener("click", loadApplications);
     previewMode.addEventListener("change", rebuild);
 
+    function activateTab(which) {
+      tabCatalog.classList.toggle("active", which === "catalog");
+      tabApps.classList.toggle("active", which === "apps");
+      tabPresets.classList.toggle("active", which === "presets");
+      panelCatalog.classList.toggle("hidden", which !== "catalog");
+      panelApps.classList.toggle("hidden", which !== "apps");
+      panelPresets.classList.toggle("hidden", which !== "presets");
+    }
+
     tabCatalog.addEventListener("click", () => {
-      tabCatalog.classList.add("active");
-      tabApps.classList.remove("active");
-      panelCatalog.classList.remove("hidden");
-      panelApps.classList.add("hidden");
+      activateTab("catalog");
       selectedAppId = null;
       previewModeWrap.classList.add("hidden");
       rebuild();
     });
     tabApps.addEventListener("click", () => {
-      tabApps.classList.add("active");
-      tabCatalog.classList.remove("active");
-      panelApps.classList.remove("hidden");
-      panelCatalog.classList.add("hidden");
+      activateTab("apps");
       loadApplicationStatuses().then(loadApplications);
+    });
+    tabPresets.addEventListener("click", () => {
+      activateTab("presets");
+      selectedAppId = null;
+      previewModeWrap.classList.add("hidden");
+      loadPresets();
+      rebuild();
     });
 
     kindFilter.addEventListener("change", loadCatalog);
     reloadCatalogBtn.addEventListener("click", loadCatalog);
     rebuildBtn.addEventListener("click", rebuild);
 
-    loadCatalog().then(rebuild);
+    loadThemeInfo()
+      .then(refreshCatalogByKind)
+      .then(loadCatalog)
+      .then(loadPresets)
+      .then(rebuild);
   </script>
 </body>
 </html>

@@ -1,6 +1,8 @@
 mod applications;
 mod assets;
 mod catalog;
+mod presets;
+mod themes;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -17,9 +19,10 @@ use axum::{
 use domain::compute_snapshot_hash;
 use render_pdf::PdfEngine;
 use render_tex::jobdesk_build_aligned;
-use resolve::resolve_composition;
+use resolve::{default_composition, resolve_composition};
 use serde::{Deserialize, Serialize};
 use store::Store;
+use theme::load_theme_info;
 use tower_http::trace::TraceLayer;
 
 #[derive(Clone)]
@@ -93,6 +96,14 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
             "/api/submissions/{id}",
             get(applications::get_submission),
         )
+        .route("/api/composition/default", get(default_composition_handler))
+        .route("/api/themes/{id}", get(themes::get_theme))
+        .route("/api/catalog/field-schema", get(themes::catalog_fields))
+        .route("/api/presets", get(presets::list_presets))
+        .route("/api/presets", post(presets::create_preset))
+        .route("/api/presets/{id}", get(presets::get_preset))
+        .route("/api/presets/{id}", patch(presets::update_preset))
+        .route("/api/presets/{id}", delete(presets::delete_preset))
         .layer(TraceLayer::new_for_http())
         .with_state(shared);
 
@@ -114,6 +125,26 @@ async fn index() -> Html<&'static str> {
 
 async fn health() -> &'static str {
     "ok"
+}
+
+async fn default_composition_handler(State(state): State<Arc<AppState>>) -> Response {
+    if !state.db_path.exists() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "catalog database missing; run: cargo run -p jobdesk -- import"
+            })),
+        )
+            .into_response();
+    }
+    match Store::open(&state.db_path).and_then(|store| default_composition(&store)) {
+        Ok(comp) => (StatusCode::OK, Json(comp)).into_response(),
+        Err(err) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": format!("{err:#}") })),
+        )
+            .into_response(),
+    }
 }
 
 async fn run_preview(
@@ -212,7 +243,8 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
             let app = store
                 .get_application(app_id)?
                 .ok_or_else(|| anyhow::anyhow!("application not found"))?;
-            let draft_snapshot = draft_snapshot_hash(&store, &app.draft_composition)?;
+            let draft_snapshot =
+                draft_snapshot_hash(&state.root, &store, &app.draft_composition)?;
             let differs = submission_snapshot
                 .as_ref()
                 .map(|h| h != &draft_snapshot)
@@ -230,15 +262,22 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
     })
 }
 
-fn draft_snapshot_hash(store: &Store, composition: &domain::Composition) -> Result<String> {
+fn draft_snapshot_hash(
+    project_root: &std::path::Path,
+    store: &Store,
+    composition: &domain::Composition,
+) -> Result<String> {
     let resolved_map = resolve_composition(store, composition)?;
     let mut resolved = std::collections::BTreeMap::new();
     for (k, v) in resolved_map {
         resolved.insert(k, v);
     }
+    let theme_hash = load_theme_info(project_root, store::DEFAULT_THEME_ID)
+        .ok()
+        .map(|t| t.files_hash);
     Ok(compute_snapshot_hash(
         store::DEFAULT_THEME_ID,
-        None,
+        theme_hash.as_deref(),
         composition,
         &resolved,
     ))

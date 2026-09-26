@@ -97,8 +97,14 @@ pub fn jobdesk_build_aligned(
                         format!("no canonical submission for application `{app_id}`")
                     })?;
                 let resolved = resolve::resolve_from_manifest(&sub.manifest)?;
+                let theme_root = sub
+                    .manifest
+                    .theme_files_hash
+                    .as_deref()
+                    .and_then(|h| theme::project_root_for_theme_hash(workspace, h))
+                    .unwrap_or_else(|| project_root.to_path_buf());
                 jobdesk_build_resolved_to_dir(
-                    project_root,
+                    &theme_root,
                     config_path,
                     output_dir,
                     &resolved,

@@ -69,8 +69,21 @@ pub fn migrate(conn: &Connection) -> Result<()> {
         [],
     )?;
 
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS presets (
+            id TEXT PRIMARY KEY NOT NULL,
+            name TEXT NOT NULL,
+            theme_id TEXT NOT NULL DEFAULT 'classic',
+            composition_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        ",
+    )?;
+
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '4')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '5')",
         [],
     )?;
     Ok(())

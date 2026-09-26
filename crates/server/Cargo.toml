@@ -11,6 +11,7 @@ domain = { workspace = true }
 render_tex = { workspace = true }
 resolve = { workspace = true }
 store = { workspace = true }
+theme = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

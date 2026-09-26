@@ -17,6 +17,8 @@ use store::{
     UpdateApplicationRequest, DEFAULT_THEME_ID,
 };
 
+use theme::ensure_theme_snapshot;
+
 use crate::AppState;
 
 #[derive(Serialize)]
@@ -51,6 +53,11 @@ pub async fn create_application(
                 .get_application(clone_id)?
                 .map(|a| a.draft_composition)
                 .ok_or_else(|| anyhow::anyhow!("clone_from application not found"))?
+        } else if let Some(ref preset_id) = body.clone_from_preset_id {
+            store
+                .get_preset(preset_id)?
+                .map(|p| p.composition)
+                .ok_or_else(|| anyhow::anyhow!("clone_from preset not found"))?
         } else {
             default_composition(store)?
         };
@@ -169,6 +176,7 @@ pub async fn submit_application(
     Path(app_id): Path<String>,
 ) -> impl IntoResponse {
     let workspace = state.workspace_dir.clone();
+    let project_root = state.root.clone();
     with_store(state, move |store| {
         let app = store
             .get_application(&app_id)?
@@ -178,11 +186,14 @@ pub async fn submit_application(
         for (k, v) in resolved_map {
             resolved.insert(k, v);
         }
+        let snap_dir = workspace.join("artifacts/theme_snapshots");
+        let theme_files_hash =
+            ensure_theme_snapshot(&project_root, DEFAULT_THEME_ID, &snap_dir)?;
         let sub = store.submit_application(
             &app_id,
             &workspace,
             DEFAULT_THEME_ID,
-            None,
+            Some(theme_files_hash),
             &app.draft_composition,
             resolved,
         )?;

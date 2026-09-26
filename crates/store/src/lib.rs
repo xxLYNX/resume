@@ -3,6 +3,7 @@ pub mod catalog;
 mod export;
 mod import;
 mod migrate;
+pub mod presets;
 
 use std::path::Path;
 
@@ -21,6 +22,10 @@ pub use catalog::{
 pub use export::{export_catalog_to_content, STAGING_CONTENT_DIR};
 pub use import::{import_legacy_content, ImportOptions, ImportStats};
 pub use migrate::migrate;
+pub use presets::{
+    create_preset, delete_preset, get_preset, list_presets, update_preset, CreatePresetRequest,
+    PresetDetail, PresetSummary, UpdatePresetRequest,
+};
 
 pub struct Store {
     conn: Connection,
