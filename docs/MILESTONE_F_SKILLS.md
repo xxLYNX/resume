@@ -1,6 +1,6 @@
 # Milestone F — Skills catalog & framework refs
 
-**E** is the next implementation focus (composition UI, themes, catalog forms, presets). **F** is the next **unused letter that stays purely on the roadmap** until E lands — dedicated to skills, not UniFFI.
+**F** is the active milestone after **E** (composition, themes, catalog UX — complete). This spec covers skills and external framework refs, not UniFFI.
 
 UniFFI and portfolio move to **G** and **H** (see [`ARCHITECTURE.md`](../ARCHITECTURE.md)).
 
@@ -10,7 +10,7 @@ UniFFI and portfolio move to **G** and **H** (see [`ARCHITECTURE.md`](../ARCHITE
 
 - One catalog element `skills.main` holds all skills text for LaTeX.
 - Application **tags** are job-tracker labels, not canonical skill ids.
-- CHECKLIST [`framework_refs`](../CHECKLIST.md) (O\*NET / ONET, NICE KSAs, ESCO, etc.) were never modeled. **Deliberately deferred until E is complete** — frameworks are not composition toggles.
+- CHECKLIST [`framework_refs`](../CHECKLIST.md) (O\*NET / ONET, NICE KSAs, ESCO, etc.) were never modeled. Frameworks are not composition toggles; F adds catalog + refs.
 
 ---
 
