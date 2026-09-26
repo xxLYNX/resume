@@ -43,7 +43,8 @@ tests/fixtures/       Golden LaTeX fixture for regression tests
 | [`JOBDESK.md`](JOBDESK.md) | CLI reference |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Schema, pipeline, milestones |
 | [`docs/APPLICATION_LIFECYCLE.md`](docs/APPLICATION_LIFECYCLE.md) | Phase vs workflow vs Submit |
-| [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md) | Current milestone E backlog |
+| [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md) | Milestone F focus + E completion record |
+| [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md) | Skills catalog & framework refs (F) |
 | [`themes/README.md`](themes/README.md) | Writing a theme (short) |
 | [`CHECKLIST.md`](CHECKLIST.md) | Product goals and glossary |
 

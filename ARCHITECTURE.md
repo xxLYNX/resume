@@ -56,7 +56,8 @@ workspace/
 - [x] Submit flow: resolve draft → write manifest (denormalized text + revision ids + theme hash)
 - [x] Interview prep: pick application → render from **manifest** (read-only), PDF optional
 - [x] `presets` table: saved compositions without posting URL
-- [x] **Application content picker** UI: per application, enable/disable **sections (collections)** and **include toggles per catalog element**; preview/submit render only included elements (see [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md))
+- [x] **Application content picker** UI: per application, enable/disable **sections (collections)** and **include toggles per catalog element**; preview/submit render only included elements
+- [ ] **Submission history UI** (deferred post-E): list manifests per app; preview any past send
 - [ ] **Future collections:** tools, certifications, awards as separate kinds/sections (deferred; skills blob covers certifications text today)
 
 ### Similarity & quickfill
@@ -163,21 +164,24 @@ Recommended order (each step is usable on its own):
 
 ## Milestone E — Composition, themes, catalog UX
 
-Prep: [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md). Implement on a **dev branch** before merging to `master`.
+**Complete** (merged from `dev/ui-composition`). Summary: [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md#milestone-e-complete).
 
 - [x] Interim composition editor (element + revision rows; JSON in details)
 - [x] **Application content picker** — section/collection on-off + include toggles for each catalog element in that collection (content choice per posting; theme separate)
 - [x] Theme bundles + `theme_files_hash` on submit (snapshot under `workspace/artifacts/theme_snapshots/`)
 - [x] Catalog structured forms from `theme.toml` metadata (JSON toggle remains)
 - [x] Presets (saved compositions without a job row)
-- [ ] Submission history UI per application
 - [x] Application Save UX — one **Save** for tracker + composition; **Submit** freezes manifest
+- [x] Live draft preview + preview dedupe (skip PDF when document unchanged)
+- [x] Applications list/detail UI (New application flow, Close back to list)
+
+**Deferred post-E:** submission history UI (list/open past manifests); optional phase/pipeline UI polish.
 
 ---
 
 ## Milestone F — Skills catalog & framework refs
 
-Spec: [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md). **Next letter after E** on the roadmap; not started.
+**Current milestone.** Spec: [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md). Track progress in [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md).
 
 - [ ] Skills table + aliases + tags
 - [ ] `framework_refs` (NICE, ESCO, …) + optional import enrichment
@@ -222,3 +226,4 @@ Spec: [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md). **Next letter 
 | 2026-09-17 | Milestone A: Rust workspace, jobdesk import/build, classic theme |
 | 2026-09-17 | Milestone B step 1: `serve`, preview API, embedded UI |
 | 2026-09-26 | Removed legacy Go builder; jobdesk-only docs and product surface |
+| 2026-09-26 | Milestone E complete: content picker, theme contract, unified Save, preview cache, Applications UX |

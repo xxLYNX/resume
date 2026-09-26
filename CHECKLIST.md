@@ -28,7 +28,9 @@ Non-goals: automated job-board apply; LLM cover letters as core product.
 
 **Shipped:** `header`, `objective`, `education`, `experience`, `project`, `skills` (see `ElementKind` and `themes/classic/theme.toml`).
 
-**Planned later:** separate **tools**, **certifications**, **awards** collections (not required for Milestone E).
+**Milestone E:** complete (see [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md)). **Milestone F:** skills + framework refs.
+
+**Planned later:** separate **tools**, **certifications**, **awards** collections.
 
 ## Where to edit data
 
