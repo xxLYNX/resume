@@ -105,6 +105,13 @@
       resize: vertical;
     }
     .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .preview-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      position: relative;
+    }
     iframe {
       flex: 1;
       width: 100%;
@@ -112,11 +119,17 @@
       min-height: 0;
     }
     .placeholder {
-      flex: 1;
-      display: flex;
+      position: absolute;
+      inset: 0;
+      display: none;
       align-items: center;
       justify-content: center;
       color: var(--muted);
+      background: color-mix(in srgb, Canvas 92%, transparent);
+      pointer-events: none;
+    }
+    .placeholder.visible {
+      display: flex;
     }
     details summary { cursor: pointer; font-size: 0.85rem; }
     .tabs { display: flex; gap: 0.25rem; }
@@ -293,8 +306,10 @@
       </div>
     </section>
     <section class="panel preview" aria-label="PDF preview">
-      <iframe id="pdf" title="Resume PDF preview" hidden></iframe>
-      <div class="placeholder" id="placeholder">Building preview…</div>
+      <div class="preview-pane">
+        <iframe id="pdf" title="Resume PDF preview"></iframe>
+        <div class="placeholder visible" id="placeholder">Building preview…</div>
+      </div>
     </section>
   </main>
   <script>
@@ -376,6 +391,11 @@
     let previewDebounce = null;
     let previewRebuildQueued = false;
 
+    function setPreviewPlaceholder(message, visible) {
+      placeholder.textContent = message;
+      placeholder.classList.toggle("visible", visible);
+    }
+
     /** Single path: read editor → JSON textarea → debounced live preview (unsaved draft). */
     function notifyCompositionChanged() {
       draftEditor.value = JSON.stringify(compositionFromEditorDom(), null, 2);
@@ -394,6 +414,7 @@
       statusEl.textContent = "Building…";
       logEl.hidden = true;
       draftWarn.classList.add("hidden");
+      setPreviewPlaceholder("Building preview…", true);
 
       try {
         const res = await fetch("/api/preview", {
@@ -413,9 +434,7 @@
             logEl.hidden = false;
             logEl.textContent = data.error + (data.log_tail ? "\n\n" + data.log_tail : "");
           }
-          placeholder.hidden = false;
-          iframe.hidden = true;
-          placeholder.textContent = "Fix errors and rebuild";
+          setPreviewPlaceholder("Fix errors and rebuild", true);
           return;
         }
         const src = data.preview_source ? ` (${data.preview_source})` : "";
@@ -426,11 +445,11 @@
         hashEl.textContent = data.content_hash || "";
         engineEl.textContent = data.pdf_engine ? "PDF engine: " + data.pdf_engine : "";
         iframe.src = data.pdf_url + "?t=" + Date.now();
-        iframe.hidden = false;
-        placeholder.hidden = true;
+        setPreviewPlaceholder("", false);
       } catch (e) {
         statusEl.textContent = "Request failed: " + e;
         statusEl.classList.add("error");
+        setPreviewPlaceholder("Preview unavailable", true);
       } finally {
         building = false;
         if (previewRebuildQueued) {
