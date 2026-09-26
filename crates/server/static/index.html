@@ -384,12 +384,29 @@
       if (selectedAppId) {
         body.application_id = selectedAppId;
         body.mode = previewMode.value;
+        if (previewMode.value === "draft") {
+          body.draft_composition = compositionFromEditorDom();
+        }
       }
       return body;
     }
 
+    let previewDebounce = null;
+    let previewRebuildQueued = false;
+
+    /** Single path: read editor → JSON textarea → debounced live preview (unsaved draft). */
+    function notifyCompositionChanged() {
+      draftEditor.value = JSON.stringify(compositionFromEditorDom(), null, 2);
+      if (!selectedAppId || previewMode.value !== "draft") return;
+      clearTimeout(previewDebounce);
+      previewDebounce = setTimeout(() => rebuild(), 450);
+    }
+
     async function rebuild() {
-      if (building) return;
+      if (building) {
+        previewRebuildQueued = true;
+        return;
+      }
       building = true;
       statusEl.classList.remove("error");
       statusEl.textContent = "Building…";
@@ -434,6 +451,10 @@
         statusEl.classList.add("error");
       } finally {
         building = false;
+        if (previewRebuildQueued) {
+          previewRebuildQueued = false;
+          rebuild();
+        }
       }
     }
 
@@ -660,18 +681,17 @@
           row.append(elLabel, idSpan, revSel, up, down);
           rowsHost.appendChild(row);
 
-          const sync = () => syncCompositionToTextarea();
-          elInclude.addEventListener("change", sync);
-          revSel.addEventListener("change", sync);
+          elInclude.addEventListener("change", notifyCompositionChanged);
+          revSel.addEventListener("change", notifyCompositionChanged);
           up.addEventListener("click", () => {
             const prev = row.previousElementSibling;
             if (prev?.classList.contains("comp-row")) rowsHost.insertBefore(row, prev);
-            sync();
+            notifyCompositionChanged();
           });
           down.addEventListener("click", () => {
             const next = row.nextElementSibling;
             if (next?.classList.contains("comp-row")) rowsHost.insertBefore(next, row);
-            sync();
+            notifyCompositionChanged();
           });
         }
 
@@ -685,16 +705,12 @@
               });
             }
           }
-          syncCompositionToTextarea();
+          notifyCompositionChanged();
         });
 
         compositionEditor.appendChild(wrap);
       }
-      syncCompositionToTextarea();
-    }
-
-    function syncCompositionToTextarea() {
-      draftEditor.value = JSON.stringify(compositionFromEditorDom(), null, 2);
+      notifyCompositionChanged();
     }
 
     async function loadPresets() {
@@ -1153,7 +1169,7 @@
 
     document.getElementById("save-draft").addEventListener("click", async () => {
       if (!selectedAppId) return;
-      syncCompositionToTextarea();
+      notifyCompositionChanged();
       let draft_composition;
       try {
         draft_composition = compositionFromEditorDom();
