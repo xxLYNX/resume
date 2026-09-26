@@ -43,6 +43,34 @@ pub fn build_legacy_resume(config_path: &Path, project_root: &Path) -> Result<St
     build_resume_tex(config_path, project_root, &resolved)
 }
 
+fn theme_id_from_preamble(preamble_rel: &str) -> Option<String> {
+    let path = Path::new(preamble_rel);
+    path.parent()
+        .and_then(|p| p.file_name())
+        .and_then(|s| s.to_str())
+        .map(String::from)
+}
+
+fn register_theme_macros(
+    env: &mut Environment,
+    project_root: &Path,
+    preamble_rel: &str,
+) -> Result<()> {
+    let Some(theme_id) = theme_id_from_preamble(preamble_rel) else {
+        return Ok(());
+    };
+    let info = load_theme_info(project_root, &theme_id)?;
+    let theme_dir = theme_dir_for_id(project_root, &theme_id);
+    for (name, rel) in &info.macros {
+        let path = theme_dir.join(rel);
+        let src = fs::read_to_string(&path)
+            .with_context(|| format!("read theme macro {}", path.display()))?;
+        env.add_template_owned(name.clone(), src)
+            .with_context(|| format!("compile theme macro `{name}`"))?;
+    }
+    Ok(())
+}
+
 pub fn build_resume_tex(
     config_path: &Path,
     project_root: &Path,
@@ -55,6 +83,7 @@ pub fn build_resume_tex(
 
     let mut body = String::new();
     let mut env = Environment::new();
+    register_theme_macros(&mut env, project_root, &config.preamble)?;
 
     for section in &config.sections {
         if !section.enabled {
