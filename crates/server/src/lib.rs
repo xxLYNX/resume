@@ -18,7 +18,7 @@ use axum::{
 };
 use domain::compute_snapshot_hash;
 use render_pdf::PdfEngine;
-use render_tex::jobdesk_build_aligned;
+use render_tex::{jobdesk_build_aligned, jobdesk_build_composition_to_dir};
 use resolve::{default_composition, resolve_composition};
 use serde::{Deserialize, Serialize};
 use store::Store;
@@ -40,6 +40,8 @@ pub struct PreviewRequest {
     pub application_id: Option<String>,
     /// `draft` (default with application_id) or `submitted` (canonical manifest).
     pub mode: Option<String>,
+    /// Unsaved draft from the UI; used for live preview when `mode` is `draft`.
+    pub draft_composition: Option<domain::Composition>,
 }
 
 #[derive(Serialize)]
@@ -226,16 +228,29 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
         None
     };
 
-    let build = jobdesk_build_aligned(
-        &store,
-        &state.workspace_dir,
-        &state.root,
-        &state.config_path,
-        &state.preview_dir,
-        true,
-        application_id,
-        mode,
-    )?;
+    let build = match (application_id, mode, req.draft_composition.as_ref()) {
+        (Some(_), "submitted", _) | (None, _, _) | (Some(_), _, None) => jobdesk_build_aligned(
+            &store,
+            &state.workspace_dir,
+            &state.root,
+            &state.config_path,
+            &state.preview_dir,
+            true,
+            application_id,
+            mode,
+        )?,
+        (Some(_), _, Some(composition)) => {
+            resolve_composition(&store, composition)?;
+            jobdesk_build_composition_to_dir(
+                &store,
+                &state.root,
+                &state.config_path,
+                &state.preview_dir,
+                composition,
+                true,
+            )?
+        }
+    };
 
     let (preview_source, draft_differs) = match application_id {
         Some(_) if mode == "submitted" => ("submitted".to_string(), None),
@@ -243,13 +258,25 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
             let app = store
                 .get_application(app_id)?
                 .ok_or_else(|| anyhow::anyhow!("application not found"))?;
+            let draft_for_hash = req
+                .draft_composition
+                .as_ref()
+                .unwrap_or(&app.draft_composition);
             let draft_snapshot =
-                draft_snapshot_hash(&state.root, &store, &app.draft_composition)?;
+                draft_snapshot_hash(&state.root, &store, draft_for_hash)?;
             let differs = submission_snapshot
                 .as_ref()
                 .map(|h| h != &draft_snapshot)
                 .unwrap_or(false);
-            ("application_draft".to_string(), Some(differs))
+            (
+                if req.draft_composition.is_some() {
+                    "application_draft_live"
+                } else {
+                    "application_draft"
+                }
+                .to_string(),
+                Some(differs),
+            )
         }
         None => ("catalog_default".to_string(), None),
     };
