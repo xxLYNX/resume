@@ -568,6 +568,25 @@
       return sectionKey === "projects" ? "project" : sectionKey;
     }
 
+    /** Composition item order first, then catalog elements not in the draft. */
+    function catalogElementsOrdered(catalog, sectionItems) {
+      if (!sectionItems?.length) return catalog;
+      const byId = new Map(catalog.map((el) => [el.id, el]));
+      const seen = new Set();
+      const ordered = [];
+      for (const item of sectionItems) {
+        const el = byId.get(item.element_id);
+        if (el) {
+          ordered.push(el);
+          seen.add(el.id);
+        }
+      }
+      for (const el of catalog) {
+        if (!seen.has(el.id)) ordered.push(el);
+      }
+      return ordered;
+    }
+
     function compositionFromEditorDom() {
       const sections = [];
       for (const sectionKey of sectionOrder()) {
@@ -644,14 +663,16 @@
         wrap.appendChild(rowsHost);
 
         const catalog = catalogByKind[kind] || [];
-        if (!catalog.length) {
+        const sectionItems = compSections.get(sectionKey) || [];
+        const orderedCatalog = catalogElementsOrdered(catalog, sectionItems);
+        if (!orderedCatalog.length) {
           const empty = document.createElement("p");
           empty.className = "meta";
           empty.textContent = `No ${kind} elements in catalog.`;
           rowsHost.appendChild(empty);
         }
 
-        for (const el of catalog) {
+        for (const el of orderedCatalog) {
           const row = document.createElement("div");
           row.className = "comp-row";
           row.dataset.elementId = el.id;
