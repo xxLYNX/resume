@@ -1,6 +1,6 @@
-# Next milestone (prep) — composition, themes, catalog UX
+# Milestone E — composition, themes, catalog UX
 
-Target work after **D** (tracker polish) and **phase/workflow** split. Use a **dev branch** for UI experiments; merge to `master` when stable.
+**In progress on branch `dev/ui-composition`.** **F** is reserved for [skills + framework refs](MILESTONE_F_SKILLS.md). Merge to `master` when stable.
 
 ## Priority themes
 
@@ -29,17 +29,17 @@ Today: **draft composition** is JSON (`element_id` + `revision_id` per section).
 
 **File watch:** repo `content/` remains **import seed**. Optional watcher: external edit to YAML → notify UI or suggest `import --force`. Canonical data stays SQLite; no auto-overwrite of `content/`.
 
-### Data model: skills table + presets
+### Presets (E)
 
-**Skills table:** move from single `skills.main` blob to rows `{ id, label, aliases[], tags[] }` so compositions filter/tag skills and aliases match job keywords without duplicate strings.
+Saved **compositions** (section pins + theme id) **without** a posting row — like old `config.yaml` “profiles.” Clone preset → new application or quickfill.
 
-**Presets:** saved **compositions** (section pins + theme id) **without** a posting row — like old `config.yaml` “profiles.” Clone preset → new application or quickfill; overlaps similarity but named and user-curated.
+**Skills table + NICE/ESCO:** **Milestone F**, not E — see [`MILESTONE_F_SKILLS.md`](MILESTONE_F_SKILLS.md).
 
 ---
 
-## Also on the list (E/F + polish)
+## Also on the list (polish)
 
-See [`ARCHITECTURE.md`](../ARCHITECTURE.md) Milestones E–F: portfolio flags, static export, UniFFI optional; submission history UI; PDF cache on submit; PDF.js / SSE; CLI `watch`; Go README cleanup.
+Submission history UI; PDF cache on submit; PDF.js / SSE; CLI `watch`; Go README cleanup. Portfolio → **G**; UniFFI → **H** in [`ARCHITECTURE.md`](../ARCHITECTURE.md).
 
 ---
 

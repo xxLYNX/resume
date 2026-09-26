@@ -34,11 +34,11 @@ workspace/
 - [x] Payload schemas: required shapes per `ElementKind` (`validate_payload` on save/import)
 - [x] UI/rule: edit wording → **new revision** (import skips existing; `--force` appends)
 
-### Skills (lightweight association)
+### Skills (lightweight association) — **Milestone F**
 
-- [ ] `skills` table: `id`, `label`, `aliases_json`, `tags_json`
+- [ ] `skills` table: `id`, `label`, `aliases_json`, `tags_json`, `framework_refs_json`
 - [ ] Resolver expands aliases for display; one canonical id internally
-- [ ] Optional later: NICE / external framework refs on skill row
+- [ ] Framework refs (NICE KSAs, ESCO URIs, etc.) — see [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md)
 
 ### Themes & templates
 
@@ -161,20 +161,37 @@ Recommended order (each step is usable on its own):
 
 ---
 
-## Milestone E — Portfolio
+## Milestone E — Composition, themes, catalog UX
 
-Prep and scope: [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md) (composition UI, themes/hash, skills, presets, Save UX).
+Prep: [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md). Implement on a **dev branch** before merging to `master`.
 
-- [ ] Compositional editing (visual pins, not JSON-only)
-- [ ] Theme bundles + `theme_files_hash` on submit
-- [ ] Catalog structured forms from `theme.toml`
-- [ ] Skills table + presets
+- [x] Compositional editing (visual pins, not JSON-only)
+- [x] Theme bundles + `theme_files_hash` on submit (snapshot under `workspace/artifacts/theme_snapshots/`)
+- [x] Catalog structured forms from `theme.toml` metadata (JSON toggle remains)
+- [ ] Optional file watch on `content/` (deferred polish)
+- [x] Presets (saved compositions without a job row)
+- [x] Application Save UX polish (Save vs composition vs Submit — help text in UI)
+
+---
+
+## Milestone F — Skills catalog & framework refs
+
+Spec: [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md). **Next letter after E** on the roadmap; not started.
+
+- [ ] Skills table + aliases + tags
+- [ ] `framework_refs` (NICE, ESCO, …) + optional import enrichment
+- [ ] Composition/resolver uses skill ids + per-job alias choice
+
+---
+
+## Milestone G — Portfolio
+
 - [ ] `show_on_portfolio` on elements
 - [ ] Second theme or static HTML export
 
 ---
 
-## Milestone F — UniFFI (optional)
+## Milestone H — UniFFI (optional)
 
 - [ ] Thin API over domain + store for native shells
 
