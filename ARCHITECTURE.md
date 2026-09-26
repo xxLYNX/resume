@@ -42,10 +42,12 @@ workspace/
 
 ### Themes & templates
 
-- [ ] Theme bundle: `theme.toml` + `preamble.tex` + `sections/*.jinja.tex`
-- [ ] `theme_bundles` table or manifest: `id`, `version`, `files_hash`
-- [ ] MiniJinja: no auto-escape; `{% if field %}` for every optional column
-- [ ] Theme metadata: which fields the UI should offer per kind
+- [x] Theme bundle: `theme.toml` + `preamble.tex` + `sections/*.jinja.tex` + `macros/` (see [`themes/CONTRACT.md`](themes/CONTRACT.md))
+- [x] Snapshot + `theme_files_hash` on submit (workspace copy; not yet a DB registry)
+- [x] jobdesk skips sections missing from resolved composition; resolve normalizes optional list fields on rows
+- [x] Theme macros registered from `theme.toml` `[macros]` — optional scalars handled in theme toys, not jobdesk LaTeX
+- [ ] `theme_bundles` DB registry (optional); build config fully driven by theme bundle only
+- [ ] Versioned global filters/macros library for third-party themes (expand contract)
 
 ### Applications & submissions
 

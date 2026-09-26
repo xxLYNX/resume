@@ -1,6 +1,10 @@
 id = "classic"
 version = 1
 description = "Default resume theme migrated from the original Go builder"
+contract_version = 1
+
+[macros]
+classic_macros = "macros/resume.jinja.tex"
 
 [sections.header]
 template = "sections/header.jinja.tex"
@@ -18,7 +22,7 @@ optional_fields = ["highlights"]
 
 [sections.projects]
 template = "sections/projects.jinja.tex"
-optional_fields = ["details"]
+optional_fields = ["technologies", "details"]
 
 [sections.skills]
 template = "sections/skills.jinja.tex"

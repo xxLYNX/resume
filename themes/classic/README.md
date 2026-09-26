@@ -1,9 +1,10 @@
 # Classic theme (jobdesk)
 
-Visual copy of the original Go resume theme, implemented with **MiniJinja** (`.jinja.tex`).
+Reference theme for jobdesk. **Go `templates/` is legacy and not maintained.**
 
-- **Source of truth for edits:** this directory only.
-- **Do not change** [`templates/`](../../templates/) when improving jobdesk; that tree stays the Go `text/template` original.
-- Preamble and layout were copied once at migration; syntax may diverge here intentionally (concise Jinja, optional fields, etc.).
+- **Contract:** [`../CONTRACT.md`](../CONTRACT.md)
+- **Macros:** `macros/resume.jinja.tex` — import as `classic_macros` in section templates
+- **Edits:** this directory only (`theme.toml`, preamble, sections, macros)
+- Configured from [`settings/jobdesk.yaml`](../../settings/jobdesk.yaml) (section list merges into theme bundle over time)
 
-Configured from [`settings/jobdesk.yaml`](../../settings/jobdesk.yaml).
+Golden parity: `cargo test -p render_tex` compares normalized `.tex` to `tests/fixtures/golden_resume.tex`.

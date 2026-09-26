@@ -14,8 +14,11 @@ pub struct ThemeInfo {
     pub id: String,
     pub version: u64,
     pub description: String,
+    pub contract_version: u64,
     pub files_hash: String,
     pub sections: BTreeMap<String, ThemeSectionInfo>,
+    /// MiniJinja template name → path relative to theme root (`macros/...`).
+    pub macros: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -89,6 +92,19 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
+    let contract_version = doc
+        .get("contract_version")
+        .and_then(|v| v.as_integer())
+        .unwrap_or(1) as u64;
+
+    let mut macros = BTreeMap::new();
+    if let Some(table) = doc.get("macros").and_then(|v| v.as_table()) {
+        for (name, value) in table {
+            if let Some(path) = value.as_str() {
+                macros.insert(name.clone(), path.to_string());
+            }
+        }
+    }
 
     let mut sections = BTreeMap::new();
     if let Some(sec_table) = doc.get("sections").and_then(|v| v.as_table()) {
@@ -127,8 +143,10 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
         id,
         version,
         description,
+        contract_version,
         files_hash,
         sections,
+        macros,
     })
 }
 

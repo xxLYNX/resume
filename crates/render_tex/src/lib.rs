@@ -8,6 +8,7 @@ use domain::LegacyConfig;
 use minijinja::{Environment, Value};
 use resolve::ResolvedSections;
 use serde_json::Value as JsonValue;
+use theme::{load_theme_info, theme_dir_for_id};
 
 pub use legacy_build::{
     hash_tex, jobdesk_build_aligned, jobdesk_build_composition_to_dir,
