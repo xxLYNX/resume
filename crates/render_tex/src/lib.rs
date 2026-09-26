@@ -60,12 +60,10 @@ pub fn build_resume_tex(
             continue;
         }
 
-        let yaml_value = resolved.get(&section.name).with_context(|| {
-            format!(
-                "no resolved content for section `{}` (composition/catalog)",
-                section.name
-            )
-        })?;
+        let Some(yaml_value) = resolved.get(&section.name) else {
+            // Composition may omit whole sections (content picker); skip rather than fail.
+            continue;
+        };
 
         let template_path = project_root.join(&section.template);
         let template_src = fs::read_to_string(&template_path)
