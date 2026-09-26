@@ -1224,7 +1224,6 @@
       closeApplicationDetail();
       appsStatus.textContent = "Application deleted";
       await loadApplications();
-      await rebuild();
     });
 
     document.getElementById("new-app").addEventListener("click", () => {
@@ -1245,6 +1244,14 @@
     });
 
     document.getElementById("reset-draft").addEventListener("click", async () => {
+      if (isCreateMode()) {
+        cloneFromApp.value = "";
+        cloneFromPreset.value = "";
+        await applyCreateCloneSource();
+        appsStatus.textContent = "Content reset to catalog default";
+        await rebuild();
+        return;
+      }
       if (!selectedAppId) return;
       const res = await fetch(
         `/api/applications/${encodeURIComponent(selectedAppId)}/reset-draft`,
