@@ -145,9 +145,13 @@
     #payload-form label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; margin-bottom: 0.5rem; }
     #payload-form input, #payload-form textarea { font-size: 0.85rem; padding: 0.25rem; }
     .composition-section { border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; margin-bottom: 0.5rem; }
-    .composition-section h4 { margin: 0 0 0.35rem; font-size: 0.85rem; text-transform: capitalize; }
+    .composition-section.section-off .section-body { opacity: 0.45; pointer-events: none; }
+    .section-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.35rem; flex-wrap: wrap; }
+    .section-head h4 { margin: 0; font-size: 0.85rem; text-transform: capitalize; }
+    .section-head label { font-size: 0.85rem; font-weight: 600; }
     .comp-row { display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.35rem; font-size: 0.8rem; }
-    .comp-row select { max-width: 12rem; font-size: 0.8rem; }
+    .comp-row .element-id { flex: 1; min-width: 8rem; font-family: ui-monospace, monospace; font-size: 0.75rem; }
+    .comp-row select { max-width: 8rem; font-size: 0.8rem; }
     #preset-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 4px; max-height: 10rem; overflow: auto; }
     #preset-list li { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.85rem; }
     #preset-list li.active { background: color-mix(in srgb, var(--accent) 25%, transparent); font-weight: 600; }
@@ -285,7 +289,8 @@
           <button type="button" id="submit-app">Submit (freeze manifest)</button>
         </div>
         <p class="warn hidden" id="draft-warn">Draft differs from last submission.</p>
-        <div id="composition-editor" class="meta">Select an application to edit composition.</div>
+        <p class="help">Content for this posting only (theme is separate): turn sections on/off, then include catalog elements you want in the compiled resume.</p>
+        <div id="composition-editor" class="meta">Select an application to edit content.</div>
         <details>
           <summary class="meta">Draft composition (JSON)</summary>
           <textarea id="draft-composition" spellcheck="false"></textarea>
@@ -547,9 +552,13 @@
       for (const sectionKey of sectionOrder()) {
         const block = compositionEditor.querySelector(`[data-section="${sectionKey}"]`);
         if (!block) continue;
+        const sectionOn = block.querySelector(".section-include")?.checked;
+        if (!sectionOn) continue;
         const items = [];
         for (const row of block.querySelectorAll(".comp-row")) {
-          const elementId = row.querySelector(".comp-element")?.value;
+          const include = row.querySelector(".element-include")?.checked;
+          if (!include) continue;
+          const elementId = row.dataset.elementId;
           const revisionId = row.querySelector(".comp-revision")?.value;
           if (elementId && revisionId) {
             items.push({ element_id: elementId, revision_id: revisionId });
@@ -558,6 +567,10 @@
         if (items.length) sections.push({ section_key: sectionKey, items });
       }
       return { sections };
+    }
+
+    function setSectionBodyEnabled(block, enabled) {
+      block.classList.toggle("section-off", !enabled);
     }
 
     async function fillRevisionSelect(select, elementId, selectedRevId) {
@@ -584,75 +597,100 @@
         const wrap = document.createElement("div");
         wrap.className = "composition-section";
         wrap.dataset.section = sectionKey;
+
+        const head = document.createElement("div");
+        head.className = "section-head";
+        const sectionInclude = document.createElement("input");
+        sectionInclude.type = "checkbox";
+        sectionInclude.className = "section-include";
+        const sectionLabel = document.createElement("label");
+        sectionLabel.append(sectionInclude, document.createTextNode(" Include section"));
         const h = document.createElement("h4");
         h.textContent = sectionKey.replace(/_/g, " ");
-        wrap.appendChild(h);
-        const items = compSections.get(sectionKey) || [];
+        head.append(sectionLabel, h);
+        wrap.appendChild(head);
+
+        const pinned = new Map(
+          (compSections.get(sectionKey) || []).map((it) => [it.element_id, it.revision_id])
+        );
+        const sectionInComp = compSections.has(sectionKey);
+        sectionInclude.checked = sectionInComp;
+        setSectionBodyEnabled(wrap, sectionInclude.checked);
+
         const kind = kindForSection(sectionKey);
         const rowsHost = document.createElement("div");
-        rowsHost.className = "comp-rows";
+        rowsHost.className = "section-body comp-rows";
         wrap.appendChild(rowsHost);
 
-        async function addRow(item) {
+        const catalog = catalogByKind[kind] || [];
+        if (!catalog.length) {
+          const empty = document.createElement("p");
+          empty.className = "meta";
+          empty.textContent = `No ${kind} elements in catalog.`;
+          rowsHost.appendChild(empty);
+        }
+
+        for (const el of catalog) {
           const row = document.createElement("div");
           row.className = "comp-row";
-          const elSel = document.createElement("select");
-          elSel.className = "comp-element";
-          for (const el of catalogByKind[kind] || []) {
-            const opt = document.createElement("option");
-            opt.value = el.id;
-            opt.textContent = el.id;
-            elSel.appendChild(opt);
-          }
+          row.dataset.elementId = el.id;
+
+          const elInclude = document.createElement("input");
+          elInclude.type = "checkbox";
+          elInclude.className = "element-include";
+          elInclude.checked = pinned.has(el.id);
+          const elLabel = document.createElement("label");
+          elLabel.append(elInclude, document.createTextNode(" Include"));
+
+          const idSpan = document.createElement("span");
+          idSpan.className = "element-id";
+          idSpan.textContent = el.id;
+
           const revSel = document.createElement("select");
           revSel.className = "comp-revision";
+          await fillRevisionSelect(revSel, el.id, pinned.get(el.id));
+
           const up = document.createElement("button");
           up.type = "button";
           up.textContent = "↑";
           const down = document.createElement("button");
           down.type = "button";
           down.textContent = "↓";
-          const rm = document.createElement("button");
-          rm.type = "button";
-          rm.textContent = "Remove";
-          row.append(elSel, revSel, up, down, rm);
+
+          row.append(elLabel, idSpan, revSel, up, down);
           rowsHost.appendChild(row);
-          if (item?.element_id) elSel.value = item.element_id;
-          elSel.addEventListener("change", () => fillRevisionSelect(revSel, elSel.value));
-          await fillRevisionSelect(revSel, elSel.value, item?.revision_id);
+
+          const sync = () => syncCompositionToTextarea();
+          elInclude.addEventListener("change", sync);
+          revSel.addEventListener("change", sync);
           up.addEventListener("click", () => {
             const prev = row.previousElementSibling;
-            if (prev) rowsHost.insertBefore(row, prev);
-            syncCompositionToTextarea();
+            if (prev?.classList.contains("comp-row")) rowsHost.insertBefore(row, prev);
+            sync();
           });
           down.addEventListener("click", () => {
             const next = row.nextElementSibling;
-            if (next) rowsHost.insertBefore(next, row);
-            syncCompositionToTextarea();
+            if (next?.classList.contains("comp-row")) rowsHost.insertBefore(next, row);
+            sync();
           });
-          rm.addEventListener("click", () => {
-            row.remove();
-            syncCompositionToTextarea();
-          });
-          elSel.addEventListener("change", syncCompositionToTextarea);
-          revSel.addEventListener("change", syncCompositionToTextarea);
         }
 
-        for (const item of items) await addRow(item);
-        if (!items.length && (catalogByKind[kind] || []).length) {
-          await addRow(null);
-        }
-
-        const addBtn = document.createElement("button");
-        addBtn.type = "button";
-        addBtn.textContent = "Add row";
-        addBtn.addEventListener("click", async () => {
-          await addRow(null);
+        sectionInclude.addEventListener("change", () => {
+          setSectionBodyEnabled(wrap, sectionInclude.checked);
+          if (sectionInclude.checked) {
+            const any = rowsHost.querySelector(".element-include:checked");
+            if (!any) {
+              rowsHost.querySelectorAll(".element-include").forEach((c) => {
+                c.checked = true;
+              });
+            }
+          }
           syncCompositionToTextarea();
         });
-        wrap.appendChild(addBtn);
+
         compositionEditor.appendChild(wrap);
       }
+      syncCompositionToTextarea();
     }
 
     function syncCompositionToTextarea() {
