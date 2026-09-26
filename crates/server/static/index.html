@@ -390,6 +390,8 @@
 
     let previewDebounce = null;
     let previewRebuildQueued = false;
+    let lastPreviewContentHash = null;
+    let previewOverlayTimer = null;
 
     function setPreviewPlaceholder(message, visible) {
       placeholder.textContent = message;
@@ -411,10 +413,13 @@
       }
       building = true;
       statusEl.classList.remove("error");
-      statusEl.textContent = "Building…";
       logEl.hidden = true;
       draftWarn.classList.add("hidden");
-      setPreviewPlaceholder("Building preview…", true);
+      clearTimeout(previewOverlayTimer);
+      previewOverlayTimer = setTimeout(
+        () => setPreviewPlaceholder("Building preview…", true),
+        250
+      );
 
       try {
         const res = await fetch("/api/preview", {
@@ -423,6 +428,7 @@
           body: JSON.stringify(previewBody()),
         });
         const data = await res.json();
+        clearTimeout(previewOverlayTimer);
         if (!data.ok) {
           statusEl.textContent = "Build failed";
           statusEl.classList.add("error");
@@ -438,15 +444,31 @@
           return;
         }
         const src = data.preview_source ? ` (${data.preview_source})` : "";
-        statusEl.textContent = "Preview updated" + src;
         if (data.draft_differs_from_submission) {
           draftWarn.classList.remove("hidden");
+        } else {
+          draftWarn.classList.add("hidden");
         }
         hashEl.textContent = data.content_hash || "";
         engineEl.textContent = data.pdf_engine ? "PDF engine: " + data.pdf_engine : "";
+
+        if (data.unchanged) {
+          statusEl.textContent = "Preview up to date" + src;
+          setPreviewPlaceholder("", false);
+          return;
+        }
+
+        statusEl.textContent = "Preview updated" + src;
+        const hash = data.content_hash || "";
+        if (hash && hash === lastPreviewContentHash) {
+          setPreviewPlaceholder("", false);
+          return;
+        }
+        lastPreviewContentHash = hash;
         iframe.src = data.pdf_url + "?t=" + Date.now();
         setPreviewPlaceholder("", false);
       } catch (e) {
+        clearTimeout(previewOverlayTimer);
         statusEl.textContent = "Request failed: " + e;
         statusEl.classList.add("error");
         setPreviewPlaceholder("Preview unavailable", true);

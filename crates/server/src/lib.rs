@@ -6,7 +6,7 @@ mod themes;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use axum::{
@@ -25,6 +25,13 @@ use store::Store;
 use theme::load_theme_info;
 use tower_http::trace::TraceLayer;
 
+#[derive(Default)]
+struct PreviewCache {
+    cache_key: Option<String>,
+    content_hash: Option<String>,
+    pdf_engine: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub root: PathBuf,
@@ -32,6 +39,26 @@ pub struct AppState {
     pub preview_dir: PathBuf,
     pub db_path: PathBuf,
     pub workspace_dir: PathBuf,
+    pub preview_cache: Arc<Mutex<PreviewCache>>,
+}
+
+impl AppState {
+    pub fn new(
+        root: PathBuf,
+        config_path: PathBuf,
+        preview_dir: PathBuf,
+        db_path: PathBuf,
+        workspace_dir: PathBuf,
+    ) -> Self {
+        Self {
+            root,
+            config_path,
+            preview_dir,
+            db_path,
+            workspace_dir,
+            preview_cache: Arc::new(Mutex::new(PreviewCache::default())),
+        }
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -47,6 +74,9 @@ pub struct PreviewRequest {
 #[derive(Serialize)]
 struct PreviewResponse {
     ok: bool,
+    /// Same logical resume as last preview; PDF was not recompiled.
+    #[serde(default)]
+    unchanged: bool,
     content_hash: Option<String>,
     pdf_engine: Option<String>,
     pdf_url: Option<String>,
@@ -157,6 +187,7 @@ async fn run_preview(
     match build_preview(&state, &req) {
         Ok(result) => Json(PreviewResponse {
             ok: true,
+            unchanged: result.unchanged,
             content_hash: Some(result.build.content_hash),
             pdf_engine: result.build.pdf_engine,
             pdf_url: Some("/api/preview/resume.pdf".into()),
@@ -171,6 +202,7 @@ async fn run_preview(
             let log_tail = read_log_tail(&state.preview_dir.join("build.log"));
             Json(PreviewResponse {
                 ok: false,
+                unchanged: false,
                 content_hash: None,
                 pdf_engine: PdfEngine::detect().map(|e| e.name().to_string()),
                 pdf_url: None,
@@ -206,6 +238,7 @@ struct PreviewBuildMeta {
     preview_source: String,
     submission_content_hash: Option<String>,
     draft_differs_from_submission: Option<bool>,
+    unchanged: bool,
 }
 
 fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildMeta> {
@@ -227,6 +260,34 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
     } else {
         None
     };
+
+    let cache_key = preview_cache_key(state, &store, req)?;
+    let pdf_path = state.preview_dir.join("resume.pdf");
+    if pdf_path.is_file() {
+        if let Ok(cache) = state.preview_cache.lock() {
+            if cache.cache_key.as_deref() == Some(cache_key.as_str()) {
+                if let (Some(content_hash), pdf_engine) =
+                    (cache.content_hash.clone(), cache.pdf_engine.clone())
+                {
+                    let (preview_source, draft_differs) =
+                        preview_meta(&store, state, req, application_id, mode, &submission_snapshot)?;
+                    return Ok(PreviewBuildMeta {
+                        build: render_tex::LegacyBuildResult {
+                            tex: String::new(),
+                            tex_path: state.preview_dir.join("resume.tex"),
+                            pdf_path: Some(pdf_path),
+                            content_hash,
+                            pdf_engine,
+                        },
+                        preview_source,
+                        submission_content_hash: submission_snapshot,
+                        draft_differs_from_submission: draft_differs,
+                        unchanged: true,
+                    });
+                }
+            }
+        }
+    }
 
     let build = match (application_id, mode, req.draft_composition.as_ref()) {
         (Some(_), "submitted", _) | (None, _, _) | (Some(_), _, None) => jobdesk_build_aligned(
@@ -252,7 +313,33 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
         }
     };
 
-    let (preview_source, draft_differs) = match application_id {
+    let (preview_source, draft_differs) =
+        preview_meta(&store, state, req, application_id, mode, &submission_snapshot)?;
+
+    if let Ok(mut cache) = state.preview_cache.lock() {
+        cache.cache_key = Some(cache_key);
+        cache.content_hash = Some(build.content_hash.clone());
+        cache.pdf_engine = build.pdf_engine.clone();
+    }
+
+    Ok(PreviewBuildMeta {
+        build,
+        preview_source,
+        submission_content_hash: submission_snapshot,
+        draft_differs_from_submission: draft_differs,
+        unchanged: false,
+    })
+}
+
+fn preview_meta(
+    store: &Store,
+    state: &AppState,
+    req: &PreviewRequest,
+    application_id: Option<&str>,
+    mode: &str,
+    submission_snapshot: &Option<String>,
+) -> Result<(String, Option<bool>)> {
+    Ok(match application_id {
         Some(_) if mode == "submitted" => ("submitted".to_string(), None),
         Some(app_id) => {
             let app = store
@@ -262,8 +349,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
                 .draft_composition
                 .as_ref()
                 .unwrap_or(&app.draft_composition);
-            let draft_snapshot =
-                draft_snapshot_hash(&state.root, &store, draft_for_hash)?;
+            let draft_snapshot = draft_snapshot_hash(&state.root, store, draft_for_hash)?;
             let differs = submission_snapshot
                 .as_ref()
                 .map(|h| h != &draft_snapshot)
@@ -279,14 +365,49 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
             )
         }
         None => ("catalog_default".to_string(), None),
-    };
-
-    Ok(PreviewBuildMeta {
-        build,
-        preview_source,
-        submission_content_hash: submission_snapshot,
-        draft_differs_from_submission: draft_differs,
     })
+}
+
+fn preview_cache_key(
+    state: &AppState,
+    store: &Store,
+    req: &PreviewRequest,
+) -> Result<String> {
+    let application_id = req.application_id.as_deref();
+    let mode = req.mode.as_deref().unwrap_or("draft");
+    match (application_id, mode) {
+        (None, _) => {
+            let composition = default_composition(store)?;
+            Ok(format!(
+                "catalog:{}",
+                draft_snapshot_hash(&state.root, store, &composition)?
+            ))
+        }
+        (Some(app_id), "submitted") => {
+            let sub = store
+                .get_canonical_submission_with_root(&state.workspace_dir, app_id)?
+                .with_context(|| format!("no canonical submission for application `{app_id}`"))?;
+            Ok(format!(
+                "submitted:{}:{}",
+                app_id, sub.manifest.snapshot_hash
+            ))
+        }
+        (Some(app_id), _) => {
+            let composition = if let Some(c) = &req.draft_composition {
+                c.clone()
+            } else {
+                store
+                    .get_application(app_id)?
+                    .ok_or_else(|| anyhow::anyhow!("application not found"))?
+                    .draft_composition
+            };
+            Ok(format!(
+                "draft:{}:{}",
+                app_id,
+                draft_snapshot_hash(&state.root, store, &composition)?
+            ))
+        }
+    }
 }
 
 fn draft_snapshot_hash(

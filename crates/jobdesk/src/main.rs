@@ -347,13 +347,13 @@ async fn main() -> Result<()> {
             }
 
             run_server(
-                AppState {
-                    root: root.clone(),
+                AppState::new(
+                    root.clone(),
                     config_path,
                     preview_dir,
-                    db_path: db_path.clone(),
-                    workspace_dir: workspace.clone(),
-                },
+                    db_path.clone(),
+                    workspace.clone(),
+                ),
                 &host,
                 port,
             )
