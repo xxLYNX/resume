@@ -197,8 +197,19 @@
           </select>
         </label>
         <button type="button" id="reload-catalog">Reload</button>
-        <button type="button" id="new-catalog-entry" disabled title="Choose a kind filter first">New entry</button>
+        <label class="meta">New
+          <select id="new-entry-kind">
+            <option value="experience">experience</option>
+            <option value="education">education</option>
+            <option value="project">project</option>
+            <option value="header">header</option>
+            <option value="objective">objective</option>
+            <option value="skills">skills</option>
+          </select>
+        </label>
+        <button type="button" id="new-catalog-entry">New entry</button>
       </div>
+      <p class="help">List filter is for browsing; <strong>New</strong> uses the kind selector beside New entry.</p>
       <p class="meta" id="catalog-status">Loading catalog…</p>
       <ul id="element-list"></ul>
       <div class="row">
@@ -956,17 +967,7 @@
       }
     }
 
-    function syncNewCatalogEntryButton() {
-      const btn = document.getElementById("new-catalog-entry");
-      const kind = kindFilter.value;
-      btn.disabled = !kind;
-      btn.title = kind
-        ? `Create a new ${kind} element`
-        : "Choose a kind filter first";
-    }
-
     async function loadCatalog() {
-      syncNewCatalogEntryButton();
       catalogStatus.classList.remove("error");
       catalogStatus.textContent = "Loading…";
       elementList.innerHTML = "";
