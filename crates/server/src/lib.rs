@@ -85,9 +85,19 @@ struct PreviewResponse {
     tex_path: Option<String>,
     error: Option<String>,
     log_tail: Option<String>,
+    /// User-facing message when preview is intentionally empty (e.g. no submission yet).
+    info: Option<String>,
     preview_source: Option<String>,
     submission_content_hash: Option<String>,
     draft_differs_from_submission: Option<bool>,
+}
+
+enum PreviewOutcome {
+    Built(PreviewBuildMeta),
+    Unavailable {
+        message: String,
+        preview_source: String,
+    },
 }
 
 pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
@@ -191,7 +201,7 @@ async fn run_preview(
 ) -> Json<PreviewResponse> {
     let req = body.map(|j| j.0).unwrap_or_default();
     match build_preview(&state, &req) {
-        Ok(result) => Json(PreviewResponse {
+        Ok(PreviewOutcome::Built(result)) => Json(PreviewResponse {
             ok: true,
             unchanged: result.unchanged,
             content_hash: Some(result.build.content_hash),
@@ -200,9 +210,27 @@ async fn run_preview(
             tex_path: Some(result.build.tex_path.display().to_string()),
             error: None,
             log_tail: None,
+            info: None,
             preview_source: Some(result.preview_source),
             submission_content_hash: result.submission_content_hash,
             draft_differs_from_submission: result.draft_differs_from_submission,
+        }),
+        Ok(PreviewOutcome::Unavailable {
+            message,
+            preview_source,
+        }) => Json(PreviewResponse {
+            ok: true,
+            unchanged: false,
+            content_hash: None,
+            pdf_engine: None,
+            pdf_url: None,
+            tex_path: None,
+            error: None,
+            log_tail: None,
+            info: Some(message),
+            preview_source: Some(preview_source),
+            submission_content_hash: None,
+            draft_differs_from_submission: None,
         }),
         Err(err) => {
             let log_tail = read_log_tail(&state.preview_dir.join("build.log"));
@@ -215,6 +243,7 @@ async fn run_preview(
                 tex_path: None,
                 error: Some(format!("{err:#}")),
                 log_tail,
+                info: None,
                 preview_source: None,
                 submission_content_hash: None,
                 draft_differs_from_submission: None,
@@ -247,7 +276,7 @@ struct PreviewBuildMeta {
     unchanged: bool,
 }
 
-fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildMeta> {
+fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcome> {
     if !state.db_path.exists() {
         anyhow::bail!(
             "catalog database missing at {}; run: cargo run -p jobdesk -- import",
@@ -258,6 +287,20 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
 
     let application_id = req.application_id.as_deref();
     let mode = req.mode.as_deref().unwrap_or("draft");
+
+    if mode == "submitted" {
+        if let Some(app_id) = application_id {
+            let has_canonical = store
+                .get_canonical_submission_with_root(&state.workspace_dir, app_id)?
+                .is_some();
+            if !has_canonical {
+                return Ok(PreviewOutcome::Unavailable {
+                    message: "No submission yet for this application. Use Submit to freeze a resume, or switch preview to Current draft.".into(),
+                    preview_source: "submitted_unavailable".into(),
+                });
+            }
+        }
+    }
 
     let submission_snapshot = if let Some(app_id) = application_id {
         store
@@ -277,7 +320,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
                 {
                     let (preview_source, draft_differs) =
                         preview_meta(&store, state, req, application_id, mode, &submission_snapshot)?;
-                    return Ok(PreviewBuildMeta {
+                    return Ok(PreviewOutcome::Built(PreviewBuildMeta {
                         build: render_tex::LegacyBuildResult {
                             tex: String::new(),
                             tex_path: state.preview_dir.join("resume.tex"),
@@ -289,7 +332,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
                         submission_content_hash: submission_snapshot,
                         draft_differs_from_submission: draft_differs,
                         unchanged: true,
-                    });
+                    }));
                 }
             }
         }
@@ -317,7 +360,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
         if let Ok(mut cache) = state.preview_cache.lock() {
             cache.cache_key = Some(cache_key);
         }
-        return Ok(PreviewBuildMeta {
+        return Ok(PreviewOutcome::Built(PreviewBuildMeta {
             build: LegacyBuildResult {
                 tex: String::new(),
                 tex_path: build.tex_path,
@@ -329,7 +372,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
             submission_content_hash: submission_snapshot,
             draft_differs_from_submission: draft_differs,
             unchanged: true,
-        });
+        }));
     }
 
     let tex_name = build
@@ -348,13 +391,13 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewBuildM
         cache.pdf_engine = build.pdf_engine.clone();
     }
 
-    Ok(PreviewBuildMeta {
+    Ok(PreviewOutcome::Built(PreviewBuildMeta {
         build,
         preview_source,
         submission_content_hash: submission_snapshot,
         draft_differs_from_submission: draft_differs,
         unchanged: false,
-    })
+    }))
 }
 
 fn run_preview_build(

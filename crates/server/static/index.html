@@ -422,6 +422,20 @@
     const panelPresets = document.getElementById("panel-presets");
     const cloneFromPreset = document.getElementById("clone-from-preset");
 
+    function syncPreviewModeForApp(submissionCount) {
+      const lastSubmitOpt = previewMode.querySelector('option[value="submitted"]');
+      const hasSubmission = submissionCount > 0;
+      if (lastSubmitOpt) {
+        lastSubmitOpt.disabled = !hasSubmission;
+        lastSubmitOpt.title = hasSubmission
+          ? ""
+          : "No submission yet — use Submit on this application first";
+      }
+      if (!hasSubmission && previewMode.value === "submitted") {
+        previewMode.value = "draft";
+      }
+    }
+
     function previewBody() {
       const body = {};
       if (selectedAppId) {
@@ -527,6 +541,18 @@
           setPreviewPlaceholder("Fix errors and rebuild", true);
           return;
         }
+        if (data.info && !data.pdf_url) {
+          statusEl.textContent = data.info;
+          statusEl.classList.remove("error");
+          hashEl.textContent = "";
+          engineEl.textContent = "";
+          logEl.hidden = true;
+          iframe.removeAttribute("src");
+          lastPreviewContentHash = null;
+          setPreviewPlaceholder(data.info, true);
+          return;
+        }
+        setPreviewPlaceholder("", false);
         const src = data.preview_source ? ` (${data.preview_source})` : "";
         if (data.draft_differs_from_submission) {
           draftWarn.classList.remove("hidden");
@@ -1227,6 +1253,7 @@
       appSource.value = app.source || "";
       fillApplicationMetaFields(app);
       syncDetailWorkflowOptions(app.phase, app.submissions.length > 0);
+      syncPreviewModeForApp(app.submissions.length);
       appWorkflowSelect.value = app.status;
       appTagsInput.value = (app.tags || []).join(", ");
       draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
