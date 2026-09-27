@@ -108,6 +108,7 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
         .route("/api/preview/resume.pdf", get(get_preview_pdf))
         .route("/api/health", get(health))
         .route("/api/catalog/elements", get(catalog::list_elements))
+        .route("/api/catalog/elements", post(catalog::create_element))
         .route("/api/catalog/elements/{id}", get(catalog::get_element))
         .route(
             "/api/catalog/elements/{id}/revisions",
@@ -409,7 +410,7 @@ fn run_preview_build(
     compile_pdf: bool,
 ) -> Result<LegacyBuildResult> {
     match (application_id, mode, req.draft_composition.as_ref()) {
-        (Some(_), "submitted", _) | (None, _, _) | (Some(_), _, None) => jobdesk_build_aligned(
+        (Some(_), "submitted", _) => jobdesk_build_aligned(
             store,
             &state.workspace_dir,
             &state.root,
@@ -419,7 +420,7 @@ fn run_preview_build(
             application_id,
             mode,
         ),
-        (Some(_), _, Some(composition)) => {
+        (_, _, Some(composition)) if mode != "submitted" => {
             resolve_composition(store, composition)?;
             jobdesk_build_composition_to_dir(
                 store,
@@ -430,6 +431,16 @@ fn run_preview_build(
                 compile_pdf,
             )
         }
+        _ => jobdesk_build_aligned(
+            store,
+            &state.workspace_dir,
+            &state.root,
+            &state.config_path,
+            &state.preview_dir,
+            compile_pdf,
+            application_id,
+            mode,
+        ),
     }
 }
 
@@ -466,6 +477,9 @@ fn preview_meta(
                 Some(differs),
             )
         }
+        None if req.draft_composition.is_some() => {
+            ("new_application_draft_live".to_string(), None)
+        }
         None => ("catalog_default".to_string(), None),
     })
 }
@@ -479,6 +493,12 @@ fn preview_cache_key(
     let mode = req.mode.as_deref().unwrap_or("draft");
     match (application_id, mode) {
         (None, _) => {
+            if let Some(composition) = &req.draft_composition {
+                return Ok(format!(
+                    "new_app:{}",
+                    draft_snapshot_hash(&state.root, store, composition)?
+                ));
+            }
             let composition = default_composition(store)?;
             Ok(format!(
                 "catalog:{}",

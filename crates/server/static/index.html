@@ -197,6 +197,7 @@
           </select>
         </label>
         <button type="button" id="reload-catalog">Reload</button>
+        <button type="button" id="new-catalog-entry" disabled title="Choose a kind filter first">New entry</button>
       </div>
       <p class="meta" id="catalog-status">Loading catalog…</p>
       <ul id="element-list"></ul>
@@ -462,12 +463,17 @@
 
     function previewBody() {
       const body = {};
+      const useDraftComposition =
+        previewMode.value === "draft" &&
+        (selectedAppId || isCreateMode());
       if (selectedAppId) {
         body.application_id = selectedAppId;
         body.mode = previewMode.value;
-        if (previewMode.value === "draft") {
-          body.draft_composition = compositionFromEditorDom();
-        }
+      } else if (isCreateMode()) {
+        body.mode = "draft";
+      }
+      if (useDraftComposition) {
+        body.draft_composition = compositionFromEditorDom();
       }
       return body;
     }
@@ -528,7 +534,8 @@
     /** Single path: read editor → JSON textarea → debounced live preview (unsaved draft). */
     function notifyCompositionChanged() {
       draftEditor.value = JSON.stringify(compositionFromEditorDom(), null, 2);
-      if (!selectedAppId || previewMode.value !== "draft") return;
+      if (previewMode.value !== "draft") return;
+      if (!selectedAppId && !isCreateMode()) return;
       clearTimeout(previewDebounce);
       previewDebounce = setTimeout(() => rebuild(), 450);
     }
@@ -930,7 +937,36 @@
         `${preset.name} · theme ${preset.theme_id} · updated ${preset.updated_at.slice(0, 19)}`;
     }
 
+    function defaultPayloadForKind(kind) {
+      switch (kind) {
+        case "skills":
+          return { skills: {} };
+        case "experience":
+          return { company: "", position: "", date: "", highlights: [] };
+        case "education":
+          return { degree: "", school: "", date: "", highlights: [] };
+        case "project":
+          return { name: "", technologies: "", date: "", details: [] };
+        case "header":
+          return { name: "", email: "", phone: "" };
+        case "objective":
+          return { objective: "" };
+        default:
+          return {};
+      }
+    }
+
+    function syncNewCatalogEntryButton() {
+      const btn = document.getElementById("new-catalog-entry");
+      const kind = kindFilter.value;
+      btn.disabled = !kind;
+      btn.title = kind
+        ? `Create a new ${kind} element`
+        : "Choose a kind filter first";
+    }
+
     async function loadCatalog() {
+      syncNewCatalogEntryButton();
       catalogStatus.classList.remove("error");
       catalogStatus.textContent = "Loading…";
       elementList.innerHTML = "";
@@ -1587,6 +1623,48 @@
       previewModeWrap.classList.add("hidden");
       loadPresets();
       rebuild();
+    });
+
+    document.getElementById("new-catalog-entry").addEventListener("click", async () => {
+      const kind = kindFilter.value;
+      if (!kind) return;
+      const suggested = `${kind}.new-${Date.now().toString(36).slice(-8)}`;
+      const id = window.prompt(`Element id (e.g. experience.acme-2025):`, suggested);
+      if (!id || !id.trim()) return;
+      const payload = defaultPayloadForKind(kind);
+      catalogStatus.textContent = "Creating…";
+      try {
+        const res = await fetch("/api/catalog/elements", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: id.trim(), kind, payload }),
+        });
+        const detail = await res.json();
+        if (!res.ok) {
+          catalogStatus.textContent = detail.error || "Create failed";
+          catalogStatus.classList.add("error");
+          return;
+        }
+        elementDetailCache.delete(id.trim());
+        catalogStatus.textContent = `Created ${id.trim()}`;
+        catalogStatus.classList.remove("error");
+        await refreshCatalogByKind();
+        await loadCatalog();
+        await selectElement(id.trim());
+        if (isCreateMode() || selectedAppId) {
+          let comp;
+          try {
+            comp = JSON.parse(draftEditor.value || '{"sections":[]}');
+          } catch {
+            comp = { sections: [] };
+          }
+          await renderCompositionEditor(comp);
+          notifyCompositionChanged();
+        }
+      } catch (e) {
+        catalogStatus.textContent = String(e);
+        catalogStatus.classList.add("error");
+      }
     });
 
     kindFilter.addEventListener("change", loadCatalog);

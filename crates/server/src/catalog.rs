@@ -16,6 +16,20 @@ pub struct ListQuery {
     pub kind: Option<String>,
 }
 
+pub async fn create_element(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<store::CreateElementRequest>,
+) -> impl IntoResponse {
+    with_store(state, move |store| {
+        if store::kind_from_str(&body.kind).is_none() {
+            anyhow::bail!("unknown kind `{}`", body.kind);
+        }
+        let detail = store.create_element(&body)?;
+        Ok((StatusCode::CREATED, Json(detail)).into_response())
+    })
+    .await
+}
+
 pub async fn list_elements(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ListQuery>,

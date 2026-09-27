@@ -43,7 +43,7 @@ Known gap (fix in J): **New application** form does not send unsaved `draft_comp
 
 - [x] Preview **Last submit** when no submission — friendly empty state (server + UI), not build failure (`master`).
 - [x] Preview mode dropdown — both options visible; validate instead of hiding disabled options (`master`).
-- [ ] **New application** — preview uses composition from picker before first Save.
+- [x] **New application** — preview uses composition from picker before first Save.
 - [ ] After library revision save, optional refresh of revision lists in open application picker (no auto-bump of pins).
 
 ### 2. Phase & pipeline (revisit — not blocking library work)
@@ -56,10 +56,10 @@ The two-layer model is defined in [`APPLICATION_LIFECYCLE.md`](APPLICATION_LIFEC
 
 ### 3. Library CRUD & editor UX
 
-- [ ] Store + API: `create_element(kind, id, initial_payload)` (element row + revision 1, validated).
+- [x] Store + API: `create_element(kind, id, initial_payload)` (element row + revision 1, validated).
 - [ ] Optional: `delete_element` or archive (v2 — only if needed for MVP).
 - [ ] CLI: `jobdesk catalog add <kind> <id>` (or similar) for scripting.
-- [ ] UI: **New entry** per kind filter (experience, education, project, …); stable id suggestion (`experience.acme-swe-2025`).
+- [x] UI: **New entry** per kind filter (experience, education, project, …); stable id suggestion (`experience.acme-swe-2025`).
 - [ ] UI copy: rename or subtitle Catalog → **Resume library** (tab label TBD; avoid duplicating composition editing here).
 - [ ] Optional shortcut: after create, “Include in current application” when app detail is open.
 

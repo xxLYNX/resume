@@ -47,6 +47,13 @@ pub struct CreateRevisionRequest {
     pub payload: Value,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CreateElementRequest {
+    pub id: String,
+    pub kind: String,
+    pub payload: Value,
+}
+
 impl Store {
     pub fn list_elements(&self, kind: Option<&str>) -> Result<Vec<ElementSummary>> {
         let conn = self.connection();
@@ -151,6 +158,54 @@ impl Store {
             |row| row.get(0),
         )?;
         parse_kind(&kind).with_context(|| format!("unknown kind `{kind}` for element `{element_id}`"))
+    }
+
+    pub fn create_element(&self, req: &CreateElementRequest) -> Result<ElementDetail> {
+        let kind = parse_kind(&req.kind)?;
+        domain::validate_payload(kind, &req.payload)?;
+
+        let id = req.id.trim();
+        if id.is_empty() {
+            anyhow::bail!("element id is required");
+        }
+        if id.contains(char::is_whitespace) {
+            anyhow::bail!("element id must not contain whitespace");
+        }
+
+        let conn = self.connection();
+        let exists: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM elements WHERE id = ?1",
+            [id],
+            |row| row.get(0),
+        )?;
+        if exists > 0 {
+            anyhow::bail!("element `{id}` already exists");
+        }
+
+        let now = OffsetDateTime::now_utc()
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap();
+        let sort_order: i32 = conn.query_row(
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM elements WHERE kind = ?1",
+            [req.kind.as_str()],
+            |row| row.get(0),
+        )?;
+
+        conn.execute(
+            "INSERT INTO elements (id, kind, created_at, sort_order) VALUES (?1, ?2, ?3, ?4)",
+            params![id, req.kind, now, sort_order],
+        )?;
+
+        let rev_id = Uuid::new_v4().to_string();
+        let payload_json = serde_json::to_string(&req.payload)?;
+        conn.execute(
+            "INSERT INTO element_revisions (id, element_id, rev_number, payload_json, created_at)
+             VALUES (?1, ?2, 1, ?3, ?4)",
+            params![rev_id, id, payload_json, now],
+        )?;
+
+        self.get_element(id)?
+            .context("element missing after create")
     }
 
     pub fn create_revision(&self, element_id: &str, payload: Value) -> Result<RevisionDetail> {

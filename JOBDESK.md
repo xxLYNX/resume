@@ -6,6 +6,7 @@ Local workspace binary. Design and milestones: [`ARCHITECTURE.md`](ARCHITECTURE.
 
 - Rust (`cargo`)
 - PDF (optional): Tectonic or `pdflatex`
+- **Git hooks (recommended):** `./scripts/install-githooks.sh` — strips unwanted `Co-authored-by` trailers from commits in this repo.
 
 ## Commands
 
