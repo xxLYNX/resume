@@ -1,6 +1,6 @@
 # Milestone I — Application ledger & PDF export
 
-**Branch:** `dev/application-ledger` (parallel to Milestone F on `dev/milestone-f`).
+**Status:** complete on `master` (branch closed).
 
 Track job postings with enough metadata for search and a **single PDF ledger** of all applications, written to the user **Downloads** folder (e.g. `~/Downloads/jobdesk-applications.pdf` on Linux).
 

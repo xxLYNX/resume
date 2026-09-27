@@ -538,6 +538,9 @@
         previewRebuildQueued = true;
         return;
       }
+      if (selectedAppId) {
+        ensurePreviewModeAllowed();
+      }
       building = true;
       statusEl.classList.remove("error");
       logEl.hidden = true;

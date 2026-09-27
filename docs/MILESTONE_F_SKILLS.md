@@ -1,6 +1,6 @@
 # Milestone F — Skills catalog & framework refs
 
-**F** is the active milestone after **E** (composition, themes, catalog UX — complete). This spec covers skills and external framework refs, not UniFFI.
+**F** is **queued after Milestone J** ([`MILESTONE_J_RESUME_LIBRARY.md`](MILESTONE_J_RESUME_LIBRARY.md)). E and I are complete on `master`. This spec covers skills and external framework refs, not UniFFI.
 
 UniFFI and portfolio move to **G** and **H** (see [`ARCHITECTURE.md`](../ARCHITECTURE.md)).
 
