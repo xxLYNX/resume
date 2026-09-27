@@ -109,7 +109,12 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
         .route("/api/health", get(health))
         .route("/api/catalog/elements", get(catalog::list_elements))
         .route("/api/catalog/elements", post(catalog::create_element))
+        .route(
+            "/api/catalog/elements/{id}/usage",
+            get(catalog::element_usage),
+        )
         .route("/api/catalog/elements/{id}", get(catalog::get_element))
+        .route("/api/catalog/elements/{id}", delete(catalog::delete_element))
         .route(
             "/api/catalog/elements/{id}/revisions",
             post(catalog::create_revision),

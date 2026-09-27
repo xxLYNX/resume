@@ -47,6 +47,28 @@ pub async fn list_elements(
     .await
 }
 
+pub async fn element_usage(
+    State(state): State<Arc<AppState>>,
+    Path(element_id): Path<String>,
+) -> impl IntoResponse {
+    with_store(state, move |store| {
+        let report = store.element_usage(&element_id)?;
+        Ok(Json(report).into_response())
+    })
+    .await
+}
+
+pub async fn delete_element(
+    State(state): State<Arc<AppState>>,
+    Path(element_id): Path<String>,
+) -> impl IntoResponse {
+    with_store(state, move |store| {
+        store.delete_element_if_unused(&element_id)?;
+        Ok(StatusCode::NO_CONTENT.into_response())
+    })
+    .await
+}
+
 pub async fn get_element(
     State(state): State<Arc<AppState>>,
     Path(element_id): Path<String>,

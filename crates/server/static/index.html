@@ -232,6 +232,7 @@
           </label>
           <button type="button" id="save-revision" disabled>Save as new revision</button>
           <button type="button" id="create-element" class="hidden">Create entry</button>
+          <button type="button" id="delete-element" class="hidden">Delete entry</button>
           <label class="meta"><input type="checkbox" id="catalog-json-mode" /> Edit as JSON</label>
         </div>
         <div id="payload-form" hidden></div>
@@ -445,6 +446,7 @@
     const catalogElementDetail = document.getElementById("catalog-element-detail");
     const catalogElementIdInput = document.getElementById("catalog-element-id");
     const createElementBtn = document.getElementById("create-element");
+    const deleteElementBtn = document.getElementById("delete-element");
     const catalogElementMeta = document.getElementById("catalog-element-meta");
     const catalogCreateIdRow = document.getElementById("catalog-create-id-row");
     const catalogRevisionRow = document.getElementById("catalog-revision-row");
@@ -814,6 +816,7 @@
       catalogElementDetail.classList.add("hidden");
       catalogCreateIdRow.classList.add("hidden");
       createElementBtn.classList.add("hidden");
+      deleteElementBtn.classList.add("hidden");
       saveBtn.classList.remove("hidden");
       catalogRevisionRow.classList.remove("hidden");
       payloadEditor.disabled = true;
@@ -831,6 +834,7 @@
       catalogElementDetail.classList.remove("hidden");
       catalogCreateIdRow.classList.remove("hidden");
       createElementBtn.classList.remove("hidden");
+      deleteElementBtn.classList.add("hidden");
       saveBtn.classList.add("hidden");
       catalogRevisionRow.classList.add("hidden");
       catalogElementMeta.textContent = `New ${kind} entry`;
@@ -1133,6 +1137,7 @@
       catalogElementDetail.classList.remove("hidden");
       catalogCreateIdRow.classList.add("hidden");
       createElementBtn.classList.add("hidden");
+      deleteElementBtn.classList.remove("hidden");
       saveBtn.classList.remove("hidden");
       catalogRevisionRow.classList.remove("hidden");
       for (const li of elementList.querySelectorAll("li")) {
@@ -1775,6 +1780,67 @@
     document.getElementById("close-element-detail").addEventListener("click", () => {
       closeElementDetail();
       rebuild();
+    });
+
+    deleteElementBtn.addEventListener("click", async () => {
+      if (!selectedElementId || isElementCreateMode()) return;
+      const id = selectedElementId;
+      let usage;
+      try {
+        const ures = await fetch(`/api/catalog/elements/${encodeURIComponent(id)}/usage`);
+        usage = await ures.json();
+        if (!ures.ok) {
+          catalogStatus.textContent = usage.error || "Could not check usage";
+          catalogStatus.classList.add("error");
+          return;
+        }
+      } catch (e) {
+        catalogStatus.textContent = String(e);
+        catalogStatus.classList.add("error");
+        return;
+      }
+      if (usage.applications?.length || usage.presets?.length) {
+        const parts = [];
+        for (const a of usage.applications || []) {
+          parts.push(`${a.company} — ${a.title}`);
+        }
+        for (const p of usage.presets || []) {
+          parts.push(`preset: ${p.name}`);
+        }
+        catalogStatus.textContent =
+          "Cannot delete — used in: " + parts.slice(0, 5).join("; ") +
+          (parts.length > 5 ? ` (+${parts.length - 5} more)` : "");
+        catalogStatus.classList.add("error");
+        return;
+      }
+      if (
+        !confirm(
+          `Delete “${id}” and all its revisions? This cannot be undone.`
+        )
+      ) {
+        return;
+      }
+      try {
+        const res = await fetch(`/api/catalog/elements/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+        const data = res.status === 204 ? {} : await res.json();
+        if (!res.ok) {
+          catalogStatus.textContent = data.error || "Delete failed";
+          catalogStatus.classList.add("error");
+          return;
+        }
+        elementDetailCache.delete(id);
+        closeElementDetail();
+        catalogStatus.textContent = `Deleted ${id}`;
+        catalogStatus.classList.remove("error");
+        await refreshCatalogByKind();
+        await loadCatalog();
+        await rebuild();
+      } catch (e) {
+        catalogStatus.textContent = String(e);
+        catalogStatus.classList.add("error");
+      }
     });
 
     createElementBtn.addEventListener("click", async () => {

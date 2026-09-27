@@ -57,9 +57,9 @@ The two-layer model is defined in [`APPLICATION_LIFECYCLE.md`](APPLICATION_LIFEC
 ### 3. Library CRUD & editor UX
 
 - [x] Store + API: `create_element(kind, id, initial_payload)` (element row + revision 1, validated).
-- [ ] Optional: `delete_element` or archive (v2 — only if needed for MVP).
+- [x] `delete_element` when unused (not referenced by any application draft or preset composition).
 - [ ] CLI: `jobdesk catalog add <kind> <id>` (or similar) for scripting.
-- [x] UI: **New entry** per kind filter (experience, education, project, …); stable id suggestion (`experience.acme-swe-2025`).
+- [x] UI: **New entry** inline form (like New application): resume fields + optional element id (auto-suggested from company/project name; not shown on PDF).
 - [ ] UI copy: rename or subtitle Catalog → **Resume library** (tab label TBD; avoid duplicating composition editing here).
 - [ ] Optional shortcut: after create, “Include in current application” when app detail is open.
 

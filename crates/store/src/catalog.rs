@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use domain::ElementKind;
+use domain::{Composition, ElementKind};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -52,6 +52,31 @@ pub struct CreateElementRequest {
     pub id: String,
     pub kind: String,
     pub payload: Value,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ElementUsageApplication {
+    pub id: String,
+    pub company: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ElementUsagePreset {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ElementUsageReport {
+    pub applications: Vec<ElementUsageApplication>,
+    pub presets: Vec<ElementUsagePreset>,
+}
+
+impl ElementUsageReport {
+    pub fn is_unused(&self) -> bool {
+        self.applications.is_empty() && self.presets.is_empty()
+    }
 }
 
 impl Store {
@@ -158,6 +183,91 @@ impl Store {
             |row| row.get(0),
         )?;
         parse_kind(&kind).with_context(|| format!("unknown kind `{kind}` for element `{element_id}`"))
+    }
+
+    pub fn element_usage(&self, element_id: &str) -> Result<ElementUsageReport> {
+        let conn = self.connection();
+        let exists: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM elements WHERE id = ?1",
+            [element_id],
+            |row| row.get(0),
+        )?;
+        if exists == 0 {
+            anyhow::bail!("unknown element `{element_id}`");
+        }
+
+        let mut applications = Vec::new();
+        let mut stmt = conn.prepare(
+            "SELECT id, company, title, draft_composition_json FROM applications",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        })?;
+        for row in rows {
+            let (id, company, title, draft_json) = row?;
+            let composition: Composition =
+                serde_json::from_str(&draft_json).unwrap_or(Composition { sections: vec![] });
+            if composition.references_element(element_id) {
+                applications.push(ElementUsageApplication {
+                    id,
+                    company,
+                    title,
+                });
+            }
+        }
+
+        let mut presets = Vec::new();
+        let mut p_stmt = conn.prepare(
+            "SELECT id, name, composition_json FROM presets",
+        )?;
+        let p_rows = p_stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?;
+        for row in p_rows {
+            let (id, name, comp_json) = row?;
+            let composition: Composition =
+                serde_json::from_str(&comp_json).unwrap_or(Composition { sections: vec![] });
+            if composition.references_element(element_id) {
+                presets.push(ElementUsagePreset { id, name });
+            }
+        }
+
+        Ok(ElementUsageReport {
+            applications,
+            presets,
+        })
+    }
+
+    /// Remove element and all revisions. Fails if any application or preset composition references it.
+    pub fn delete_element_if_unused(&self, element_id: &str) -> Result<()> {
+        let usage = self.element_usage(element_id)?;
+        if !usage.is_unused() {
+            anyhow::bail!(
+                "element `{element_id}` is in use ({} application(s), {} preset(s))",
+                usage.applications.len(),
+                usage.presets.len()
+            );
+        }
+
+        let conn = self.connection();
+        conn.execute(
+            "DELETE FROM element_revisions WHERE element_id = ?1",
+            [element_id],
+        )?;
+        let n = conn.execute("DELETE FROM elements WHERE id = ?1", [element_id])?;
+        if n == 0 {
+            anyhow::bail!("unknown element `{element_id}`");
+        }
+        Ok(())
     }
 
     pub fn create_element(&self, req: &CreateElementRequest) -> Result<ElementDetail> {

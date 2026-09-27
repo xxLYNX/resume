@@ -18,7 +18,7 @@ pub use applications::{
 };
 pub use catalog::{
     kind_from_str, CreateElementRequest, CreateRevisionRequest, ElementDetail, ElementSummary,
-    RevisionDetail, RevisionSummary,
+    ElementUsageReport, RevisionDetail, RevisionSummary,
 };
 pub use export::{export_catalog_to_content, STAGING_CONTENT_DIR};
 pub use import::{import_legacy_content, ImportOptions, ImportStats};

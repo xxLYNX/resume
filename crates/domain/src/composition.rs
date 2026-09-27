@@ -16,3 +16,14 @@ pub struct CompositionItem {
     pub element_id: String,
     pub revision_id: String,
 }
+
+impl Composition {
+    pub fn references_element(&self, element_id: &str) -> bool {
+        self.sections.iter().any(|section| {
+            section
+                .items
+                .iter()
+                .any(|item| item.element_id == element_id)
+        })
+    }
+}
