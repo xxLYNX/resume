@@ -204,7 +204,7 @@ Recommended order (each step is usable on its own):
 
 ## Milestone I — Application ledger & PDF export
 
-**Branch:** `dev/application-ledger` (parallel to F). Spec: [`docs/MILESTONE_I_APPLICATION_LEDGER.md`](docs/MILESTONE_I_APPLICATION_LEDGER.md).
+**Status:** complete on `master`. Spec: [`docs/MILESTONE_I_APPLICATION_LEDGER.md`](docs/MILESTONE_I_APPLICATION_LEDGER.md).
 
 - [x] Application fields: employment type, work mode, location, compensation (hourly/annual, range)
 - [x] Ledger PDF export to user Downloads folder (CLI + UI)
