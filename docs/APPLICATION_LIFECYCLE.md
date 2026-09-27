@@ -37,3 +37,9 @@ Existing rows: `status = draft` → `phase = draft`; any other status → `phase
 - `GET /api/applications?status=interview` — workflow filter (works across submitted-phase rows).
 
 See [`JOBDESK.md`](../JOBDESK.md) for CLI/UI.
+
+## Revisit planned
+
+**Milestone J** will revisit phase vs pipeline behavior in the UI and API. The rules above are the target model; current `serve` + Save paths have **known gaps** (e.g. pipeline/phase labels vs whether a canonical submission exists, filters that disagree with preview mode). Not critical for library/editor work; do not block J CRUD on a full lifecycle redesign.
+
+Track issues and fixes in [`MILESTONE_J_RESUME_LIBRARY.md`](MILESTONE_J_RESUME_LIBRARY.md#phase--pipeline-revisit).

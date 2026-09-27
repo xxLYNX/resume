@@ -175,13 +175,24 @@ Recommended order (each step is usable on its own):
 - [x] Live draft preview + preview dedupe (skip PDF when document unchanged)
 - [x] Applications list/detail UI (New application flow, Close back to list)
 
-**Deferred post-E:** submission history UI (list/open past manifests); optional phase/pipeline UI polish.
+**Deferred post-E:** submission history UI (list/open past manifests); phase/pipeline revisit → **Milestone J**.
+
+---
+
+## Milestone J — Resume library, editor & UX fixes
+
+**Current milestone.** Branch: `dev/milestone-j`. Spec: [`docs/MILESTONE_J_RESUME_LIBRARY.md`](docs/MILESTONE_J_RESUME_LIBRARY.md). Track in [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md).
+
+- [ ] Applications preview fixes (e.g. new-application draft from composition picker)
+- [ ] `create_element` + library “New entry” UI (today: import seed + edit revisions only)
+- [ ] Product model documented: **library** (facts + revisions) vs **application** (composition pins + tracker)
+- [ ] **Phase & pipeline revisit** — known UI/rule gaps; not blocking library CRUD ([`docs/APPLICATION_LIFECYCLE.md`](docs/APPLICATION_LIFECYCLE.md#revisit-planned))
 
 ---
 
 ## Milestone F — Skills catalog & framework refs
 
-**Current milestone.** Spec: [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md). Track progress in [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md).
+**Queued after J.** Spec: [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md).
 
 - [ ] Skills table + aliases + tags
 - [ ] `framework_refs` (NICE, ESCO, …) + optional import enrichment
