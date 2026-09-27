@@ -209,18 +209,34 @@
         </label>
         <button type="button" id="new-catalog-entry">New entry</button>
       </div>
-      <p class="help">List filter is for browsing; <strong>New</strong> uses the kind selector beside New entry.</p>
-      <p class="meta" id="catalog-status">Loading catalog…</p>
-      <ul id="element-list"></ul>
-      <div class="row">
-        <label>Revision
-          <select id="revision-select" disabled></select>
-        </label>
-        <button type="button" id="save-revision" disabled>Save as new revision</button>
-        <label class="meta"><input type="checkbox" id="catalog-json-mode" /> Edit as JSON</label>
+      <p class="help">List filter is for browsing; <strong>New</strong> uses the kind beside New entry.</p>
+      <div id="catalog-list-body">
+        <p class="meta" id="catalog-status">Loading catalog…</p>
+        <ul id="element-list"></ul>
       </div>
-      <div id="payload-form" hidden></div>
-      <textarea id="payload-editor" spellcheck="false" placeholder="Select an element…" disabled></textarea>
+      <div id="catalog-element-detail" class="hidden">
+        <div class="detail-head">
+          <button type="button" id="close-element-detail">Close</button>
+          <p class="meta" id="catalog-element-meta" style="margin:0"></p>
+        </div>
+        <div id="catalog-create-id-row" class="hidden">
+          <label class="meta">Element id
+            <input type="text" id="catalog-element-id" autocomplete="off" spellcheck="false"
+              placeholder="experience.acme-2024" style="width:100%;margin-top:0.25rem;font-family:ui-monospace,monospace" />
+          </label>
+          <p class="help">Stable catalog key (used in compositions). <strong>Not printed on the PDF</strong> — company, title, project name, etc. below are what appear on the resume. You can edit this id before Create; suggested from your labels when possible.</p>
+        </div>
+        <div class="row" id="catalog-revision-row">
+          <label>Revision
+            <select id="revision-select" disabled></select>
+          </label>
+          <button type="button" id="save-revision" disabled>Save as new revision</button>
+          <button type="button" id="create-element" class="hidden">Create entry</button>
+          <label class="meta"><input type="checkbox" id="catalog-json-mode" /> Edit as JSON</label>
+        </div>
+        <div id="payload-form" hidden></div>
+        <textarea id="payload-editor" spellcheck="false" placeholder="Select an element…" disabled></textarea>
+      </div>
       <p class="meta">Preview builds from SQLite (resolve pipeline). Export YAML to <code>workspace/staging/content/</code> via CLI; repo <code>content/</code> is import seed only.</p>
       <details>
         <summary>Last build</summary>
@@ -423,6 +439,16 @@
     let building = false;
     let lifecycleMeta = { phases: [], draft_workflow: "draft", submitted_workflows: [] };
     let selectedElementId = null;
+    let elementCreateKind = null;
+    let userEditedElementId = false;
+    const catalogListBody = document.getElementById("catalog-list-body");
+    const catalogElementDetail = document.getElementById("catalog-element-detail");
+    const catalogElementIdInput = document.getElementById("catalog-element-id");
+    const createElementBtn = document.getElementById("create-element");
+    const catalogElementMeta = document.getElementById("catalog-element-meta");
+    const catalogCreateIdRow = document.getElementById("catalog-create-id-row");
+    const catalogRevisionRow = document.getElementById("catalog-revision-row");
+    const newEntryKindSelect = document.getElementById("new-entry-kind");
     let revisionMap = new Map();
     let selectedAppId = null;
     /** Whether the open application has at least one submission (for preview mode). */
@@ -718,7 +744,112 @@
         label.appendChild(input);
         payloadForm.appendChild(label);
       }
+      attachPayloadIdSuggestListeners();
     }
+
+    function slugifyLabel(s) {
+      return String(s)
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 48);
+    }
+
+    function suggestElementIdFromPayload(kind, payload) {
+      let slug = "";
+      if (kind === "experience") {
+        const company = payload.company || payload.position;
+        const date = payload.date;
+        if (company && date) {
+          slug = `${slugifyLabel(company)}-${slugifyLabel(date)}`;
+        } else if (company) {
+          slug = slugifyLabel(company);
+        }
+      } else if (kind === "project" && payload.name) {
+        slug = slugifyLabel(payload.name);
+      } else if (kind === "education") {
+        const bit = payload.school || payload.degree;
+        if (bit) slug = slugifyLabel(bit);
+      } else if (kind === "header" && payload.name) {
+        slug = slugifyLabel(payload.name);
+      }
+      if (slug) return `${kind}.${slug}`;
+      return `${kind}.new-${Date.now().toString(36).slice(-6)}`;
+    }
+
+    function maybeSuggestElementId() {
+      if (!elementCreateKind || userEditedElementId) return;
+      try {
+        const payload = catalogJsonMode.checked
+          ? JSON.parse(payloadEditor.value || "{}")
+          : payloadFromForm();
+        catalogElementIdInput.value = suggestElementIdFromPayload(elementCreateKind, payload);
+      } catch {
+        /* ignore partial form */
+      }
+    }
+
+    function onPayloadInputForIdSuggest() {
+      if (!userEditedElementId) maybeSuggestElementId();
+    }
+
+    function attachPayloadIdSuggestListeners() {
+      if (!elementCreateKind) return;
+      for (const el of payloadForm.querySelectorAll("[data-field-key]")) {
+        el.removeEventListener("input", onPayloadInputForIdSuggest);
+        el.addEventListener("input", onPayloadInputForIdSuggest);
+      }
+    }
+
+    function isElementCreateMode() {
+      return elementCreateKind != null;
+    }
+
+    function closeElementDetail() {
+      elementCreateKind = null;
+      selectedElementId = null;
+      userEditedElementId = false;
+      catalogListBody.classList.remove("hidden");
+      catalogElementDetail.classList.add("hidden");
+      catalogCreateIdRow.classList.add("hidden");
+      createElementBtn.classList.add("hidden");
+      saveBtn.classList.remove("hidden");
+      catalogRevisionRow.classList.remove("hidden");
+      payloadEditor.disabled = true;
+      payloadEditor.value = "";
+      payloadForm.innerHTML = "";
+      for (const li of elementList.querySelectorAll("li")) li.classList.remove("active");
+    }
+
+    async function openNewElementForm(kind) {
+      elementCreateKind = kind;
+      selectedElementId = null;
+      userEditedElementId = false;
+      newEntryKindSelect.value = kind;
+      catalogListBody.classList.add("hidden");
+      catalogElementDetail.classList.remove("hidden");
+      catalogCreateIdRow.classList.remove("hidden");
+      createElementBtn.classList.remove("hidden");
+      saveBtn.classList.add("hidden");
+      catalogRevisionRow.classList.add("hidden");
+      catalogElementMeta.textContent = `New ${kind} entry`;
+      catalogStatus.textContent = "";
+      catalogStatus.classList.remove("error");
+      revisionSelect.innerHTML = "";
+      revisionSelect.disabled = true;
+      payloadEditor.disabled = false;
+      const payload = defaultPayloadForKind(kind);
+      setEditorPayload(payload);
+      await renderPayloadForm(kind, payload);
+      syncCatalogEditorVisibility();
+      catalogElementIdInput.value = suggestElementIdFromPayload(kind, payload);
+      for (const li of elementList.querySelectorAll("li")) li.classList.remove("active");
+    }
+
+    catalogElementIdInput.addEventListener("input", () => {
+      userEditedElementId = true;
+    });
 
     function syncCatalogEditorVisibility() {
       const json = catalogJsonMode.checked;
@@ -996,7 +1127,14 @@
     }
 
     async function selectElement(id) {
+      elementCreateKind = null;
       selectedElementId = id;
+      catalogListBody.classList.add("hidden");
+      catalogElementDetail.classList.remove("hidden");
+      catalogCreateIdRow.classList.add("hidden");
+      createElementBtn.classList.add("hidden");
+      saveBtn.classList.remove("hidden");
+      catalogRevisionRow.classList.remove("hidden");
       for (const li of elementList.querySelectorAll("li")) {
         li.classList.toggle("active", li.dataset.id === id);
       }
@@ -1007,6 +1145,7 @@
         catalogStatus.classList.add("error");
         return;
       }
+      catalogElementMeta.textContent = `${detail.kind} · ${detail.id}`;
       revisionMap.clear();
       revisionSelect.innerHTML = "";
       for (const rev of detail.revisions) {
@@ -1612,6 +1751,9 @@
       activateTab("catalog");
       selectedAppId = null;
       previewModeWrap.classList.add("hidden");
+      if (!selectedElementId && !isElementCreateMode()) {
+        closeElementDetail();
+      }
       rebuild();
     });
     tabApps.addEventListener("click", () => {
@@ -1626,19 +1768,39 @@
       rebuild();
     });
 
-    document.getElementById("new-catalog-entry").addEventListener("click", async () => {
-      const kind = kindFilter.value;
-      if (!kind) return;
-      const suggested = `${kind}.new-${Date.now().toString(36).slice(-8)}`;
-      const id = window.prompt(`Element id (e.g. experience.acme-2025):`, suggested);
-      if (!id || !id.trim()) return;
-      const payload = defaultPayloadForKind(kind);
+    document.getElementById("new-catalog-entry").addEventListener("click", () => {
+      openNewElementForm(newEntryKindSelect.value);
+    });
+
+    document.getElementById("close-element-detail").addEventListener("click", () => {
+      closeElementDetail();
+      rebuild();
+    });
+
+    createElementBtn.addEventListener("click", async () => {
+      if (!elementCreateKind) return;
+      let payload;
+      try {
+        payload = catalogJsonMode.checked
+          ? JSON.parse(payloadEditor.value)
+          : payloadFromForm();
+      } catch (e) {
+        catalogStatus.textContent = "Invalid JSON: " + e.message;
+        catalogStatus.classList.add("error");
+        return;
+      }
+      let id = catalogElementIdInput.value.trim();
+      if (!id) {
+        id = suggestElementIdFromPayload(elementCreateKind, payload);
+      }
+      const kind = elementCreateKind;
+      createElementBtn.disabled = true;
       catalogStatus.textContent = "Creating…";
       try {
         const res = await fetch("/api/catalog/elements", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: id.trim(), kind, payload }),
+          body: JSON.stringify({ id, kind, payload }),
         });
         const detail = await res.json();
         if (!res.ok) {
@@ -1646,12 +1808,13 @@
           catalogStatus.classList.add("error");
           return;
         }
-        elementDetailCache.delete(id.trim());
-        catalogStatus.textContent = `Created ${id.trim()}`;
-        catalogStatus.classList.remove("error");
+        elementDetailCache.delete(id);
+        elementCreateKind = null;
         await refreshCatalogByKind();
+        catalogListBody.classList.remove("hidden");
         await loadCatalog();
-        await selectElement(id.trim());
+        await selectElement(id);
+        catalogStatus.textContent = `Created ${id}`;
         if (isCreateMode() || selectedAppId) {
           let comp;
           try {
@@ -1662,9 +1825,12 @@
           await renderCompositionEditor(comp);
           notifyCompositionChanged();
         }
+        await rebuild();
       } catch (e) {
         catalogStatus.textContent = String(e);
         catalogStatus.classList.add("error");
+      } finally {
+        createElementBtn.disabled = false;
       }
     });
 
