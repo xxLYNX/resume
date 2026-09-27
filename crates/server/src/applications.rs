@@ -11,10 +11,10 @@ use domain::{
     APPLICATION_PHASES, DRAFT_WORKFLOW, SUBMITTED_WORKFLOWS,
 };
 use resolve::{default_composition, resolve_composition};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use store::{
-    CreateApplicationRequest, ListApplicationsQuery, QuickfillRequest, Store,
-    UpdateApplicationRequest, DEFAULT_THEME_ID,
+    default_ledger_download_path, CreateApplicationRequest, ListApplicationsQuery,
+    QuickfillRequest, Store, UpdateApplicationRequest, DEFAULT_THEME_ID,
 };
 
 use theme::ensure_theme_snapshot;
@@ -198,6 +198,39 @@ pub async fn submit_application(
             resolved,
         )?;
         Ok((StatusCode::CREATED, Json(sub)).into_response())
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub struct ExportLedgerRequest {
+    pub output: Option<std::path::PathBuf>,
+}
+
+#[derive(Serialize)]
+pub struct ExportLedgerResponse {
+    pub path: String,
+}
+
+pub async fn export_application_ledger(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<ExportLedgerRequest>,
+) -> impl IntoResponse {
+    let workspace = state.workspace_dir.clone();
+    with_store(state, move |store| {
+        let dest = body
+            .output
+            .map(Ok)
+            .unwrap_or_else(default_ledger_download_path)?;
+        let build_dir = workspace.join("artifacts/ledger-build");
+        let path = store.export_application_ledger_pdf(&build_dir, &dest)?;
+        Ok((
+            StatusCode::OK,
+            Json(ExportLedgerResponse {
+                path: path.display().to_string(),
+            }),
+        )
+            .into_response())
     })
     .await
 }

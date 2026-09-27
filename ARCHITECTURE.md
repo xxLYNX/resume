@@ -206,9 +206,9 @@ Recommended order (each step is usable on its own):
 
 **Branch:** `dev/application-ledger` (parallel to F). Spec: [`docs/MILESTONE_I_APPLICATION_LEDGER.md`](docs/MILESTONE_I_APPLICATION_LEDGER.md).
 
-- [ ] Application fields: employment type, work mode, location, compensation (hourly/annual, range)
-- [ ] Ledger PDF export to user Downloads folder (CLI + UI)
-- [ ] Domain validation (location when on-site/hybrid; salary conversion display rules)
+- [x] Application fields: employment type, work mode, location, compensation (hourly/annual, range)
+- [x] Ledger PDF export to user Downloads folder (CLI + UI)
+- [x] Domain validation (location when on-site/hybrid; salary conversion display rules)
 
 ---
 

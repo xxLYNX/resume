@@ -2,6 +2,7 @@ pub mod applications;
 pub mod catalog;
 mod export;
 mod import;
+mod ledger;
 mod migrate;
 pub mod presets;
 
@@ -21,6 +22,7 @@ pub use catalog::{
 };
 pub use export::{export_catalog_to_content, STAGING_CONTENT_DIR};
 pub use import::{import_legacy_content, ImportOptions, ImportStats};
+pub use ledger::default_ledger_download_path;
 pub use migrate::migrate;
 pub use presets::{
     create_preset, delete_preset, get_preset, list_presets, update_preset, CreatePresetRequest,

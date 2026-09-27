@@ -53,7 +53,7 @@ Validation lives in `domain` (API returns 400 on bad combinations).
 **Trigger**
 
 - CLI: `jobdesk application export-ledger [--pdf]` (default: write PDF if engine present).
-- UI (later): Applications tab → “Export ledger PDF”.
+- UI: Applications tab → “Export ledger PDF” (writes default Downloads path via API).
 
 **Output path**
 
@@ -78,8 +78,8 @@ Company, title, phase, pipeline status, employment type, work mode, location, co
 - [x] Schema migration (v6) + store/API types
 - [x] Domain validation (work mode ↔ location, compensation shape)
 - [x] Applications UI: fields on create/detail + unified Save
-- [ ] CLI + optional API: export ledger PDF to Downloads
-- [ ] Docs: `JOBDESK.md` command; ARCHITECTURE Milestone I checked
+- [x] CLI + API: export ledger PDF to Downloads
+- [x] Docs: `JOBDESK.md` command; ARCHITECTURE Milestone I checked
 
 ---
 

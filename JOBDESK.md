@@ -41,6 +41,8 @@ cargo run -p jobdesk -- application set-status <uuid> interview
 cargo run -p jobdesk -- application update <uuid> --company "Acme"
 cargo run -p jobdesk -- application submit <uuid>
 cargo run -p jobdesk -- application delete <uuid>
+cargo run -p jobdesk -- application export-ledger
+cargo run -p jobdesk -- application export-ledger --output /path/to/ledger.pdf
 ```
 
 **Phase vs workflow vs Submit:** [`docs/APPLICATION_LIFECYCLE.md`](docs/APPLICATION_LIFECYCLE.md). Only **Submit** freezes a manifest.

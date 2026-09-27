@@ -234,6 +234,8 @@
       </div>
       <div class="row" id="app-list-toolbar">
         <button type="button" id="new-app">New application</button>
+        <button type="button" id="export-ledger-pdf">Export ledger PDF</button>
+        <span class="meta" id="export-ledger-status"></span>
       </div>
       <div id="app-list-body">
         <p class="meta" id="apps-status">Loading…</p>
@@ -1484,6 +1486,22 @@
     });
 
     document.getElementById("reload-apps").addEventListener("click", loadApplications);
+    document.getElementById("export-ledger-pdf").addEventListener("click", async () => {
+      const el = document.getElementById("export-ledger-status");
+      el.textContent = "Building PDF…";
+      try {
+        const res = await fetch("/api/applications/export-ledger", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        el.textContent = "Saved to " + data.path;
+      } catch (err) {
+        el.textContent = String(err.message || err);
+      }
+    });
     previewMode.addEventListener("change", rebuild);
 
     function activateTab(which) {

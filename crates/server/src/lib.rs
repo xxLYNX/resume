@@ -107,6 +107,10 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
         .route("/api/applications/statuses", get(applications::list_statuses))
         .route("/api/applications", get(applications::list_applications))
         .route("/api/applications", post(applications::create_application))
+        .route(
+            "/api/applications/export-ledger",
+            post(applications::export_application_ledger),
+        )
         .route("/api/applications/{id}", get(applications::get_application))
         .route("/api/applications/{id}", patch(applications::update_application))
         .route("/api/applications/{id}", delete(applications::delete_application))

@@ -875,6 +875,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "domain",
+ "render_pdf",
  "rusqlite",
  "serde",
  "serde_json",

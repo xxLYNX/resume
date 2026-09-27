@@ -7,9 +7,9 @@ use clap::{Parser, Subcommand};
 use resolve::{default_composition, resolve_composition};
 use server::{AppState, run as run_server};
 use store::{
-    export_catalog_to_content, import_legacy_content, CreateApplicationRequest,
-    ListApplicationsQuery, Store, UpdateApplicationRequest, ImportOptions, STAGING_CONTENT_DIR,
-    DEFAULT_THEME_ID,
+    default_ledger_download_path, export_catalog_to_content, import_legacy_content,
+    CreateApplicationRequest, ImportOptions, ListApplicationsQuery, Store,
+    UpdateApplicationRequest, STAGING_CONTENT_DIR, DEFAULT_THEME_ID,
 };
 
 use render_tex::jobdesk_build_aligned;
@@ -124,6 +124,11 @@ enum ApplicationCommands {
     Submit { id: String },
     /// Delete an application and its submissions
     Delete { id: String },
+    /// Export all applications to a ledger PDF (default: ~/Downloads/jobdesk-applications.pdf)
+    ExportLedger {
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[tokio::main]
@@ -330,6 +335,14 @@ async fn main() -> Result<()> {
                     } else {
                         anyhow::bail!("unknown application `{id}`");
                     }
+                }
+                ApplicationCommands::ExportLedger { output } => {
+                    let dest = output
+                        .map(Ok)
+                        .unwrap_or_else(default_ledger_download_path)?;
+                    let build_dir = workspace.join("artifacts/ledger-build");
+                    let path = store.export_application_ledger_pdf(&build_dir, &dest)?;
+                    println!("Wrote {}", path.display());
                 }
             }
         }

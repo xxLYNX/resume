@@ -1,5 +1,6 @@
 mod application;
 mod compensation;
+mod ledger;
 mod composition;
 mod manifest;
 mod validation;
@@ -16,6 +17,7 @@ pub use compensation::{
     ApplicationMetaError, Compensation, EMPLOYMENT_TYPES, PAY_UNITS, WORK_MODES,
 };
 pub use composition::{Composition, CompositionItem, CompositionSection};
+pub use ledger::{render_ledger_tex, ApplicationLedgerRow};
 pub use manifest::{
     compute_content_hash, compute_snapshot_hash, SubmissionManifest, MANIFEST_SCHEMA_VERSION,
 };
