@@ -170,12 +170,15 @@
       <button type="button" id="tab-apps" role="tab">Applications</button>
       <button type="button" id="tab-presets" role="tab">Presets</button>
     </div>
-    <label class="meta hidden" id="preview-mode-wrap" title="Which resume snapshot drives the PDF on the right">Preview
-      <select id="preview-mode">
-        <option value="draft">Current draft</option>
-        <option value="submitted">Last submit</option>
-      </select>
-    </label>
+    <span class="meta hidden" id="preview-mode-wrap" title="Which resume snapshot drives the PDF on the right">
+      <label>Preview
+        <select id="preview-mode">
+          <option value="draft">Current draft</option>
+          <option value="submitted">Last submit</option>
+        </select>
+      </label>
+      <span id="preview-mode-hint"></span>
+    </span>
     <button type="button" id="rebuild">Rebuild preview</button>
     <span id="status" class="meta"></span>
   </header>
@@ -410,6 +413,8 @@
     let selectedElementId = null;
     let revisionMap = new Map();
     let selectedAppId = null;
+    /** Whether the open application has at least one submission (for preview mode). */
+    let selectedAppHasSubmission = false;
     let themeInfo = null;
     let catalogByKind = {};
     let elementDetailCache = new Map();
@@ -422,18 +427,37 @@
     const panelPresets = document.getElementById("panel-presets");
     const cloneFromPreset = document.getElementById("clone-from-preset");
 
-    function syncPreviewModeForApp(submissionCount) {
-      const lastSubmitOpt = previewMode.querySelector('option[value="submitted"]');
-      const hasSubmission = submissionCount > 0;
-      if (lastSubmitOpt) {
-        lastSubmitOpt.disabled = !hasSubmission;
-        lastSubmitOpt.title = hasSubmission
+    function applicationHasSubmission(app) {
+      const subs = app?.submissions;
+      if (!Array.isArray(subs) || subs.length === 0) return false;
+      return subs.some((s) => s.is_canonical) || subs.length > 0;
+    }
+
+    function syncPreviewModeForApp(app) {
+      selectedAppHasSubmission = applicationHasSubmission(app);
+      const hintEl = document.getElementById("preview-mode-hint");
+      if (hintEl) {
+        hintEl.textContent = selectedAppHasSubmission
           ? ""
-          : "No submission yet — use Submit on this application first";
+          : " · Last submit after Submit";
       }
-      if (!hasSubmission && previewMode.value === "submitted") {
+      for (const opt of previewMode.options) {
+        opt.disabled = false;
+      }
+      if (!selectedAppHasSubmission && previewMode.value === "submitted") {
         previewMode.value = "draft";
       }
+    }
+
+    function ensurePreviewModeAllowed() {
+      if (previewMode.value !== "submitted" || selectedAppHasSubmission) {
+        return true;
+      }
+      previewMode.value = "draft";
+      statusEl.textContent =
+        "No submission yet for this application — previewing current draft.";
+      statusEl.classList.remove("error");
+      return false;
     }
 
     function previewBody() {
@@ -1253,7 +1277,7 @@
       appSource.value = app.source || "";
       fillApplicationMetaFields(app);
       syncDetailWorkflowOptions(app.phase, app.submissions.length > 0);
-      syncPreviewModeForApp(app.submissions.length);
+      syncPreviewModeForApp(app);
       appWorkflowSelect.value = app.status;
       appTagsInput.value = (app.tags || []).join(", ");
       draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
@@ -1345,6 +1369,7 @@
       deleteAppBtn.classList.remove("hidden");
       submitAppBtn.classList.remove("hidden");
       previewModeWrap.classList.remove("hidden");
+      syncPreviewModeForApp(app);
       renderAppMeta(app);
       appCompany.value = app.company || "";
       appTitle.value = app.title || "";
@@ -1529,7 +1554,10 @@
         el.textContent = String(err.message || err);
       }
     });
-    previewMode.addEventListener("change", rebuild);
+    previewMode.addEventListener("change", () => {
+      ensurePreviewModeAllowed();
+      rebuild();
+    });
 
     function activateTab(which) {
       tabCatalog.classList.toggle("active", which === "catalog");
