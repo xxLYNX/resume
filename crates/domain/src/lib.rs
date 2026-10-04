@@ -19,9 +19,7 @@ pub use compensation::{
     ApplicationMetaError, Compensation, EMPLOYMENT_TYPES, PAY_UNITS, WORK_MODES,
 };
 pub use composition::{Composition, CompositionItem, CompositionSection};
-pub use location::{
-    normalize_experience_location, split_legacy_company_field, WorkLocation,
-};
+pub use location::WorkLocation;
 pub use dates::{
     format_calendar_date, format_date_range, normalize_list_section_document,
     normalize_payload_dates, parse_legacy_date_range, validate_date_range, CalendarDate,

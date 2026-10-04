@@ -100,9 +100,6 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if version < 7 {
         migrate_payload_date_ranges(conn)?;
     }
-    if version < 8 {
-        migrate_experience_locations(conn)?;
-    }
     conn.execute(
         "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '8')",
         [],
@@ -118,35 +115,6 @@ fn schema_version(conn: &Connection) -> Result<i64> {
         return Ok(s.parse().unwrap_or(0));
     }
     Ok(0)
-}
-
-fn migrate_experience_locations(conn: &Connection) -> Result<()> {
-    let mut stmt = conn.prepare(
-        "SELECT er.id, er.payload_json
-         FROM element_revisions er
-         JOIN elements e ON e.id = er.element_id
-         WHERE e.kind = 'experience'",
-    )?;
-    let rows = stmt
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
-        .collect::<Result<Vec<_>, _>>()?;
-
-    for (rev_id, payload_json) in rows {
-        let mut payload: Value =
-            serde_json::from_str(&payload_json).context("parse revision payload")?;
-        let before = payload.clone();
-        domain::normalize_experience_location(&mut payload);
-        if payload == before {
-            continue;
-        }
-        domain::validate_payload(ElementKind::Experience, &payload)?;
-        let updated = serde_json::to_string(&payload)?;
-        conn.execute(
-            "UPDATE element_revisions SET payload_json = ?1 WHERE id = ?2",
-            rusqlite::params![updated, rev_id],
-        )?;
-    }
-    Ok(())
 }
 
 fn migrate_payload_date_ranges(conn: &Connection) -> Result<()> {
