@@ -24,6 +24,7 @@ use render_tex::{
 use resolve::{default_composition, resolve_composition};
 use serde::{Deserialize, Serialize};
 use store::Store;
+use store::DEFAULT_THEME_ID;
 use theme::load_theme_info;
 use tower_http::trace::TraceLayer;
 
@@ -71,6 +72,8 @@ pub struct PreviewRequest {
     pub mode: Option<String>,
     /// Unsaved draft from the UI; used for live preview when `mode` is `draft`.
     pub draft_composition: Option<domain::Composition>,
+    /// Theme bundle id (`themes/{id}/`); defaults to classic when omitted.
+    pub theme_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -151,6 +154,7 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
             get(applications::get_submission),
         )
         .route("/api/composition/default", get(default_composition_handler))
+        .route("/api/themes", get(themes::list_themes))
         .route("/api/themes/{id}", get(themes::get_theme))
         .route("/api/catalog/field-schema", get(themes::catalog_fields))
         .route("/api/presets", get(presets::list_presets))
@@ -239,7 +243,7 @@ async fn run_preview(
             draft_differs_from_submission: None,
         }),
         Err(err) => {
-            let log_tail = read_log_tail(&state.preview_dir.join("build.log"));
+            let log_tail = read_preview_diagnostics(&state.preview_dir);
             Json(PreviewResponse {
                 ok: false,
                 unchanged: false,
@@ -414,6 +418,10 @@ fn run_preview_build(
     mode: &str,
     compile_pdf: bool,
 ) -> Result<LegacyBuildResult> {
+    let theme_id = req
+        .theme_id
+        .as_deref()
+        .unwrap_or(DEFAULT_THEME_ID);
     match (application_id, mode, req.draft_composition.as_ref()) {
         (Some(_), "submitted", _) => jobdesk_build_aligned(
             store,
@@ -424,6 +432,7 @@ fn run_preview_build(
             compile_pdf,
             application_id,
             mode,
+            theme_id,
         ),
         (_, _, Some(composition)) if mode != "submitted" => {
             resolve_composition(store, composition)?;
@@ -434,6 +443,7 @@ fn run_preview_build(
                 &state.preview_dir,
                 composition,
                 compile_pdf,
+                theme_id,
             )
         }
         _ => jobdesk_build_aligned(
@@ -445,6 +455,7 @@ fn run_preview_build(
             compile_pdf,
             application_id,
             mode,
+            theme_id,
         ),
     }
 }
@@ -496,28 +507,33 @@ fn preview_cache_key(
 ) -> Result<String> {
     let application_id = req.application_id.as_deref();
     let mode = req.mode.as_deref().unwrap_or("draft");
-    match (application_id, mode) {
+    let preview_theme = req
+        .theme_id
+        .as_deref()
+        .unwrap_or(DEFAULT_THEME_ID);
+    let key = match (application_id, mode) {
         (None, _) => {
             if let Some(composition) = &req.draft_composition {
-                return Ok(format!(
+                format!(
                     "new_app:{}",
                     draft_snapshot_hash(&state.root, store, composition)?
-                ));
+                )
+            } else {
+                let composition = default_composition(store)?;
+                format!(
+                    "catalog:{}",
+                    draft_snapshot_hash(&state.root, store, &composition)?
+                )
             }
-            let composition = default_composition(store)?;
-            Ok(format!(
-                "catalog:{}",
-                draft_snapshot_hash(&state.root, store, &composition)?
-            ))
         }
         (Some(app_id), "submitted") => {
             let sub = store
                 .get_canonical_submission_with_root(&state.workspace_dir, app_id)?
                 .with_context(|| format!("no canonical submission for application `{app_id}`"))?;
-            Ok(format!(
-                "submitted:{}:{}",
-                app_id, sub.manifest.snapshot_hash
-            ))
+            format!(
+                "submitted:{}:{}:theme={}",
+                app_id, sub.manifest.snapshot_hash, sub.manifest.theme_id
+            )
         }
         (Some(app_id), _) => {
             let composition = if let Some(c) = &req.draft_composition {
@@ -528,12 +544,17 @@ fn preview_cache_key(
                     .ok_or_else(|| anyhow::anyhow!("application not found"))?
                     .draft_composition
             };
-            Ok(format!(
+            format!(
                 "draft:{}:{}",
                 app_id,
                 draft_snapshot_hash(&state.root, store, &composition)?
-            ))
+            )
         }
+    };
+    if mode == "submitted" {
+        Ok(key)
+    } else {
+        Ok(format!("{key}:theme={preview_theme}"))
     }
 }
 
@@ -556,6 +577,22 @@ fn draft_snapshot_hash(
         composition,
         &resolved,
     ))
+}
+
+fn read_preview_diagnostics(preview_dir: &std::path::Path) -> Option<String> {
+    let log_path = preview_dir.join("resume.log");
+    if let Ok(text) = std::fs::read_to_string(&log_path) {
+        if let Some(idx) = text.find("\n! ") {
+            let snippet: Vec<_> = text[idx + 1..].lines().take(24).collect();
+            if !snippet.is_empty() {
+                return Some(snippet.join("\n"));
+            }
+        }
+        let lines: Vec<&str> = text.lines().collect();
+        let start = lines.len().saturating_sub(40);
+        return Some(lines[start..].join("\n"));
+    }
+    read_log_tail(&preview_dir.join("build.log"))
 }
 
 fn read_log_tail(path: &std::path::Path) -> Option<String> {

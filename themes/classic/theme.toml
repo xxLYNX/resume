@@ -2,6 +2,7 @@ id = "classic"
 version = 1
 description = "Default reference resume theme for jobdesk"
 contract_version = 1
+month_display = "abbrev"
 
 [macros]
 classic_macros = "macros/resume.jinja.tex"
@@ -15,14 +16,17 @@ template = "sections/objective.jinja.tex"
 [sections.education]
 template = "sections/education.jinja.tex"
 optional_fields = ["highlights", "gpa"]
+date_parts = ["month", "year"]
 
 [sections.experience]
 template = "sections/experience.jinja.tex"
 optional_fields = ["highlights"]
+date_parts = ["month", "year"]
 
 [sections.projects]
 template = "sections/projects.jinja.tex"
 optional_fields = ["technologies", "details"]
+date_parts = ["month", "year"]
 
 [sections.skills]
 template = "sections/skills.jinja.tex"

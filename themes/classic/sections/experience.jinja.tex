@@ -3,13 +3,15 @@
 {%- for row in experience %}
 
     \resumeSubheading
-      { {{- row.position -}} }{ {{- row.date -}} }
-      { {{- row.company -}} }{}
+      { {{- row.position | latex_escape -}} }{ {{- row.date_range | format_date_range -}} }
+      { {{- row.company | latex_escape -}} }{}
+{%- if row.highlights %}
       \resumeItemListStart
 {%- for line in row.highlights %}
-        \resumeItem{ {{- line -}} }
+        \resumeItem{ {{- line | latex_escape -}} }
 {%- endfor %}
       \resumeItemListEnd
+{%- endif %}
 {%- endfor %}
 
   \resumeSubHeadingListEnd

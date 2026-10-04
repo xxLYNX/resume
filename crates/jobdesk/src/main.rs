@@ -55,6 +55,8 @@ enum Commands {
         /// With `--application`: `draft` (default) or `submitted`
         #[arg(long, default_value = "draft")]
         preview_mode: String,
+        #[arg(long, default_value = "classic")]
+        theme: String,
     },
     /// Application tracker (list, add, show, set status)
     Application {
@@ -171,6 +173,7 @@ async fn main() -> Result<()> {
             pdf,
             application,
             preview_mode,
+            theme,
         } => {
             let store = Store::open(&db_path).context(
                 "catalog database missing; run `jobdesk import` first (seed from content/)",
@@ -189,6 +192,7 @@ async fn main() -> Result<()> {
                 pdf,
                 application.as_deref(),
                 &preview_mode,
+                &theme,
             )?;
             println!("Wrote {}", result.tex_path.display());
             if let Some(pdf_path) = result.pdf_path {

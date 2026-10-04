@@ -15,6 +15,8 @@ pub struct ThemeInfo {
     pub version: u64,
     pub description: String,
     pub contract_version: u64,
+    /// `abbrev` (e.g. Dec.) or `numeric` (e.g. 12) — jobdesk-owned month tokens, theme picks style.
+    pub month_display: String,
     pub files_hash: String,
     pub sections: BTreeMap<String, ThemeSectionInfo>,
     /// MiniJinja template name → path relative to theme root (`macros/...`).
@@ -26,6 +28,9 @@ pub struct ThemeSectionInfo {
     pub template: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub optional_fields: Vec<String>,
+    /// Which calendar parts row dates use for display (`month`, `year`, optional `day`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub date_parts: Vec<String>,
     /// Catalog element kind for this section (`project` for `projects`).
     pub element_kind: String,
 }
@@ -36,6 +41,12 @@ pub struct CatalogFieldDef {
     pub label: String,
     pub field_type: String,
     pub optional: bool,
+    /// For `date_range` / `date` fields: theme-driven editor + render precision.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub date_parts: Vec<String>,
+    /// For `date_range`: `abbrev` or `numeric` (matches theme `month_display`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub month_display: String,
 }
 
 /// Stable hash of all files under the theme directory (sorted paths, per-file sha256).
@@ -96,6 +107,11 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
         .get("contract_version")
         .and_then(|v| v.as_integer())
         .unwrap_or(1) as u64;
+    let month_display = doc
+        .get("month_display")
+        .and_then(|v| v.as_str())
+        .unwrap_or("abbrev")
+        .to_string();
 
     let mut macros = BTreeMap::new();
     if let Some(table) = doc.get("macros").and_then(|v| v.as_table()) {
@@ -126,11 +142,21 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
                         .collect()
                 })
                 .unwrap_or_default();
+            let date_parts: Vec<String> = sec
+                .get("date_parts")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|x| x.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_else(|| vec!["month".into(), "year".into()]);
             sections.insert(
                 key.clone(),
                 ThemeSectionInfo {
                     template,
                     optional_fields,
+                    date_parts,
                     element_kind: section_element_kind(key),
                 },
             );
@@ -144,6 +170,7 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
         version,
         description,
         contract_version,
+        month_display,
         files_hash,
         sections,
         macros,
@@ -200,17 +227,24 @@ pub fn catalog_fields_for_kind(kind: &str, theme: &ThemeInfo) -> Vec<CatalogFiel
         other => other,
     };
 
-    let optional: std::collections::HashSet<String> = theme
-        .sections
-        .get(section_key)
+    let section = theme.sections.get(section_key);
+    let optional: std::collections::HashSet<String> = section
         .map(|s| s.optional_fields.iter().cloned().collect())
         .unwrap_or_default();
+    let date_parts: Vec<String> = section
+        .map(|s| s.date_parts.clone())
+        .unwrap_or_else(|| vec!["month".into(), "year".into()]);
+    let month_display = theme.month_display.clone();
 
     let base = base_fields_for_kind(kind);
     base.into_iter()
         .map(|mut f| {
             if optional.contains(&f.key) {
                 f.optional = true;
+            }
+            if f.field_type == "date_range" || f.field_type == "date" {
+                f.date_parts = date_parts.clone();
+                f.month_display = month_display.clone();
             }
             f
         })
@@ -263,5 +297,25 @@ fn field(key: &str, label: &str, field_type: &str, optional: bool) -> CatalogFie
         label: label.to_string(),
         field_type: field_type.to_string(),
         optional,
+        date_parts: Vec::new(),
+        month_display: String::new(),
     }
+}
+
+/// Installed theme bundle ids under `themes/`.
+pub fn list_theme_ids(project_root: &Path) -> Result<Vec<String>> {
+    let themes_dir = project_root.join("themes");
+    let mut ids = Vec::new();
+    for entry in std::fs::read_dir(&themes_dir).with_context(|| format!("read {}", themes_dir.display()))? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let id = entry.file_name().to_string_lossy().into_owned();
+        if entry.path().join("theme.toml").is_file() {
+            ids.push(id);
+        }
+    }
+    ids.sort();
+    Ok(ids)
 }
