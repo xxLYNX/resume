@@ -231,20 +231,20 @@ fn base_fields_for_kind(kind: &str) -> Vec<CatalogFieldDef> {
         "education" => vec![
             field("school", "School", "string", false),
             field("degree", "Degree", "string", false),
-            field("date", "Date", "string", true),
+            field("date_range", "Dates", "date_range", true),
             field("highlights", "Highlights", "string_list", true),
             field("gpa", "GPA", "string", true),
         ],
         "experience" => vec![
             field("company", "Company", "string", false),
             field("position", "Position", "string", false),
-            field("date", "Date", "string", true),
+            field("date_range", "Dates", "date_range", true),
             field("highlights", "Highlights", "string_list", true),
         ],
         "project" => vec![
             field("name", "Name", "string", false),
             field("technologies", "Technologies", "string", true),
-            field("date", "Date", "string", true),
+            field("date_range", "Dates", "date_range", true),
             field("details", "Details", "string_list", true),
         ],
         "skills" => vec![

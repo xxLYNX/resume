@@ -702,9 +702,42 @@
       cur[parts[parts.length - 1]] = value;
     }
 
+    function calendarDateToMonthValue(d) {
+      if (!d || d.year == null || d.month == null) return "";
+      return `${d.year}-${String(d.month).padStart(2, "0")}`;
+    }
+
+    function monthValueToCalendarDate(v) {
+      if (!v) return null;
+      const [y, m] = v.split("-").map((x) => parseInt(x, 10));
+      if (!y || !m) return null;
+      return { year: y, month: m };
+    }
+
+    function readDateRangeFromForm(fieldKey) {
+      const startEl = payloadForm.querySelector(`[data-date-range-part="start"][data-field-key="${fieldKey}"]`);
+      const endEl = payloadForm.querySelector(`[data-date-range-part="end"][data-field-key="${fieldKey}"]`);
+      const presentEl = payloadForm.querySelector(`[data-date-range-part="present"][data-field-key="${fieldKey}"]`);
+      const start = monthValueToCalendarDate(startEl?.value);
+      if (!start) return null;
+      if (presentEl?.checked) {
+        return { start, end: { kind: "present" } };
+      }
+      const endDate = monthValueToCalendarDate(endEl?.value);
+      if (!endDate) {
+        return { start, end: { kind: "present" } };
+      }
+      return { start, end: { kind: "date", date: endDate } };
+    }
+
     function payloadFromForm() {
       const payload = {};
       for (const field of currentFieldSchema) {
+        if (field.field_type === "date_range") {
+          const range = readDateRangeFromForm(field.key);
+          if (range) setNested(payload, field.key, range);
+          continue;
+        }
         const el = payloadForm.querySelector(`[data-field-key="${field.key}"]`);
         if (!el) continue;
         if (field.field_type === "string_list") {
@@ -725,6 +758,62 @@
       if (!res.ok) return;
       currentFieldSchema = await res.json();
       for (const field of currentFieldSchema) {
+        if (field.field_type === "date_range") {
+          const wrap = document.createElement("div");
+          wrap.className = "date-range-field";
+          const heading = document.createElement("p");
+          heading.className = "meta";
+          heading.textContent = field.label + (field.optional ? " (optional)" : "");
+          wrap.appendChild(heading);
+          const range = getNested(payload, field.key);
+          const legacyDate = getNested(payload, "date");
+          if (!range && legacyDate) {
+            const leg = document.createElement("p");
+            leg.className = "help";
+            leg.textContent =
+              "Legacy date text: " + legacyDate + " — set start/end below to store structured dates.";
+            wrap.appendChild(leg);
+          }
+          const row = document.createElement("div");
+          row.className = "row";
+          const startLabel = document.createElement("label");
+          startLabel.className = "meta";
+          startLabel.textContent = "Start ";
+          const startInput = document.createElement("input");
+          startInput.type = "month";
+          startInput.dataset.fieldKey = field.key;
+          startInput.dataset.dateRangePart = "start";
+          startInput.value = calendarDateToMonthValue(range?.start);
+          startLabel.appendChild(startInput);
+          const endLabel = document.createElement("label");
+          endLabel.className = "meta";
+          endLabel.textContent = "End ";
+          const endInput = document.createElement("input");
+          endInput.type = "month";
+          endInput.dataset.fieldKey = field.key;
+          endInput.dataset.dateRangePart = "end";
+          if (range?.end?.kind === "date") {
+            endInput.value = calendarDateToMonthValue(range.end.date);
+          }
+          endLabel.appendChild(endInput);
+          const presentLabel = document.createElement("label");
+          presentLabel.className = "meta";
+          const presentCb = document.createElement("input");
+          presentCb.type = "checkbox";
+          presentCb.dataset.fieldKey = field.key;
+          presentCb.dataset.dateRangePart = "present";
+          presentCb.checked = !range || range.end?.kind === "present";
+          presentLabel.append(presentCb, document.createTextNode(" Present (ongoing)"));
+          const syncEndDisabled = () => {
+            endInput.disabled = presentCb.checked;
+          };
+          presentCb.addEventListener("change", syncEndDisabled);
+          syncEndDisabled();
+          row.append(startLabel, endLabel, presentLabel);
+          wrap.appendChild(row);
+          payloadForm.appendChild(wrap);
+          continue;
+        }
         const label = document.createElement("label");
         label.textContent = field.label + (field.optional ? " (optional)" : "");
         let input;
@@ -1088,11 +1177,26 @@
         case "skills":
           return { skills: {} };
         case "experience":
-          return { company: "", position: "", date: "", highlights: [] };
+          return {
+            company: "",
+            position: "",
+            date_range: { start: { year: 2024, month: 1 }, end: { kind: "present" } },
+            highlights: [],
+          };
         case "education":
-          return { degree: "", school: "", date: "", highlights: [] };
+          return {
+            degree: "",
+            school: "",
+            date_range: { start: { year: 2020, month: 9 }, end: { kind: "date", date: { year: 2024, month: 5 } } },
+            highlights: [],
+          };
         case "project":
-          return { name: "", technologies: "", date: "", details: [] };
+          return {
+            name: "",
+            technologies: "",
+            date_range: { start: { year: 2024, month: 1 }, end: { kind: "date", date: { year: 2024, month: 6 } } },
+            details: [],
+          };
         case "header":
           return { name: "", email: "", phone: "" };
         case "objective":

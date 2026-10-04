@@ -1,5 +1,6 @@
 use serde_json::Value;
 
+use crate::dates::{validate_date_range, DateRange};
 use crate::ElementKind;
 
 #[derive(Debug, thiserror::Error)]
@@ -16,6 +17,8 @@ pub enum ValidationError {
     ExpectedObject(&'static str),
     #[error("skills section requires a `skills` object")]
     MissingSkillsObject,
+    #[error("invalid date_range: {0}")]
+    InvalidDateRange(#[from] crate::dates::DateError),
 }
 
 pub fn validate_payload(kind: ElementKind, payload: &Value) -> Result<(), ValidationError> {
@@ -35,20 +38,20 @@ pub fn validate_payload(kind: ElementKind, payload: &Value) -> Result<(), Valida
         }
         ElementKind::Education => {
             check_optional_string(obj, "degree")?;
-            check_optional_string(obj, "date")?;
             check_optional_string(obj, "school")?;
+            check_optional_date_fields(obj)?;
             check_optional_string_string_array(obj, "highlights")?;
         }
         ElementKind::Experience => {
             check_optional_string(obj, "position")?;
-            check_optional_string(obj, "date")?;
             check_optional_string(obj, "company")?;
+            check_optional_date_fields(obj)?;
             check_optional_string_string_array(obj, "highlights")?;
         }
         ElementKind::Project => {
             check_optional_string(obj, "name")?;
             check_optional_string(obj, "technologies")?;
-            check_optional_string(obj, "date")?;
+            check_optional_date_fields(obj)?;
             check_optional_string_string_array(obj, "details")?;
         }
         ElementKind::Skills => {
@@ -66,6 +69,26 @@ pub fn validate_payload(kind: ElementKind, payload: &Value) -> Result<(), Valida
         }
     }
 
+    Ok(())
+}
+
+fn check_optional_date_fields(
+    obj: &serde_json::Map<String, Value>,
+) -> Result<(), ValidationError> {
+    if let Some(v) = obj.get("date_range") {
+        if !v.is_null() {
+            let range: DateRange =
+                serde_json::from_value(v.clone()).map_err(|_| {
+                    ValidationError::ExpectedObject("date_range")
+                })?;
+            validate_date_range(&range)?;
+        }
+    }
+    if let Some(v) = obj.get("date") {
+        if !v.is_string() {
+            return Err(ValidationError::ExpectedString("date"));
+        }
+    }
     Ok(())
 }
 

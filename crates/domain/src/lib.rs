@@ -1,5 +1,6 @@
 mod application;
 mod compensation;
+mod dates;
 mod ledger;
 mod composition;
 mod manifest;
@@ -17,6 +18,10 @@ pub use compensation::{
     ApplicationMetaError, Compensation, EMPLOYMENT_TYPES, PAY_UNITS, WORK_MODES,
 };
 pub use composition::{Composition, CompositionItem, CompositionSection};
+pub use dates::{
+    enrich_payload_dates, format_calendar_date, format_date_range, validate_date_range,
+    CalendarDate, DateError, DateRange, DateRangeEnd,
+};
 pub use ledger::{render_ledger_tex, ApplicationLedgerRow};
 pub use manifest::{
     compute_content_hash, compute_snapshot_hash, SubmissionManifest, MANIFEST_SCHEMA_VERSION,
