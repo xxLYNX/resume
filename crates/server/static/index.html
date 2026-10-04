@@ -59,8 +59,8 @@
       font-size: 0.9rem;
     }
     label { font-size: 0.9rem; display: flex; align-items: center; gap: 0.35rem; }
-    #status { font-size: 0.9rem; min-height: 1.25rem; }
-    #status.error { color: var(--err); }
+    #status { font-size: 0.9rem; min-height: 1.25rem; max-width: min(52rem, 100%); }
+    #status.error { color: var(--err); white-space: pre-wrap; word-break: break-word; }
     #catalog-status.error { color: var(--err); }
     pre.log {
       font-size: 0.75rem;
@@ -147,7 +147,103 @@
     #close-app-detail { margin-right: auto; }
     .detail-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.35rem; }
     #payload-form label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; margin-bottom: 0.5rem; }
-    #payload-form input, #payload-form textarea { font-size: 0.85rem; padding: 0.25rem; }
+    #payload-form input, #payload-form textarea, #payload-form select { font-size: 0.85rem; padding: 0.25rem; }
+    fieldset.date-range-field {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.55rem 0.75rem 0.65rem;
+      margin: 0 0 0.75rem;
+    }
+    fieldset.date-range-field legend {
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 0 0.35rem;
+    }
+    .date-range-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem 1rem;
+    }
+    @media (max-width: 520px) {
+      .date-range-grid { grid-template-columns: 1fr; }
+    }
+    .date-range-block > .block-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .date-part-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      align-items: center;
+    }
+    .date-part-row label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 0;
+    }
+    .date-part-row select,
+    .date-part-row input[type="number"] {
+      min-width: 4.25rem;
+    }
+    .date-range-present {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+    }
+    .date-range-preview {
+      margin-top: 0.55rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      font-family: ui-monospace, monospace;
+    }
+    .date-range-preview.error { color: var(--err); }
+    .catalog-detail-actions {
+      margin-top: 0.75rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+      position: sticky;
+      bottom: 0;
+      background: Canvas;
+      background: var(--bg, Canvas);
+    }
+    fieldset.string-list-field {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.55rem 0.75rem 0.65rem;
+      margin: 0 0 0.75rem;
+    }
+    fieldset.string-list-field legend {
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 0 0.35rem;
+    }
+    .string-list-row {
+      display: flex;
+      gap: 0.35rem;
+      align-items: center;
+      margin-bottom: 0.35rem;
+    }
+    .string-list-row input {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.85rem;
+      padding: 0.25rem;
+    }
+    .string-list-add {
+      margin-top: 0.25rem;
+      font-size: 0.85rem;
+    }
+    .string-list-remove {
+      font-size: 0.8rem;
+      flex-shrink: 0;
+    }
     .composition-section { border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; margin-bottom: 0.5rem; }
     .composition-section.section-off .section-body { opacity: 0.45; pointer-events: none; }
     .section-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.35rem; flex-wrap: wrap; }
@@ -179,6 +275,9 @@
       </label>
       <span id="preview-mode-hint"></span>
     </span>
+    <label class="meta">Theme
+      <select id="preview-theme" title="Resume theme bundle (layout + date display)"></select>
+    </label>
     <button type="button" id="rebuild">Rebuild preview</button>
     <span id="status" class="meta"></span>
   </header>
@@ -226,17 +325,18 @@
           </label>
           <p class="help">Stable catalog key (used in compositions). <strong>Not printed on the PDF</strong> — company, title, project name, etc. below are what appear on the resume. You can edit this id before Create; suggested from your labels when possible.</p>
         </div>
-        <div class="row" id="catalog-revision-row">
-          <label>Revision
+        <div id="payload-form" hidden></div>
+        <textarea id="payload-editor" spellcheck="false" placeholder="Select an element…" disabled></textarea>
+        <div class="row catalog-detail-actions" id="catalog-detail-actions">
+          <label id="catalog-revision-label">Revision
             <select id="revision-select" disabled></select>
           </label>
           <button type="button" id="save-revision" disabled>Save as new revision</button>
-          <button type="button" id="create-element" class="hidden">Create entry</button>
+          <button type="button" id="create-element" class="hidden">Save new entry</button>
           <button type="button" id="delete-element" class="hidden">Delete entry</button>
           <label class="meta"><input type="checkbox" id="catalog-json-mode" /> Edit as JSON</label>
         </div>
-        <div id="payload-form" hidden></div>
-        <textarea id="payload-editor" spellcheck="false" placeholder="Select an element…" disabled></textarea>
+        <p class="help hidden" id="catalog-create-hint">Fill in the fields above, then click <strong>Save new entry</strong>.</p>
       </div>
       <p class="meta">Preview builds from SQLite (resolve pipeline). Export YAML to <code>workspace/staging/content/</code> via CLI; repo <code>content/</code> is import seed only.</p>
       <details>
@@ -449,13 +549,16 @@
     const deleteElementBtn = document.getElementById("delete-element");
     const catalogElementMeta = document.getElementById("catalog-element-meta");
     const catalogCreateIdRow = document.getElementById("catalog-create-id-row");
-    const catalogRevisionRow = document.getElementById("catalog-revision-row");
+    const catalogRevisionLabel = document.getElementById("catalog-revision-label");
+    const catalogCreateHint = document.getElementById("catalog-create-hint");
     const newEntryKindSelect = document.getElementById("new-entry-kind");
     let revisionMap = new Map();
     let selectedAppId = null;
     /** Whether the open application has at least one submission (for preview mode). */
     let selectedAppHasSubmission = false;
     let themeInfo = null;
+    let previewThemeId = "classic";
+    const previewThemeSelect = document.getElementById("preview-theme");
     let catalogByKind = {};
     let elementDetailCache = new Map();
     let selectedPresetId = null;
@@ -501,7 +604,7 @@
     }
 
     function previewBody() {
-      const body = {};
+      const body = { theme_id: previewThemeId };
       const useDraftComposition =
         previewMode.value === "draft" &&
         (selectedAppId || isCreateMode());
@@ -601,16 +704,22 @@
         });
         const data = await res.json();
         if (!data.ok) {
-          statusEl.textContent = "Build failed";
           statusEl.classList.add("error");
           hashEl.textContent = "";
           engineEl.textContent = data.pdf_engine
             ? "PDF engine: " + data.pdf_engine + " (compile failed)"
             : "No PDF engine installed";
-          if (data.error) {
-            logEl.hidden = false;
-            logEl.textContent = data.error + (data.log_tail ? "\n\n" + data.log_tail : "");
-          }
+          const parts = ["Build failed"];
+          if (data.error) parts.push(String(data.error));
+          if (data.log_tail) parts.push(String(data.log_tail));
+          const detail = parts.join("\n\n");
+          const statusCap = 600;
+          statusEl.textContent =
+            detail.length > statusCap
+              ? detail.slice(0, statusCap) + "\n… (full log under Last build)"
+              : detail;
+          logEl.hidden = false;
+          logEl.textContent = detail;
           setPreviewPlaceholder("Fix errors and rebuild", true);
           return;
         }
@@ -635,18 +744,16 @@
         hashEl.textContent = data.content_hash || "";
         engineEl.textContent = data.pdf_engine ? "PDF engine: " + data.pdf_engine : "";
 
-        if (data.unchanged) {
-          return;
-        }
-
         const hash = data.content_hash || "";
-        if (hash && hash === lastPreviewContentHash) {
+        if (data.unchanged && hash && hash === lastPreviewContentHash) {
           statusEl.textContent = "Preview up to date" + src;
           return;
         }
-        statusEl.textContent = "Preview updated" + src;
+        statusEl.textContent = data.unchanged ? "Preview refreshed" + src : "Preview updated" + src;
         lastPreviewContentHash = hash;
-        iframe.src = data.pdf_url + "?t=" + Date.now();
+        if (data.pdf_url) {
+          iframe.src = data.pdf_url + "?t=" + Date.now();
+        }
       } catch (e) {
         statusEl.textContent = "Request failed: " + e;
         statusEl.classList.add("error");
@@ -660,9 +767,41 @@
       }
     }
 
+    async function loadThemeCatalog() {
+      const res = await fetch("/api/themes");
+      if (!res.ok) return;
+      const ids = await res.json();
+      previewThemeSelect.innerHTML = "";
+      for (const id of ids) {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = id;
+        previewThemeSelect.appendChild(opt);
+      }
+      if (ids.includes(previewThemeId)) {
+        previewThemeSelect.value = previewThemeId;
+      } else if (ids.length) {
+        previewThemeId = ids[0];
+        previewThemeSelect.value = previewThemeId;
+      }
+    }
+
     async function loadThemeInfo() {
-      const res = await fetch("/api/themes/classic");
+      const res = await fetch(`/api/themes/${encodeURIComponent(previewThemeId)}`);
       if (res.ok) themeInfo = await res.json();
+    }
+
+    async function onPreviewThemeChanged() {
+      previewThemeId = previewThemeSelect.value || "classic";
+      lastPreviewContentHash = null;
+      await loadThemeInfo();
+      if (selectedElementId && !catalogJsonMode.checked) {
+        const detail = await getElementDetail(selectedElementId);
+        if (detail?.latest?.payload) {
+          await renderPayloadForm(detail.kind, detail.latest.payload);
+        }
+      }
+      await rebuild();
     }
 
     async function refreshCatalogByKind() {
@@ -702,48 +841,259 @@
       cur[parts[parts.length - 1]] = value;
     }
 
-    function calendarDateToMonthValue(d) {
-      if (!d || d.year == null || d.month == null) return "";
-      return `${d.year}-${String(d.month).padStart(2, "0")}`;
+    const MONTH_ABBR = [
+      "Jan.", "Feb.", "Mar.", "Apr.", "May", "Jun.",
+      "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec.",
+    ];
+
+    function defaultDateParts(field) {
+      const p = field.date_parts;
+      return p && p.length ? p : ["month", "year"];
     }
 
-    function monthValueToCalendarDate(v) {
-      if (!v) return null;
-      const [y, m] = v.split("-").map((x) => parseInt(x, 10));
-      if (!y || !m) return null;
-      return { year: y, month: m };
+    function readCalendarDateFromForm(fieldKey, part, dateParts) {
+      const q = (comp) =>
+        payloadForm.querySelector(
+          `[data-field-key="${fieldKey}"][data-date-range-part="${part}"][data-date-component="${comp}"]`,
+        );
+      const yearRaw = q("year")?.value;
+      const year = yearRaw ? parseInt(yearRaw, 10) : NaN;
+      if (!year || year < 1900 || year > 2200) return null;
+      const out = { year };
+      if (dateParts.includes("month")) {
+        const month = parseInt(q("month")?.value || "", 10);
+        if (!month || month < 1 || month > 12) return null;
+        out.month = month;
+      }
+      if (dateParts.includes("day")) {
+        const day = parseInt(q("day")?.value || "", 10);
+        if (!day || day < 1 || day > 31) return null;
+        out.day = day;
+      }
+      return out;
     }
 
-    function readDateRangeFromForm(fieldKey) {
-      const startEl = payloadForm.querySelector(`[data-date-range-part="start"][data-field-key="${fieldKey}"]`);
-      const endEl = payloadForm.querySelector(`[data-date-range-part="end"][data-field-key="${fieldKey}"]`);
-      const presentEl = payloadForm.querySelector(`[data-date-range-part="present"][data-field-key="${fieldKey}"]`);
-      const start = monthValueToCalendarDate(startEl?.value);
+    function calendarDateSortKey(d, dateParts) {
+      if (!d || !d.year) return 0;
+      const month = dateParts.includes("month") ? (d.month || 1) : 1;
+      const day = dateParts.includes("day") ? (d.day || 1) : 1;
+      return d.year * 10000 + month * 100 + day;
+    }
+
+    function monthDisplayToken(month, monthDisplay) {
+      if (monthDisplay === "numeric") return String(month);
+      return MONTH_ABBR[month - 1] || String(month);
+    }
+
+    function formatCalendarDatePreview(d, dateParts, monthDisplay) {
+      if (!d || d.year == null) return "";
+      const bits = [];
+      if (dateParts.includes("day") && d.day != null) bits.push(String(d.day));
+      if (dateParts.includes("month") && d.month != null) {
+        bits.push(monthDisplayToken(d.month, monthDisplay || "abbrev"));
+      }
+      if (dateParts.includes("year")) bits.push(String(d.year));
+      return bits.join(" ");
+    }
+
+    function formatDateRangePreview(range, dateParts, monthDisplay) {
+      if (!range?.start) return "";
+      const start = formatCalendarDatePreview(range.start, dateParts, monthDisplay);
+      if (!start) return "";
+      let end;
+      if (range.end?.kind === "present") {
+        end = "Present";
+      } else if (range.end?.kind === "date" && range.end.date) {
+        end = formatCalendarDatePreview(range.end.date, dateParts, monthDisplay);
+      } else {
+        return start;
+      }
+      return `${start} -- ${end}`;
+    }
+
+    function readDateRangeFromForm(fieldKey, dateParts) {
+      const presentEl = payloadForm.querySelector(
+        `[data-date-range-part="present"][data-field-key="${fieldKey}"]`,
+      );
+      const start = readCalendarDateFromForm(fieldKey, "start", dateParts);
       if (!start) return null;
       if (presentEl?.checked) {
         return { start, end: { kind: "present" } };
       }
-      const endDate = monthValueToCalendarDate(endEl?.value);
-      if (!endDate) {
-        return { start, end: { kind: "present" } };
-      }
+      const endDate = readCalendarDateFromForm(fieldKey, "end", dateParts);
+      if (!endDate) return null;
       return { start, end: { kind: "date", date: endDate } };
+    }
+
+    function readStringListFromForm(fieldKey) {
+      const rows = payloadForm.querySelectorAll(
+        `.string-list-row[data-field-key="${fieldKey}"]`,
+      );
+      const lines = [];
+      for (const row of rows) {
+        const input = row.querySelector('input[type="text"]');
+        const v = input?.value.trim();
+        if (v) lines.push(v);
+      }
+      return lines;
+    }
+
+    function appendStringListRow(host, fieldKey, value = "") {
+      const row = document.createElement("div");
+      row.className = "string-list-row";
+      row.dataset.fieldKey = fieldKey;
+      const input = document.createElement("input");
+      input.type = "text";
+      input.value = value;
+      input.placeholder = "One bullet — plain text, no leading dash required";
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "string-list-remove";
+      removeBtn.textContent = "Remove";
+      removeBtn.addEventListener("click", () => row.remove());
+      row.append(input, removeBtn);
+      host.appendChild(row);
+      return input;
+    }
+
+    function appendStringListField(field, payload) {
+      const fs = document.createElement("fieldset");
+      fs.className = "string-list-field";
+      const legend = document.createElement("legend");
+      legend.textContent = field.label + (field.optional ? " (optional)" : "");
+      fs.appendChild(legend);
+      const host = document.createElement("div");
+      host.className = "string-list-rows";
+      host.dataset.fieldKey = field.key;
+      const val = getNested(payload, field.key);
+      const items = Array.isArray(val) ? val.filter((x) => typeof x === "string") : [];
+      if (items.length === 0) {
+        appendStringListRow(host, field.key, "");
+      } else {
+        for (const item of items) {
+          appendStringListRow(host, field.key, item);
+        }
+      }
+      fs.appendChild(host);
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "string-list-add";
+      addBtn.textContent = "Add bullet";
+      addBtn.addEventListener("click", () => {
+        appendStringListRow(host, field.key, "").focus();
+      });
+      fs.appendChild(addBtn);
+      payloadForm.appendChild(fs);
+    }
+
+    function appendCalendarDateControls(container, fieldKey, part, date, dateParts) {
+      const row = document.createElement("div");
+      row.className = "date-part-row";
+      if (dateParts.includes("month")) {
+        const monthLabel = document.createElement("label");
+        monthLabel.textContent = "Month";
+        const monthSel = document.createElement("select");
+        monthSel.dataset.fieldKey = fieldKey;
+        monthSel.dataset.dateRangePart = part;
+        monthSel.dataset.dateComponent = "month";
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = "—";
+        monthSel.appendChild(empty);
+        for (let m = 1; m <= 12; m++) {
+          const opt = document.createElement("option");
+          opt.value = String(m);
+          opt.textContent = MONTH_ABBR[m - 1].replace(".", "");
+          monthSel.appendChild(opt);
+        }
+        if (date?.month) monthSel.value = String(date.month);
+        monthLabel.appendChild(monthSel);
+        row.appendChild(monthLabel);
+      }
+      if (dateParts.includes("year")) {
+        const yearLabel = document.createElement("label");
+        yearLabel.textContent = "Year";
+        const yearInput = document.createElement("input");
+        yearInput.type = "number";
+        yearInput.min = "1950";
+        yearInput.max = "2100";
+        yearInput.step = "1";
+        yearInput.placeholder = "YYYY";
+        yearInput.dataset.fieldKey = fieldKey;
+        yearInput.dataset.dateRangePart = part;
+        yearInput.dataset.dateComponent = "year";
+        if (date?.year) yearInput.value = String(date.year);
+        yearLabel.appendChild(yearInput);
+        row.appendChild(yearLabel);
+      }
+      if (dateParts.includes("day")) {
+        const dayLabel = document.createElement("label");
+        dayLabel.textContent = "Day";
+        const dayInput = document.createElement("input");
+        dayInput.type = "number";
+        dayInput.min = "1";
+        dayInput.max = "31";
+        dayInput.dataset.fieldKey = fieldKey;
+        dayInput.dataset.dateRangePart = part;
+        dayInput.dataset.dateComponent = "day";
+        if (date?.day) dayInput.value = String(date.day);
+        dayLabel.appendChild(dayInput);
+        row.appendChild(dayLabel);
+      }
+      container.appendChild(row);
+    }
+
+    function bindDateRangePreview(fieldKey, dateParts, monthDisplay, previewEl, endBlock) {
+      const refresh = () => {
+        const presentEl = payloadForm.querySelector(
+          `[data-date-range-part="present"][data-field-key="${fieldKey}"]`,
+        );
+        const isPresent = presentEl?.checked;
+        endBlock.hidden = isPresent;
+        const range = readDateRangeFromForm(fieldKey, dateParts);
+        if (!range) {
+          previewEl.textContent = "Enter start month and year.";
+          previewEl.classList.remove("error");
+          return;
+        }
+        if (
+          !isPresent &&
+          range.end?.kind === "date" &&
+          calendarDateSortKey(range.end.date, dateParts) <
+            calendarDateSortKey(range.start, dateParts)
+        ) {
+          previewEl.textContent = "End date is before start date.";
+          previewEl.classList.add("error");
+          return;
+        }
+        previewEl.textContent =
+          "Preview: " + formatDateRangePreview(range, dateParts, monthDisplay);
+        previewEl.classList.remove("error");
+      };
+      payloadForm.querySelectorAll(`[data-field-key="${fieldKey}"]`).forEach((el) => {
+        el.addEventListener("change", refresh);
+        el.addEventListener("input", refresh);
+      });
+      refresh();
     }
 
     function payloadFromForm() {
       const payload = {};
       for (const field of currentFieldSchema) {
         if (field.field_type === "date_range") {
-          const range = readDateRangeFromForm(field.key);
+          const dateParts = defaultDateParts(field);
+          const range = readDateRangeFromForm(field.key, dateParts);
           if (range) setNested(payload, field.key, range);
+          continue;
+        }
+        if (field.field_type === "string_list") {
+          const lines = readStringListFromForm(field.key);
+          if (lines.length) setNested(payload, field.key, lines);
           continue;
         }
         const el = payloadForm.querySelector(`[data-field-key="${field.key}"]`);
         if (!el) continue;
-        if (field.field_type === "string_list") {
-          const lines = el.value.split("\n").map((s) => s.trim()).filter(Boolean);
-          if (lines.length) setNested(payload, field.key, lines);
-        } else if (field.field_type === "text" || field.field_type === "string") {
+        if (field.field_type === "text" || field.field_type === "string") {
           const v = el.value.trim();
           if (v) setNested(payload, field.key, v);
         }
@@ -754,75 +1104,77 @@
     async function renderPayloadForm(kind, payload) {
       currentFieldSchema = [];
       payloadForm.innerHTML = "";
-      const res = await fetch(`/api/catalog/field-schema?kind=${encodeURIComponent(kind)}`);
+      const res = await fetch(
+        `/api/catalog/field-schema?kind=${encodeURIComponent(kind)}&theme=${encodeURIComponent(previewThemeId)}`,
+      );
       if (!res.ok) return;
       currentFieldSchema = await res.json();
       for (const field of currentFieldSchema) {
         if (field.field_type === "date_range") {
-          const wrap = document.createElement("div");
-          wrap.className = "date-range-field";
-          const heading = document.createElement("p");
-          heading.className = "meta";
-          heading.textContent = field.label + (field.optional ? " (optional)" : "");
-          wrap.appendChild(heading);
+          const dateParts = defaultDateParts(field);
           const range = getNested(payload, field.key);
-          const legacyDate = getNested(payload, "date");
-          if (!range && legacyDate) {
-            const leg = document.createElement("p");
-            leg.className = "help";
-            leg.textContent =
-              "Legacy date text: " + legacyDate + " — set start/end below to store structured dates.";
-            wrap.appendChild(leg);
-          }
-          const row = document.createElement("div");
-          row.className = "row";
-          const startLabel = document.createElement("label");
-          startLabel.className = "meta";
-          startLabel.textContent = "Start ";
-          const startInput = document.createElement("input");
-          startInput.type = "month";
-          startInput.dataset.fieldKey = field.key;
-          startInput.dataset.dateRangePart = "start";
-          startInput.value = calendarDateToMonthValue(range?.start);
-          startLabel.appendChild(startInput);
-          const endLabel = document.createElement("label");
-          endLabel.className = "meta";
-          endLabel.textContent = "End ";
-          const endInput = document.createElement("input");
-          endInput.type = "month";
-          endInput.dataset.fieldKey = field.key;
-          endInput.dataset.dateRangePart = "end";
-          if (range?.end?.kind === "date") {
-            endInput.value = calendarDateToMonthValue(range.end.date);
-          }
-          endLabel.appendChild(endInput);
+          const fs = document.createElement("fieldset");
+          fs.className = "date-range-field";
+          const legend = document.createElement("legend");
+          legend.textContent = field.label + (field.optional ? " (optional)" : "");
+          fs.appendChild(legend);
+
+          const grid = document.createElement("div");
+          grid.className = "date-range-grid";
+
+          const startBlock = document.createElement("div");
+          startBlock.className = "date-range-block";
+          const startTitle = document.createElement("div");
+          startTitle.className = "block-label";
+          startTitle.textContent = "Start";
+          startBlock.appendChild(startTitle);
+          appendCalendarDateControls(startBlock, field.key, "start", range?.start, dateParts);
+
+          const endBlock = document.createElement("div");
+          endBlock.className = "date-range-block";
+          const endTitle = document.createElement("div");
+          endTitle.className = "block-label";
+          endTitle.textContent = "End";
+          endBlock.appendChild(endTitle);
+          const endDate =
+            range?.end?.kind === "date" ? range.end.date : null;
+          appendCalendarDateControls(endBlock, field.key, "end", endDate, dateParts);
+
+          grid.append(startBlock, endBlock);
+          fs.appendChild(grid);
+
           const presentLabel = document.createElement("label");
-          presentLabel.className = "meta";
+          presentLabel.className = "date-range-present";
           const presentCb = document.createElement("input");
           presentCb.type = "checkbox";
           presentCb.dataset.fieldKey = field.key;
           presentCb.dataset.dateRangePart = "present";
           presentCb.checked = !range || range.end?.kind === "present";
-          presentLabel.append(presentCb, document.createTextNode(" Present (ongoing)"));
-          const syncEndDisabled = () => {
-            endInput.disabled = presentCb.checked;
-          };
-          presentCb.addEventListener("change", syncEndDisabled);
-          syncEndDisabled();
-          row.append(startLabel, endLabel, presentLabel);
-          wrap.appendChild(row);
-          payloadForm.appendChild(wrap);
+          presentLabel.append(presentCb, document.createTextNode(" Ongoing (Present)"));
+          fs.appendChild(presentLabel);
+
+          const preview = document.createElement("div");
+          preview.className = "date-range-preview";
+          fs.appendChild(preview);
+
+          payloadForm.appendChild(fs);
+          bindDateRangePreview(
+            field.key,
+            dateParts,
+            field.month_display || "abbrev",
+            preview,
+            endBlock,
+          );
+          continue;
+        }
+        if (field.field_type === "string_list") {
+          appendStringListField(field, payload);
           continue;
         }
         const label = document.createElement("label");
         label.textContent = field.label + (field.optional ? " (optional)" : "");
         let input;
-        if (field.field_type === "string_list") {
-          input = document.createElement("textarea");
-          input.rows = 4;
-          const val = getNested(payload, field.key);
-          input.value = Array.isArray(val) ? val.join("\n") : "";
-        } else if (field.field_type === "text") {
+        if (field.field_type === "text") {
           input = document.createElement("textarea");
           input.rows = 3;
           input.value = getNested(payload, field.key) || "";
@@ -851,9 +1203,11 @@
       let slug = "";
       if (kind === "experience") {
         const company = payload.company || payload.position;
-        const date = payload.date;
-        if (company && date) {
-          slug = `${slugifyLabel(company)}-${slugifyLabel(date)}`;
+        const dr = payload.date_range;
+        const dateHint =
+          dr?.start && `${dr.start.year}-${dr.start.month}`;
+        if (company && dateHint) {
+          slug = `${slugifyLabel(company)}-${slugifyLabel(dateHint)}`;
         } else if (company) {
           slug = slugifyLabel(company);
         }
@@ -887,7 +1241,9 @@
 
     function attachPayloadIdSuggestListeners() {
       if (!elementCreateKind) return;
-      for (const el of payloadForm.querySelectorAll("[data-field-key]")) {
+      for (const el of payloadForm.querySelectorAll(
+        "[data-field-key], .string-list-row input",
+      )) {
         el.removeEventListener("input", onPayloadInputForIdSuggest);
         el.addEventListener("input", onPayloadInputForIdSuggest);
       }
@@ -907,7 +1263,8 @@
       createElementBtn.classList.add("hidden");
       deleteElementBtn.classList.add("hidden");
       saveBtn.classList.remove("hidden");
-      catalogRevisionRow.classList.remove("hidden");
+      catalogRevisionLabel.classList.remove("hidden");
+      catalogCreateHint.classList.add("hidden");
       payloadEditor.disabled = true;
       payloadEditor.value = "";
       payloadForm.innerHTML = "";
@@ -925,7 +1282,8 @@
       createElementBtn.classList.remove("hidden");
       deleteElementBtn.classList.add("hidden");
       saveBtn.classList.add("hidden");
-      catalogRevisionRow.classList.add("hidden");
+      catalogRevisionLabel.classList.add("hidden");
+      catalogCreateHint.classList.remove("hidden");
       catalogElementMeta.textContent = `New ${kind} entry`;
       catalogStatus.textContent = "";
       catalogStatus.classList.remove("error");
@@ -1243,7 +1601,8 @@
       createElementBtn.classList.add("hidden");
       deleteElementBtn.classList.remove("hidden");
       saveBtn.classList.remove("hidden");
-      catalogRevisionRow.classList.remove("hidden");
+      catalogRevisionLabel.classList.remove("hidden");
+      catalogCreateHint.classList.add("hidden");
       for (const li of elementList.querySelectorAll("li")) {
         li.classList.toggle("active", li.dataset.id === id);
       }
@@ -1317,7 +1676,7 @@
         catalogStatus.textContent = `Saved rev ${rev.rev_number}`;
         await selectElement(selectedElementId);
         await loadCatalog();
-        await rebuild();
+        await rebuildAfterCatalogSave(selectedElementId);
       } catch (e) {
         catalogStatus.textContent = String(e);
         catalogStatus.classList.add("error");
@@ -1985,6 +2344,7 @@
         await loadCatalog();
         await selectElement(id);
         catalogStatus.textContent = `Created ${id}`;
+        const savedId = id;
         if (isCreateMode() || selectedAppId) {
           let comp;
           try {
@@ -1995,7 +2355,7 @@
           await renderCompositionEditor(comp);
           notifyCompositionChanged();
         }
-        await rebuild();
+        await rebuildAfterCatalogSave(savedId);
       } catch (e) {
         catalogStatus.textContent = String(e);
         catalogStatus.classList.add("error");
@@ -2004,11 +2364,29 @@
       }
     });
 
+    async function rebuildAfterCatalogSave(savedLabel) {
+      const before = statusEl.textContent;
+      await rebuild();
+      if (statusEl.classList.contains("error") && savedLabel) {
+        catalogStatus.textContent = `Saved ${savedLabel}, but preview failed — see header status / Last build log`;
+        catalogStatus.classList.remove("error");
+      } else if (!statusEl.classList.contains("error") && before !== statusEl.textContent) {
+        catalogStatus.textContent = `Saved ${savedLabel}`;
+      }
+    }
+
     kindFilter.addEventListener("change", loadCatalog);
     reloadCatalogBtn.addEventListener("click", loadCatalog);
     rebuildBtn.addEventListener("click", rebuild);
+    previewThemeSelect.addEventListener("change", () => {
+      onPreviewThemeChanged().catch((e) => {
+        statusEl.textContent = String(e);
+        statusEl.classList.add("error");
+      });
+    });
 
-    loadThemeInfo()
+    loadThemeCatalog()
+      .then(loadThemeInfo)
       .then(refreshCatalogByKind)
       .then(loadCatalog)
       .then(loadPresets)
