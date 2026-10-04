@@ -244,6 +244,17 @@
       font-size: 0.8rem;
       flex-shrink: 0;
     }
+    fieldset.work-location-field {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.55rem 0.75rem 0.65rem;
+      margin: 0 0 0.75rem;
+    }
+    fieldset.work-location-field legend {
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 0 0.35rem;
+    }
     .composition-section { border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; margin-bottom: 0.5rem; }
     .composition-section.section-off .section-body { opacity: 0.45; pointer-events: none; }
     .section-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.35rem; flex-wrap: wrap; }
@@ -938,6 +949,48 @@
       return lines;
     }
 
+    function readWorkLocationFromForm(fieldKey) {
+      const city = payloadForm
+        .querySelector(`[data-work-location-part="city"][data-field-key="${fieldKey}"]`)
+        ?.value.trim();
+      const state = payloadForm
+        .querySelector(`[data-work-location-part="state"][data-field-key="${fieldKey}"]`)
+        ?.value.trim();
+      if (!city && !state) return null;
+      const out = {};
+      if (city) out.city = city;
+      if (state) out.state = state;
+      return out;
+    }
+
+    function appendWorkLocationField(field, payload) {
+      const fs = document.createElement("fieldset");
+      fs.className = "work-location-field";
+      const legend = document.createElement("legend");
+      legend.textContent = field.label + (field.optional ? " (optional)" : "");
+      fs.appendChild(legend);
+      const loc = getNested(payload, field.key) || {};
+      const row = document.createElement("div");
+      row.className = "date-part-row";
+      for (const [part, label, placeholder] of [
+        ["city", "City / locality", "e.g. Leesburg"],
+        ["state", "State / region", "e.g. VA"],
+      ]) {
+        const wrap = document.createElement("label");
+        wrap.textContent = label;
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = placeholder;
+        input.dataset.fieldKey = field.key;
+        input.dataset.workLocationPart = part;
+        input.value = loc[part] || "";
+        wrap.appendChild(input);
+        row.appendChild(wrap);
+      }
+      fs.appendChild(row);
+      payloadForm.appendChild(fs);
+    }
+
     function appendStringListRow(host, fieldKey, value = "") {
       const row = document.createElement("div");
       row.className = "string-list-row";
@@ -1086,6 +1139,11 @@
           if (range) setNested(payload, field.key, range);
           continue;
         }
+        if (field.field_type === "work_location") {
+          const loc = readWorkLocationFromForm(field.key);
+          if (loc) setNested(payload, field.key, loc);
+          continue;
+        }
         if (field.field_type === "string_list") {
           const lines = readStringListFromForm(field.key);
           if (lines.length) setNested(payload, field.key, lines);
@@ -1110,6 +1168,10 @@
       if (!res.ok) return;
       currentFieldSchema = await res.json();
       for (const field of currentFieldSchema) {
+        if (field.field_type === "work_location") {
+          appendWorkLocationField(field, payload);
+          continue;
+        }
         if (field.field_type === "date_range") {
           const dateParts = defaultDateParts(field);
           const range = getNested(payload, field.key);

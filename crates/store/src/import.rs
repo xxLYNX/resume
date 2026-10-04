@@ -196,6 +196,9 @@ fn import_element(
         domain::normalize_payload_dates(&mut payload)
             .map_err(|e| anyhow::anyhow!("normalize dates for `{element_id}`: {e}"))?;
     }
+    if kind == ElementKind::Experience {
+        domain::normalize_experience_location(&mut payload);
+    }
 
     if exists > 0 {
         if options.force {

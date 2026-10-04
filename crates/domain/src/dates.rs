@@ -134,6 +134,9 @@ pub fn normalize_list_section_document(section: &str, doc: &mut Value) {
     };
     for item in items.iter_mut() {
         let _ = normalize_payload_dates(item);
+        if section == "experience" {
+            crate::location::normalize_experience_location(item);
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 use serde_json::Value;
 
 use crate::dates::{validate_date_range, DateRange};
+use crate::location::WorkLocation;
 use crate::ElementKind;
 
 #[derive(Debug, thiserror::Error)]
@@ -47,6 +48,7 @@ pub fn validate_payload(kind: ElementKind, payload: &Value) -> Result<(), Valida
         ElementKind::Experience => {
             check_optional_string(obj, "position")?;
             check_optional_string(obj, "company")?;
+            check_optional_work_location(obj)?;
             check_optional_date_fields(obj)?;
             check_optional_string_string_array(obj, "highlights")?;
         }
@@ -71,6 +73,20 @@ pub fn validate_payload(kind: ElementKind, payload: &Value) -> Result<(), Valida
         }
     }
 
+    Ok(())
+}
+
+fn check_optional_work_location(
+    obj: &serde_json::Map<String, Value>,
+) -> Result<(), ValidationError> {
+    let Some(v) = obj.get("location") else {
+        return Ok(());
+    };
+    if v.is_null() {
+        return Ok(());
+    }
+    let _: WorkLocation =
+        serde_json::from_value(v.clone()).map_err(|_| ValidationError::ExpectedObject("location"))?;
     Ok(())
 }
 

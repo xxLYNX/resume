@@ -4,7 +4,7 @@
 
     \resumeSubheading
       { {{- row.position | latex_escape -}} }{ {{- row.date_range | format_date_range -}} }
-      { {{- row.company | latex_escape -}} }{}
+      { {{- row | format_experience_company_line | latex_escape -}} }{}
 {%- if row.highlights %}
       \resumeItemListStart
 {%- for line in row.highlights %}
