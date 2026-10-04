@@ -19,6 +19,8 @@ pub enum ValidationError {
     MissingSkillsObject,
     #[error("invalid date_range: {0}")]
     InvalidDateRange(#[from] crate::dates::DateError),
+    #[error("field `date` is deprecated; use structured `date_range`")]
+    DeprecatedDateField,
 }
 
 pub fn validate_payload(kind: ElementKind, payload: &Value) -> Result<(), ValidationError> {
@@ -84,10 +86,8 @@ fn check_optional_date_fields(
             validate_date_range(&range)?;
         }
     }
-    if let Some(v) = obj.get("date") {
-        if !v.is_string() {
-            return Err(ValidationError::ExpectedString("date"));
-        }
+    if obj.contains_key("date") {
+        return Err(ValidationError::DeprecatedDateField);
     }
     Ok(())
 }

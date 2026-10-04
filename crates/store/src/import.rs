@@ -97,8 +97,8 @@ pub fn import_legacy_content(
                 .get("company")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
-            let date = item.get("date").and_then(|v| v.as_str()).unwrap_or("");
-            format!("experience.{}-{}", slugify(company), slugify(date))
+            let slug_suffix = element_date_slug(item);
+            format!("experience.{}-{}", slugify(company), slug_suffix)
         },
     )?;
 
@@ -188,6 +188,15 @@ fn import_element(
         |row| row.get(0),
     )?;
 
+    let mut payload = payload;
+    if matches!(
+        kind,
+        ElementKind::Education | ElementKind::Experience | ElementKind::Project
+    ) {
+        domain::normalize_payload_dates(&mut payload)
+            .map_err(|e| anyhow::anyhow!("normalize dates for `{element_id}`: {e}"))?;
+    }
+
     if exists > 0 {
         if options.force {
             domain::validate_payload(kind, &payload)?;
@@ -240,6 +249,23 @@ fn append_revision(
         |row| row.get(0),
     )?;
     insert_revision(conn, now, element_id, next_rev, payload)
+}
+
+fn element_date_slug(item: &Value) -> String {
+    if let Some(s) = item.get("date").and_then(|v| v.as_str()) {
+        return slugify(s);
+    }
+    if let Some(dr) = item.get("date_range") {
+        if let Ok(range) = serde_json::from_value::<domain::DateRange>(dr.clone()) {
+            let start = format!("{}-{}", range.start.year, range.start.month);
+            let end = match range.end {
+                domain::DateRangeEnd::Present => "present".to_string(),
+                domain::DateRangeEnd::Date { date } => format!("{}-{}", date.year, date.month),
+            };
+            return slugify(&format!("{start}-{end}"));
+        }
+    }
+    String::new()
 }
 
 fn slugify(input: &str) -> String {

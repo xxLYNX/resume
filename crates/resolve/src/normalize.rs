@@ -1,4 +1,3 @@
-use domain::enrich_payload_dates;
 use serde_json::{json, Map, Value};
 
 /// Ensure list-section rows have safe defaults before templates run.
@@ -49,7 +48,5 @@ fn normalize_row(item: &Value, array_fields: &[&str]) -> Value {
             out.remove(key);
         }
     }
-    let mut row = Value::Object(out);
-    enrich_payload_dates(&mut row);
-    row
+    Value::Object(out)
 }

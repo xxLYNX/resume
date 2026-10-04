@@ -19,8 +19,9 @@ pub use compensation::{
 };
 pub use composition::{Composition, CompositionItem, CompositionSection};
 pub use dates::{
-    enrich_payload_dates, format_calendar_date, format_date_range, validate_date_range,
-    CalendarDate, DateError, DateRange, DateRangeEnd,
+    format_calendar_date, format_date_range, normalize_list_section_document,
+    normalize_payload_dates, parse_legacy_date_range, validate_date_range, CalendarDate,
+    DateError, DateRange, DateRangeEnd, MonthDisplay, MONTH_ABBR,
 };
 pub use ledger::{render_ledger_tex, ApplicationLedgerRow};
 pub use manifest::{

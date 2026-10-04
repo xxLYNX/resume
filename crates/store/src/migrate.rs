@@ -1,5 +1,9 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
+use domain::{normalize_payload_dates, ElementKind};
+
+use crate::catalog::kind_from_str;
 use rusqlite::Connection;
+use serde_json::Value;
 
 pub fn migrate(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -92,10 +96,68 @@ pub fn migrate(conn: &Connection) -> Result<()> {
         "TEXT NOT NULL DEFAULT '{}'",
     )?;
 
+    let version = schema_version(conn)?;
+    if version < 7 {
+        migrate_payload_date_ranges(conn)?;
+    }
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '6')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '7')",
         [],
     )?;
+    Ok(())
+}
+
+fn schema_version(conn: &Connection) -> Result<i64> {
+    let mut stmt = conn.prepare("SELECT value FROM schema_meta WHERE key = 'schema_version'")?;
+    let mut rows = stmt.query([])?;
+    if let Some(row) = rows.next()? {
+        let s: String = row.get(0)?;
+        return Ok(s.parse().unwrap_or(0));
+    }
+    Ok(0)
+}
+
+fn migrate_payload_date_ranges(conn: &Connection) -> Result<()> {
+    let mut stmt = conn.prepare(
+        "SELECT er.id, e.kind, er.payload_json
+         FROM element_revisions er
+         JOIN elements e ON e.id = er.element_id",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    for (rev_id, kind_str, payload_json) in rows {
+        let Some(kind) = kind_from_str(&kind_str) else {
+            continue;
+        };
+        if !matches!(
+            kind,
+            ElementKind::Education | ElementKind::Experience | ElementKind::Project
+        ) {
+            continue;
+        }
+        let mut payload: Value =
+            serde_json::from_str(&payload_json).context("parse revision payload")?;
+        let before = payload.clone();
+        normalize_payload_dates(&mut payload)
+            .with_context(|| format!("normalize dates for revision `{rev_id}`"))?;
+        if payload == before {
+            continue;
+        }
+        domain::validate_payload(kind, &payload)?;
+        let updated = serde_json::to_string(&payload)?;
+        conn.execute(
+            "UPDATE element_revisions SET payload_json = ?1 WHERE id = ?2",
+            rusqlite::params![updated, rev_id],
+        )?;
+    }
     Ok(())
 }
 
