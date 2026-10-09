@@ -273,7 +273,7 @@
   <header>
     <h1>jobdesk</h1>
     <div class="tabs" role="tablist">
-      <button type="button" id="tab-catalog" class="active" role="tab">Catalog</button>
+      <button type="button" id="tab-catalog" class="active" role="tab">Portfolio</button>
       <button type="button" id="tab-apps" role="tab">Applications</button>
       <button type="button" id="tab-presets" role="tab">Presets</button>
     </div>
@@ -293,7 +293,7 @@
     <span id="status" class="meta"></span>
   </header>
   <main>
-    <section class="panel" id="panel-catalog" aria-label="Catalog">
+    <section class="panel" id="panel-catalog" aria-label="Portfolio">
       <div class="row">
         <label>Kind
           <select id="kind-filter">
@@ -321,7 +321,7 @@
       </div>
       <p class="help">List filter is for browsing; <strong>New</strong> uses the kind beside New entry.</p>
       <div id="catalog-list-body">
-        <p class="meta" id="catalog-status">Loading catalog…</p>
+        <p class="meta" id="catalog-status">Loading portfolio…</p>
         <ul id="element-list"></ul>
       </div>
       <div id="catalog-element-detail" class="hidden">
@@ -348,6 +348,10 @@
           <label class="meta"><input type="checkbox" id="catalog-json-mode" /> Edit as JSON</label>
         </div>
         <p class="help hidden" id="catalog-create-hint">Fill in the fields above, then click <strong>Save new entry</strong>.</p>
+        <label class="meta hidden" id="include-in-app-wrap">
+          <input type="checkbox" id="include-in-open-app" checked />
+          Include in open application draft (Applications tab)
+        </label>
       </div>
       <p class="meta">Preview builds from SQLite (resolve pipeline). Export YAML to <code>workspace/staging/content/</code> via CLI; repo <code>content/</code> is import seed only.</p>
       <details>
@@ -391,7 +395,7 @@
         </div>
         <div class="row hidden" id="app-create-clone-row">
           <label class="meta">Start content from
-            <select id="clone-from-app"><option value="">Catalog default</option></select>
+            <select id="clone-from-app"><option value="">Portfolio default</option></select>
           </label>
           <label class="meta">Or preset
             <select id="clone-from-preset"><option value="">—</option></select>
@@ -460,13 +464,13 @@
         </div>
         <p class="meta hidden" id="similar-hint"></p>
         <ul id="similar-list" class="meta"></ul>
-        <p class="help"><strong>Save</strong> stores tracker fields and resume content below. <strong>Submit</strong> freezes a manifest (what you sent); it does not replace Save.</p>
+        <p class="help"><strong>Save</strong> stores tracker fields and resume content below. <strong>Submit</strong> freezes a manifest (what you sent); it does not replace Save. Phase <em>submitted</em> is set only by Submit, not by the phase dropdown.</p>
         <div class="row">
-          <button type="button" id="reset-draft">Reset to catalog default</button>
+          <button type="button" id="reset-draft">Reset to portfolio default</button>
           <button type="button" id="submit-app">Submit (freeze manifest)</button>
         </div>
         <p class="warn hidden" id="draft-warn">Draft differs from last submission.</p>
-        <p class="help">Content for this posting only (theme is separate): turn sections on/off, then include catalog elements you want in the compiled resume.</p>
+        <p class="help">Content for this posting only (theme is separate): turn sections on/off, then include portfolio entries you want in the compiled resume.</p>
         <div id="composition-editor" class="meta">Select an application to edit content.</div>
         <details>
           <summary class="meta">Draft composition (JSON)</summary>
@@ -478,14 +482,14 @@
       <p class="meta">Saved compositions (no posting row). Clone into a new application from the Applications tab.</p>
       <div class="row">
         <input type="text" id="new-preset-name" placeholder="Preset name" style="flex:1" />
-        <button type="button" id="save-preset-from-default">Save catalog default as preset</button>
+        <button type="button" id="save-preset-from-default">Save portfolio default as preset</button>
       </div>
       <p class="meta" id="presets-status">Loading…</p>
       <ul id="preset-list"></ul>
       <div id="preset-detail" class="hidden">
         <p class="meta" id="preset-meta"></p>
         <button type="button" id="delete-preset">Delete preset</button>
-        <button type="button" id="update-preset-composition">Update preset from catalog default</button>
+        <button type="button" id="update-preset-composition">Update preset from portfolio default</button>
       </div>
     </section>
     <section class="panel preview" aria-label="PDF preview">
@@ -562,9 +566,12 @@
     const catalogCreateIdRow = document.getElementById("catalog-create-id-row");
     const catalogRevisionLabel = document.getElementById("catalog-revision-label");
     const catalogCreateHint = document.getElementById("catalog-create-hint");
+    const includeInAppWrap = document.getElementById("include-in-app-wrap");
+    const includeInOpenApp = document.getElementById("include-in-open-app");
     const newEntryKindSelect = document.getElementById("new-entry-kind");
     let revisionMap = new Map();
     let selectedAppId = null;
+    let activeMainTab = "catalog";
     /** Whether the open application has at least one submission (for preview mode). */
     let selectedAppHasSubmission = false;
     let themeInfo = null;
@@ -614,15 +621,18 @@
       return false;
     }
 
+    function applicationPreviewActive() {
+      return activeMainTab === "apps" && (selectedAppId || isCreateMode());
+    }
+
     function previewBody() {
       const body = { theme_id: previewThemeId };
       const useDraftComposition =
-        previewMode.value === "draft" &&
-        (selectedAppId || isCreateMode());
-      if (selectedAppId) {
+        previewMode.value === "draft" && applicationPreviewActive();
+      if (applicationPreviewActive() && selectedAppId) {
         body.application_id = selectedAppId;
         body.mode = previewMode.value;
-      } else if (isCreateMode()) {
+      } else if (applicationPreviewActive() && isCreateMode()) {
         body.mode = "draft";
       }
       if (useDraftComposition) {
@@ -688,7 +698,7 @@
     function notifyCompositionChanged() {
       draftEditor.value = JSON.stringify(compositionFromEditorDom(), null, 2);
       if (previewMode.value !== "draft") return;
-      if (!selectedAppId && !isCreateMode()) return;
+      if (!applicationPreviewActive()) return;
       clearTimeout(previewDebounce);
       previewDebounce = setTimeout(() => rebuild(), 450);
     }
@@ -698,7 +708,7 @@
         previewRebuildQueued = true;
         return;
       }
-      if (selectedAppId) {
+      if (applicationPreviewActive() && selectedAppId) {
         ensurePreviewModeAllowed();
       }
       building = true;
@@ -1327,6 +1337,7 @@
       saveBtn.classList.remove("hidden");
       catalogRevisionLabel.classList.remove("hidden");
       catalogCreateHint.classList.add("hidden");
+      includeInAppWrap.classList.add("hidden");
       payloadEditor.disabled = true;
       payloadEditor.value = "";
       payloadForm.innerHTML = "";
@@ -1358,6 +1369,66 @@
       syncCatalogEditorVisibility();
       catalogElementIdInput.value = suggestElementIdFromPayload(kind, payload);
       for (const li of elementList.querySelectorAll("li")) li.classList.remove("active");
+      syncIncludeInAppWrap();
+    }
+
+    function syncIncludeInAppWrap() {
+      const show = isElementCreateMode() && selectedAppId && !isCreateMode();
+      includeInAppWrap.classList.toggle("hidden", !show);
+    }
+
+    function sectionKeyForKind(kind) {
+      for (const key of sectionOrder()) {
+        if (kindForSection(key) === kind) return key;
+      }
+      return kind === "project" ? "projects" : kind;
+    }
+
+    async function addElementToApplicationDraft(appId, elementId, kind) {
+      elementDetailCache.delete(elementId);
+      const detail = await getElementDetail(elementId);
+      if (!detail?.latest?.id) throw new Error("No revision for new entry");
+      const sectionKey = sectionKeyForKind(kind);
+      const res = await fetch(`/api/applications/${encodeURIComponent(appId)}`);
+      const app = await res.json();
+      if (!res.ok) throw new Error(app.error || "Load application failed");
+      const comp = JSON.parse(JSON.stringify(app.draft_composition || { sections: [] }));
+      comp.sections = comp.sections || [];
+      let sec = comp.sections.find((s) => s.section_key === sectionKey);
+      if (!sec) {
+        sec = { section_key: sectionKey, items: [] };
+        comp.sections.push(sec);
+      }
+      sec.items = sec.items || [];
+      if (!sec.items.some((it) => it.element_id === elementId)) {
+        sec.items.push({ element_id: elementId, revision_id: detail.latest.id });
+      }
+      const patch = await fetch(`/api/applications/${encodeURIComponent(appId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draft_composition: comp }),
+      });
+      const updated = await patch.json();
+      if (!patch.ok) throw new Error(updated.error || "Could not add to application");
+      if (selectedAppId === appId && activeMainTab === "apps") {
+        draftEditor.value = JSON.stringify(updated.draft_composition, null, 2);
+        await renderCompositionEditor(updated.draft_composition);
+        notifyCompositionChanged();
+      }
+    }
+
+    async function refreshOpenCompositionRevisionSelects(elementId) {
+      const rows = compositionEditor.querySelectorAll(".comp-row");
+      if (!rows.length) return;
+      for (const row of rows) {
+        const elId = row.dataset.elementId;
+        if (elementId && elId !== elementId) continue;
+        const revSel = row.querySelector(".comp-revision");
+        if (!revSel) continue;
+        elementDetailCache.delete(elId);
+        await fillRevisionSelect(revSel, elId, revSel.value);
+      }
+      if (applicationPreviewActive()) notifyCompositionChanged();
     }
 
     catalogElementIdInput.addEventListener("input", () => {
@@ -1486,7 +1557,7 @@
         if (!orderedCatalog.length) {
           const empty = document.createElement("p");
           empty.className = "meta";
-          empty.textContent = `No ${kind} elements in catalog.`;
+          empty.textContent = `No ${kind} entries in portfolio.`;
           rowsHost.appendChild(empty);
         }
 
@@ -1636,11 +1707,11 @@
         const res = await fetch(url);
         const data = await res.json();
         if (!res.ok) {
-          catalogStatus.textContent = data.error || "Failed to load catalog";
+          catalogStatus.textContent = data.error || "Failed to load portfolio";
           catalogStatus.classList.add("error");
           return;
         }
-        catalogStatus.textContent = `${data.length} element(s)`;
+        catalogStatus.textContent = `${data.length} entr${data.length === 1 ? "y" : "ies"}`;
         for (const el of data) {
           const li = document.createElement("li");
           li.dataset.id = el.id;
@@ -1788,6 +1859,7 @@
         opt.value = p;
         opt.textContent = p;
         if (p === "draft" && hasSubmission) opt.disabled = true;
+        if (p === "submitted" && !hasSubmission) opt.disabled = true;
         appPhaseSelect.appendChild(opt);
       }
       appPhaseSelect.value = phase;
@@ -1819,7 +1891,7 @@
       appsStatus.classList.remove("error");
       appsStatus.textContent = "Loading…";
       appList.innerHTML = "";
-      cloneFromApp.innerHTML = '<option value="">Catalog default</option>';
+      cloneFromApp.innerHTML = '<option value="">Portfolio default</option>';
       try {
         const res = await fetch(appsQueryUrl());
         const data = await res.json();
@@ -1964,6 +2036,7 @@
 
     async function selectApplication(id) {
       selectedAppId = id;
+      syncIncludeInAppWrap();
       setAppsListVisible(false);
       appCreateCloneRow.classList.add("hidden");
       deleteAppBtn.classList.remove("hidden");
@@ -1997,7 +2070,10 @@
     }
 
     function renderAppMeta(app) {
-      const base = `${app.title} @ ${app.company} · ${app.submissions.length} submission(s)`;
+      let base = `${app.title} @ ${app.company} · ${app.submissions.length} submission(s)`;
+      if (app.phase === "submitted" && app.submissions.length === 0) {
+        base += " · phase/submission mismatch — save as draft or Submit";
+      }
       if (app.posting_url) {
         appMeta.innerHTML = `${base} · <a href="${escapeAttr(app.posting_url)}" target="_blank" rel="noopener noreferrer">Open posting</a>`;
       } else {
@@ -2134,7 +2210,7 @@
         cloneFromApp.value = "";
         cloneFromPreset.value = "";
         await applyCreateCloneSource();
-        appsStatus.textContent = "Content reset to catalog default";
+        appsStatus.textContent = "Content reset to portfolio default";
         await rebuild();
         return;
       }
@@ -2150,7 +2226,7 @@
       }
       draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
       await renderCompositionEditor(app.draft_composition);
-      appsStatus.textContent = "Draft reset to catalog default";
+      appsStatus.textContent = "Draft reset to portfolio default";
       await rebuild();
     });
 
@@ -2269,6 +2345,7 @@
     });
 
     function activateTab(which) {
+      activeMainTab = which;
       tabCatalog.classList.toggle("active", which === "catalog");
       tabApps.classList.toggle("active", which === "apps");
       tabPresets.classList.toggle("active", which === "presets");
@@ -2279,7 +2356,6 @@
 
     tabCatalog.addEventListener("click", () => {
       activateTab("catalog");
-      selectedAppId = null;
       previewModeWrap.classList.add("hidden");
       if (!selectedElementId && !isElementCreateMode()) {
         closeElementDetail();
@@ -2407,14 +2483,17 @@
         await selectElement(id);
         catalogStatus.textContent = `Created ${id}`;
         const savedId = id;
-        if (isCreateMode() || selectedAppId) {
-          let comp;
+        const savedKind = elementCreateKind;
+        if (includeInOpenApp.checked && selectedAppId && !isCreateMode()) {
           try {
-            comp = JSON.parse(draftEditor.value || '{"sections":[]}');
-          } catch {
-            comp = { sections: [] };
+            await addElementToApplicationDraft(selectedAppId, id, savedKind);
+            catalogStatus.textContent = `Created ${id} and added to open application draft`;
+          } catch (e) {
+            catalogStatus.textContent = `Created ${id}; could not add to application: ${e.message}`;
           }
-          await renderCompositionEditor(comp);
+        } else if (applicationPreviewActive()) {
+          await refreshCatalogByKind();
+          await renderCompositionEditor(compositionFromEditorDom());
           notifyCompositionChanged();
         }
         await rebuildAfterCatalogSave(savedId);
@@ -2426,14 +2505,15 @@
       }
     });
 
-    async function rebuildAfterCatalogSave(savedLabel) {
+    async function rebuildAfterCatalogSave(savedElementId) {
+      await refreshOpenCompositionRevisionSelects(savedElementId);
       const before = statusEl.textContent;
       await rebuild();
-      if (statusEl.classList.contains("error") && savedLabel) {
-        catalogStatus.textContent = `Saved ${savedLabel}, but preview failed — see header status / Last build log`;
+      if (statusEl.classList.contains("error") && savedElementId) {
+        catalogStatus.textContent = `Saved ${savedElementId}, but preview failed — see header status / Last build log`;
         catalogStatus.classList.remove("error");
       } else if (!statusEl.classList.contains("error") && before !== statusEl.textContent) {
-        catalogStatus.textContent = `Saved ${savedLabel}`;
+        catalogStatus.textContent = `Saved ${savedElementId}`;
       }
     }
 
