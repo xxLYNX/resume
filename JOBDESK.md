@@ -6,6 +6,7 @@ Local workspace binary. Design and milestones: [`ARCHITECTURE.md`](ARCHITECTURE.
 
 - Rust (`cargo`)
 - PDF (optional): Tectonic or `pdflatex`
+- **Git hooks (optional):** `./scripts/install-githooks.sh` — strips `Co-authored-by` trailers from commit messages.
 
 ## Commands
 
@@ -25,7 +26,11 @@ cargo run -p jobdesk -- build --application <uuid> --preview-mode submitted
 
 cargo run -p jobdesk -- serve
 cargo run -p jobdesk -- serve --open
+
+cargo run -p jobdesk -- catalog add experience experience.acme-2024 --payload ./payload.json
 ```
+
+**Portfolio:** create and edit elements in the **Portfolio** tab in `serve`, or via `catalog add` (payload is a JSON object matching the element kind).
 
 **Data:** `workspace/jobdesk.db` is canonical. `content/*.yaml` is import seed; use `import` / `export` when you want file round-trips.
 

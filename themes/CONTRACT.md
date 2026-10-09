@@ -22,6 +22,8 @@ Theme authors work with **section contexts** and **macros** shipped in the theme
 1. **Presentation** — LaTeX layout, `\section` titles, spacing, which fields appear.
 2. **Optional scalars** — Use theme **macros** (or filters we add later) for patterns like “title | technologies emphasis”. Authors should not rely on empty strings looking correct.
 3. **`optional_fields` in `theme.toml`** — Documents which element fields the catalog UI may omit; aligns with macros, not a substitute for them.
+4. **`month_display` in `theme.toml`** — `abbrev` (e.g. `Dec.`) or `numeric` (e.g. `12`). jobdesk owns month tokens; the theme picks the style. Catalog date previews and the `format_date_range` filter honor this.
+5. **Experience `location`** — optional `{ city, state }` on experience rows; templates render company + location via `format_experience_company_line`.
 
 ## Expandable “toys” for theme authors
 

@@ -2,13 +2,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use domain::LegacyConfig;
 use render_pdf::write_tex_and_compile;
 use resolve::ResolvedSections;
 use sha2::{Digest, Sha256};
 use store::Store;
 
-use crate::build_resume_tex;
+use crate::{build_resume_tex, load_themed_build_config};
 
 pub struct LegacyBuildResult {
     pub tex: String,
@@ -24,6 +23,7 @@ pub fn jobdesk_build_to_dir(
     config_path: &Path,
     output_dir: &Path,
     compile_pdf: bool,
+    theme_id: &str,
 ) -> Result<LegacyBuildResult> {
     let composition = resolve::default_composition(store)?;
     jobdesk_build_composition_to_dir(
@@ -33,6 +33,7 @@ pub fn jobdesk_build_to_dir(
         output_dir,
         &composition,
         compile_pdf,
+        theme_id,
     )
 }
 
@@ -43,6 +44,7 @@ pub fn jobdesk_build_composition_to_dir(
     output_dir: &Path,
     composition: &domain::Composition,
     compile_pdf: bool,
+    theme_id: &str,
 ) -> Result<LegacyBuildResult> {
     let resolved = resolve::resolve_composition(store, composition)?;
     write_build_to_dir(
@@ -51,6 +53,7 @@ pub fn jobdesk_build_composition_to_dir(
         output_dir,
         &resolved,
         compile_pdf,
+        theme_id,
     )
 }
 
@@ -60,6 +63,7 @@ pub fn jobdesk_build_resolved_to_dir(
     output_dir: &Path,
     resolved: &ResolvedSections,
     compile_pdf: bool,
+    theme_id: &str,
 ) -> Result<LegacyBuildResult> {
     write_build_to_dir(
         project_root,
@@ -67,6 +71,7 @@ pub fn jobdesk_build_resolved_to_dir(
         output_dir,
         resolved,
         compile_pdf,
+        theme_id,
     )
 }
 
@@ -80,6 +85,7 @@ pub fn jobdesk_build_aligned(
     compile_pdf: bool,
     application_id: Option<&str>,
     preview_mode: &str,
+    theme_id: &str,
 ) -> Result<LegacyBuildResult> {
     match application_id {
         None => jobdesk_build_to_dir(
@@ -88,6 +94,7 @@ pub fn jobdesk_build_aligned(
             config_path,
             output_dir,
             compile_pdf,
+            theme_id,
         ),
         Some(app_id) => match preview_mode {
             "submitted" => {
@@ -109,6 +116,7 @@ pub fn jobdesk_build_aligned(
                     output_dir,
                     &resolved,
                     compile_pdf,
+                    &sub.manifest.theme_id,
                 )
             }
             _ => {
@@ -122,6 +130,7 @@ pub fn jobdesk_build_aligned(
                     output_dir,
                     &app.draft_composition,
                     compile_pdf,
+                    theme_id,
                 )
             }
         },
@@ -134,24 +143,21 @@ pub fn write_build_to_dir(
     output_dir: &Path,
     resolved: &ResolvedSections,
     compile_pdf: bool,
+    theme_id: &str,
 ) -> Result<LegacyBuildResult> {
-    let config_text = fs::read_to_string(config_path)
-        .with_context(|| format!("read config {}", config_path.display()))?;
-    let legacy: LegacyConfig =
-        serde_yaml::from_str(&config_text).context("parse build config YAML")?;
-
-    let tex = build_resume_tex(config_path, project_root, resolved)?;
+    let (config, month_display) = load_themed_build_config(project_root, config_path, theme_id)?;
+    let tex = build_resume_tex(project_root, &config, resolved, month_display)?;
     let content_hash = hash_tex(&tex);
 
     fs::create_dir_all(output_dir)?;
-    let tex_path = output_dir.join(&legacy.output.filename);
+    let tex_path = output_dir.join(&config.output.filename);
     fs::write(&tex_path, &tex)?;
 
     let mut pdf_path = None;
     let mut pdf_engine = None;
 
     if compile_pdf {
-        match write_tex_and_compile(&tex, output_dir, &legacy.output.filename) {
+        match write_tex_and_compile(&tex, output_dir, &config.output.filename) {
             Ok(path) => {
                 pdf_engine = render_pdf::PdfEngine::detect().map(|e| e.name().to_string());
                 pdf_path = Some(path);

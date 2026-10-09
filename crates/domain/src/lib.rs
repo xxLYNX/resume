@@ -1,5 +1,7 @@
 mod application;
 mod compensation;
+mod dates;
+mod location;
 mod ledger;
 mod composition;
 mod manifest;
@@ -17,6 +19,12 @@ pub use compensation::{
     ApplicationMetaError, Compensation, EMPLOYMENT_TYPES, PAY_UNITS, WORK_MODES,
 };
 pub use composition::{Composition, CompositionItem, CompositionSection};
+pub use location::WorkLocation;
+pub use dates::{
+    format_calendar_date, format_date_range, normalize_list_section_document,
+    normalize_payload_dates, parse_legacy_date_range, validate_date_range, CalendarDate,
+    DateError, DateRange, DateRangeEnd, MonthDisplay, MONTH_ABBR,
+};
 pub use ledger::{render_ledger_tex, ApplicationLedgerRow};
 pub use manifest::{
     compute_content_hash, compute_snapshot_hash, SubmissionManifest, MANIFEST_SCHEMA_VERSION,

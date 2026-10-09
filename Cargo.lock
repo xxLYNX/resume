@@ -264,6 +264,7 @@ dependencies = [
  "serde_yaml",
  "sha2",
  "thiserror",
+ "time",
 ]
 
 [[package]]
@@ -664,6 +665,7 @@ dependencies = [
  "minijinja",
  "render_pdf",
  "resolve",
+ "serde",
  "serde_json",
  "serde_yaml",
  "sha2",

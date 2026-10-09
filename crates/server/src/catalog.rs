@@ -16,6 +16,20 @@ pub struct ListQuery {
     pub kind: Option<String>,
 }
 
+pub async fn create_element(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<store::CreateElementRequest>,
+) -> impl IntoResponse {
+    with_store(state, move |store| {
+        if store::kind_from_str(&body.kind).is_none() {
+            anyhow::bail!("unknown kind `{}`", body.kind);
+        }
+        let detail = store.create_element(&body)?;
+        Ok((StatusCode::CREATED, Json(detail)).into_response())
+    })
+    .await
+}
+
 pub async fn list_elements(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ListQuery>,
@@ -29,6 +43,28 @@ pub async fn list_elements(
         }
         let kind = kind_filter.as_deref();
         Ok(Json(store.list_elements(kind)?))
+    })
+    .await
+}
+
+pub async fn element_usage(
+    State(state): State<Arc<AppState>>,
+    Path(element_id): Path<String>,
+) -> impl IntoResponse {
+    with_store(state, move |store| {
+        let report = store.element_usage(&element_id)?;
+        Ok(Json(report).into_response())
+    })
+    .await
+}
+
+pub async fn delete_element(
+    State(state): State<Arc<AppState>>,
+    Path(element_id): Path<String>,
+) -> impl IntoResponse {
+    with_store(state, move |store| {
+        store.delete_element_if_unused(&element_id)?;
+        Ok(StatusCode::NO_CONTENT.into_response())
     })
     .await
 }

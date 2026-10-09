@@ -1,4 +1,4 @@
-# Milestone J — Resume library, editor & UX fixes
+# Milestone J — Portfolio, editor & UX fixes
 
 **Branch:** `dev/milestone-j` (from `master`).
 
@@ -8,32 +8,30 @@
 
 ## Why J now
 
-Milestone E shipped **composition picker** and **revision editing**, but not **creating catalog elements** in the UI. Most day-to-day flow lives on **Applications**, while the **Catalog** tab only edits existing elements seeded via `import`. That gap blocks adding jobs, projects, etc. without YAML round-trips.
+Milestone E shipped **composition picker** and **revision editing**, but not **creating catalog elements** in the UI. Most day-to-day flow lives on **Applications**, while the **Portfolio** tab only edited existing elements seeded via `import`. That gap blocked adding jobs, projects, etc. without YAML round-trips.
 
-Separately, several **Applications / preview** bugs and **phase vs pipeline** inconsistencies need a focused pass. Preview fixes for “Last submit” landed on `master`; remaining items belong here.
+Separately, several **Applications / preview** bugs and **phase vs pipeline** inconsistencies needed a focused pass. Preview fixes for “Last submit” landed on `master`; remaining items belong here.
 
 ---
 
-## Product model (library vs application)
+## Product model (portfolio vs application)
 
 Canonical split (document in ARCHITECTURE + CHECKLIST; UI should match):
 
 | Surface | Owns | Does not own |
 |---------|------|----------------|
-| **Resume library** (today: Catalog tab) | Global **elements** + **revisions** (facts: jobs, degrees, skills blob, …) | Per-posting composition, pipeline status |
-| **Applications** | Posting metadata, **draft composition** (pins: element id + **revision id**), Submit → manifest | Creating catalog rows (except shortcuts that delegate to library) |
+| **Portfolio** tab | Global **elements** + **revisions** (facts: jobs, degrees, skills blob, …). Future: non-resume portfolio items. | Per-posting composition, pipeline status |
+| **Applications** | Posting metadata, **draft composition** (pins: element id + **revision id**), Submit → manifest | Creating portfolio rows (except shortcuts that delegate to Portfolio) |
 | **Presets** | Saved compositions without a posting row | Element payloads |
 | **Submit** | Immutable manifest + theme snapshot | — |
 
-**Composition pins revisions**, not “latest.” Editing library text creates a new revision; open applications keep old pins until the user changes revision in the picker or resets to catalog default.
+**Composition pins revisions**, not “latest.” Editing portfolio text creates a new revision; open applications keep old pins until the user changes revision in the picker or resets to portfolio default.
 
 **Preview sources**
 
-- Library tab / no app selected: `default_composition` (all elements, **latest** revision each) — reference résumé.
-- Application draft: pinned composition (live DOM when saved app open).
+- Portfolio tab: `default_composition` (all elements, **latest** revision each) — reference résumé.
+- Application draft (Applications tab): pinned composition (live DOM when saved app open).
 - Last submit: canonical manifest only when a submission exists.
-
-Known gap (fix in J): **New application** form does not send unsaved `draft_composition` to preview — picker changes do not affect PDF until after Save.
 
 ---
 
@@ -43,38 +41,38 @@ Known gap (fix in J): **New application** form does not send unsaved `draft_comp
 
 - [x] Preview **Last submit** when no submission — friendly empty state (server + UI), not build failure (`master`).
 - [x] Preview mode dropdown — both options visible; validate instead of hiding disabled options (`master`).
-- [ ] **New application** — preview uses composition from picker before first Save.
-- [ ] After library revision save, optional refresh of revision lists in open application picker (no auto-bump of pins).
+- [x] **New application** — preview uses composition from picker before first Save.
+- [x] After portfolio revision save, refresh revision lists in open application picker (no auto-bump of pins).
 
-### 2. Phase & pipeline (revisit — not blocking library work)
+### 2. Phase & pipeline (revisit — not blocking portfolio work)
 
-The two-layer model is defined in [`APPLICATION_LIFECYCLE.md`](APPLICATION_LIFECYCLE.md), but UI/Save/API behavior has **known inconsistencies** (e.g. phase/submitted workflow vs whether a manifest exists, filters vs detail state). **Defer deep redesign** until after library CRUD; track under [Revisit](#phase--pipeline-revisit).
+The two-layer model is defined in [`APPLICATION_LIFECYCLE.md`](APPLICATION_LIFECYCLE.md).
 
-- [ ] Audit: document concrete repro cases in this file or a short addendum.
-- [ ] Align UI rules with lifecycle doc (stricter Save validation, clearer labels).
-- [ ] Optional: disable pipeline labels until first Submit, or auto-set phase from submission count.
+- [x] Audit: concrete cases documented below (phase/pipeline revisit section).
+- [x] Align UI/rules: phase `submitted` only via **Submit** (Save rejects manual submitted phase before first manifest); UI disables submitted phase until Submit; help text on Applications tab.
+- [ ] **Deferred to J.1:** auto-correct legacy rows with `phase=submitted` and zero submissions; filter/list UX vs submission count.
 
-### 3. Library CRUD & editor UX
+### 3. Portfolio CRUD & editor UX
 
-- [ ] Store + API: `create_element(kind, id, initial_payload)` (element row + revision 1, validated).
-- [ ] Optional: `delete_element` or archive (v2 — only if needed for MVP).
-- [ ] CLI: `jobdesk catalog add <kind> <id>` (or similar) for scripting.
-- [ ] UI: **New entry** per kind filter (experience, education, project, …); stable id suggestion (`experience.acme-swe-2025`).
-- [ ] UI copy: rename or subtitle Catalog → **Resume library** (tab label TBD; avoid duplicating composition editing here).
-- [ ] Optional shortcut: after create, “Include in current application” when app detail is open.
+- [x] Store + API: `create_element(kind, id, initial_payload)` (element row + revision 1, validated).
+- [x] `delete_element` when unused (not referenced by any application draft or preset composition).
+- [x] CLI: `jobdesk catalog add <kind> <id> --payload file.json`.
+- [x] UI: **New entry** inline form (like New application): resume fields + optional element id (auto-suggested from company/project name; not shown on PDF).
+- [x] UI copy: tab label **Portfolio** (API paths remain `/api/catalog/…`).
+- [x] Optional shortcut: after create, “Include in open application draft” when an application is selected.
 
 ### 4. Documentation
 
 - [x] This spec + `NEXT_MILESTONE.md` + ARCHITECTURE milestone J.
-- [ ] `JOBDESK.md` — catalog add command when CLI exists.
-- [ ] CHECKLIST “Where to edit data” — create entries in library, not only import.
+- [x] `JOBDESK.md` — `catalog add` command.
+- [x] CHECKLIST “Where to edit data” — create entries in Portfolio, not only import.
 
 ---
 
 ## Out of scope (J)
 
 - Milestone **F** skills table / framework refs.
-- New collection kinds (tools, certifications, awards).
+- New collection kinds (tools, certifications, awards) — future Portfolio expansions beyond resume collections.
 - Submission history UI (list all manifests per app).
 - Ledger PDF changes (Milestone I complete).
 
@@ -82,24 +80,26 @@ The two-layer model is defined in [`APPLICATION_LIFECYCLE.md`](APPLICATION_LIFEC
 
 ## Phase & pipeline revisit
 
-**Status:** Not critical for library work; scheduled in J so it is not lost.
+**Status:** Guardrails shipped in J; deeper redesign **J.1**.
 
-Issues observed in the wild (expand as found):
+Issues observed (repro / mitigation):
 
-- Phase **submitted** or pipeline labels set **without** using **Submit** → “Last submit” empty but filters suggest otherwise.
-- Phase/pipeline controls vs `submissions.length` can confuse users.
-- Save may allow combinations that the lifecycle doc discourages.
+| Issue | Mitigation (J) |
+|-------|----------------|
+| Phase **submitted** set via Save without **Submit** → “Last submit” empty but filters suggest otherwise | Save rejects `phase=submitted` until `submissions.length > 0`; phase dropdown disables **submitted** until first Submit |
+| Pipeline labels editable while `phase=draft` | Workflow select locked to `draft` while phase is draft (existing) |
+| Legacy DB rows: `phase=submitted`, zero submissions | Detail meta warns; user should Save as draft or Submit — auto-migration deferred to J.1 |
 
-**Intent later:** Single coherent story — **Submit** is the only action that creates a manifest and moves phase to submitted; pipeline labels are for tracking after that. UI should reflect submission count, not only phase field.
+**Intent (unchanged):** **Submit** creates the manifest and moves phase to submitted; pipeline labels track the job after that.
 
 ---
 
 ## Completion checklist
 
-- [ ] Bug-fix tranche merged (new-app preview minimum).
-- [ ] `create_element` + library “New entry” UI.
-- [ ] Product model section reflected in ARCHITECTURE / CHECKLIST.
-- [ ] Phase/pipeline audit notes captured; at least one UX guard or label fix OR explicit “deferred to J.1” with open issues listed.
+- [x] Bug-fix tranche (new-app preview).
+- [x] `create_element` + Portfolio “New entry” UI.
+- [x] Product model section reflected in ARCHITECTURE / CHECKLIST.
+- [x] Phase/pipeline audit notes + UX guards (deeper work → J.1).
 
 ---
 
@@ -107,8 +107,8 @@ Issues observed in the wild (expand as found):
 
 | Milestone | Relation |
 |-----------|----------|
-| **E** | Picker + revision editor — J adds **create** and clarifies library role. |
-| **F** | Starts after J merge; skills migration may reuse library patterns. |
+| **E** | Picker + revision editor — J adds **create** and clarifies Portfolio role. |
+| **F** | Starts after J merge; skills migration may reuse portfolio patterns. |
 | **I** | Independent; complete on `master`. |
 
 ```bash

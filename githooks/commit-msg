@@ -1,0 +1,3 @@
+#!/bin/sh
+# Drop Co-authored-by trailers (author-only commits).
+sed -i '/^Co-authored-by:/d' "$1"

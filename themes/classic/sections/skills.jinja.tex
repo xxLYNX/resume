@@ -2,16 +2,16 @@
  \begin{itemize}[leftmargin=0.15in, label={}]
     \small{\item{
 {%- if skills.certifications %}
-    \textbf{Certifications}{: {{ skills.certifications }}} \\
+    \textbf{Certifications}{: {{ skills.certifications | latex_escape }}} \\
 {%- endif %}
 {%- if skills.languages %}
-     \textbf{Languages}{: {{ skills.languages }}} \\
+     \textbf{Languages}{: {{ skills.languages | latex_escape }}} \\
 {%- endif %}
 {%- if skills.securityTools %}
-     \textbf{Security Tools}{: {{ skills.securityTools }}} \\
+     \textbf{Security Tools}{: {{ skills.securityTools | latex_escape }}} \\
 {%- endif %}
 {%- if skills.other %}
-     \textbf{Additional Awards}{: {{ skills.other }}} \\
+     \textbf{Additional Awards}{: {{ skills.other | latex_escape }}} \\
 {%- endif %}
     }}
  \end{itemize}

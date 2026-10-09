@@ -1,10 +1,11 @@
+mod filters;
 mod legacy_build;
 
 use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use domain::LegacyConfig;
+use domain::{LegacyConfig, MonthDisplay};
 use minijinja::{Environment, Value};
 use resolve::ResolvedSections;
 use serde_json::Value as JsonValue;
@@ -34,13 +35,36 @@ pub fn build_legacy_resume(config_path: &Path, project_root: &Path) -> Result<St
         let content_path = project_root.join(content_rel);
         let raw = fs::read_to_string(&content_path)
             .with_context(|| format!("read content {}", content_path.display()))?;
-        let yaml_value: JsonValue = serde_yaml::from_str(&raw).with_context(|| {
+        let mut yaml_value: JsonValue = serde_yaml::from_str(&raw).with_context(|| {
             format!("parse YAML content {}", content_path.display())
         })?;
+        domain::normalize_list_section_document(&section.name, &mut yaml_value);
         resolved.insert(section.name.clone(), yaml_value);
     }
 
-    build_resume_tex(config_path, project_root, &resolved)
+    let (config, month_display) = load_themed_build_config(project_root, config_path, "classic")?;
+    build_resume_tex(project_root, &config, &resolved, month_display)
+}
+
+/// Apply `themes/{theme_id}/` template paths and read date display policy from `theme.toml`.
+pub fn load_themed_build_config(
+    project_root: &Path,
+    config_path: &Path,
+    theme_id: &str,
+) -> Result<(LegacyConfig, MonthDisplay)> {
+    let config_text = fs::read_to_string(config_path)
+        .with_context(|| format!("read config {}", config_path.display()))?;
+    let mut config: LegacyConfig =
+        serde_yaml::from_str(&config_text).context("parse build config YAML")?;
+    let info = load_theme_info(project_root, theme_id)
+        .with_context(|| format!("load theme `{theme_id}`"))?;
+    config.preamble = format!("themes/{theme_id}/preamble.tex");
+    for section in &mut config.sections {
+        if let Some(sec) = info.sections.get(&section.name) {
+            section.template = format!("themes/{theme_id}/{}", sec.template);
+        }
+    }
+    Ok((config, MonthDisplay::parse(&info.month_display)))
 }
 
 fn theme_id_from_preamble(preamble_rel: &str) -> Option<String> {
@@ -72,17 +96,14 @@ fn register_theme_macros(
 }
 
 pub fn build_resume_tex(
-    config_path: &Path,
     project_root: &Path,
+    config: &LegacyConfig,
     resolved: &ResolvedSections,
+    month_display: MonthDisplay,
 ) -> Result<String> {
-    let config_text = fs::read_to_string(config_path)
-        .with_context(|| format!("read config {}", config_path.display()))?;
-    let config: LegacyConfig =
-        serde_yaml::from_str(&config_text).context("parse build config YAML")?;
-
     let mut body = String::new();
     let mut env = Environment::new();
+    filters::register_resume_filters(&mut env, month_display);
     register_theme_macros(&mut env, project_root, &config.preamble)?;
 
     for section in &config.sections {
@@ -186,6 +207,7 @@ mod tests {
             &root.join("settings/jobdesk.yaml"),
             &root.join("target/test-output"),
             false,
+            "classic",
         )
         .unwrap();
 

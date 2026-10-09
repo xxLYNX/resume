@@ -1,4 +1,4 @@
 \begin{center}
-    \textbf{\Huge \scshape {{ name }}} \\ \vspace{1pt}
+    \textbf{\Huge \scshape {{ name | latex_escape }}} \\ \vspace{1pt}
     \small {% if phone %}{\underline{ {{- phone -}} }} $|$ {% endif %}{% if email %}\href{mailto:{{- email -}}}{\underline{Email}} $|$ {% endif %}{% if linkedin %}\href{ {{- linkedin -}} }{\underline{LinkedIn}} $|$ {% endif %}{% if website %}\href{ {{- website -}} }{\underline{Personal Site}} $|$ {% endif %}{% if github %}\href{ {{- github -}} }{\underline{GitHub}}{% endif %}
 \end{center}

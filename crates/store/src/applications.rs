@@ -725,6 +725,11 @@ fn reconcile_phase_status(
     }
 
     if phase == "submitted" {
+        if !has_submission {
+            anyhow::bail!(
+                "cannot set phase to submitted before the first Submit; use Submit to record what you sent"
+            );
+        }
         if workflow == DRAFT_WORKFLOW {
             return Ok((phase, "submitted".to_string()));
         }
