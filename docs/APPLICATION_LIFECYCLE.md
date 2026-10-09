@@ -40,6 +40,6 @@ See [`JOBDESK.md`](../JOBDESK.md) for CLI/UI.
 
 ## Revisit planned
 
-**Milestone J** will revisit phase vs pipeline behavior in the UI and API. The rules above are the target model; current `serve` + Save paths have **known gaps** (e.g. pipeline/phase labels vs whether a canonical submission exists, filters that disagree with preview mode). Not critical for library/editor work; do not block J CRUD on a full lifecycle redesign.
+**Milestone J** shipped guardrails: Save cannot set `phase=submitted` before the first Submit; the Applications UI disables the submitted phase until a submission exists. Legacy rows with mismatched phase/submission count may still appear — cleanup deferred to **J.1**.
 
-Track issues and fixes in [`MILESTONE_J_RESUME_LIBRARY.md`](MILESTONE_J_RESUME_LIBRARY.md#phase--pipeline-revisit).
+Track remaining issues in [`MILESTONE_J_RESUME_LIBRARY.md`](MILESTONE_J_RESUME_LIBRARY.md#phase--pipeline-revisit).

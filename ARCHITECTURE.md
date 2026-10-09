@@ -179,14 +179,14 @@ Recommended order (each step is usable on its own):
 
 ---
 
-## Milestone J — Resume library, editor & UX fixes
+## Milestone J — Portfolio, editor & UX fixes
 
 **Current milestone.** Branch: `dev/milestone-j`. Spec: [`docs/MILESTONE_J_RESUME_LIBRARY.md`](docs/MILESTONE_J_RESUME_LIBRARY.md). Track in [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md).
 
-- [ ] Applications preview fixes (e.g. new-application draft from composition picker)
-- [ ] `create_element` + library “New entry” UI (today: import seed + edit revisions only)
-- [ ] Product model documented: **library** (facts + revisions) vs **application** (composition pins + tracker)
-- [ ] **Phase & pipeline revisit** — known UI/rule gaps; not blocking library CRUD ([`docs/APPLICATION_LIFECYCLE.md`](docs/APPLICATION_LIFECYCLE.md#revisit-planned))
+- [x] Applications preview fixes (new-application draft from composition picker)
+- [x] `create_element` + Portfolio “New entry” UI; `jobdesk catalog add`
+- [x] Product model documented: **Portfolio** (facts + revisions) vs **application** (composition pins + tracker)
+- [x] **Phase & pipeline** guardrails (Submit before submitted phase); deeper revisit → J.1 ([`docs/APPLICATION_LIFECYCLE.md`](docs/APPLICATION_LIFECYCLE.md#revisit-planned))
 
 ---
 

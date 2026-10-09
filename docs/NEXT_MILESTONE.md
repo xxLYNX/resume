@@ -1,4 +1,4 @@
-# Next milestone — J (resume library, editor & UX fixes)
+# Next milestone — J (Portfolio, editor & UX fixes)
 
 **Active work:** [`MILESTONE_J_RESUME_LIBRARY.md`](MILESTONE_J_RESUME_LIBRARY.md) on branch **`dev/milestone-j`**.
 
@@ -19,8 +19,8 @@ git checkout -b dev/milestone-j
 **Order of work**
 
 1. Remaining **Applications / preview** fixes (new-application preview from picker).
-2. **Library CRUD** — create elements in UI/API (experience, education, project, …).
-3. **Docs & naming** — library vs application model in UI copy.
+2. **Portfolio CRUD** — create elements in UI/API (experience, education, project, …).
+3. **Docs & naming** — Portfolio vs application model in UI copy.
 4. **Phase & pipeline revisit** — audit and tighten UI/rules ([`APPLICATION_LIFECYCLE.md`](APPLICATION_LIFECYCLE.md)); not blocking steps 1–3.
 
 See checklist in [`MILESTONE_J_RESUME_LIBRARY.md`](MILESTONE_J_RESUME_LIBRARY.md).

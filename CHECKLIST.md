@@ -28,7 +28,7 @@ Non-goals: automated job-board apply; LLM cover letters as core product.
 
 **Shipped:** `header`, `objective`, `education`, `experience`, `project`, `skills` (see `ElementKind` and `themes/classic/theme.toml`).
 
-**Milestone E & I:** complete on `master`. **Active:** **J** — resume library + create elements + UX fixes ([`docs/MILESTONE_J_RESUME_LIBRARY.md`](docs/MILESTONE_J_RESUME_LIBRARY.md)). **Next:** **F** — skills + framework refs.
+**Milestone E & I:** complete on `master`. **Active:** **J** — Portfolio tab + create elements + UX fixes ([`docs/MILESTONE_J_RESUME_LIBRARY.md`](docs/MILESTONE_J_RESUME_LIBRARY.md)). **Next:** **F** — skills + framework refs.
 
 **Planned later:** separate **tools**, **certifications**, **awards** collections.
 
@@ -36,8 +36,8 @@ Non-goals: automated job-board apply; LLM cover letters as core product.
 
 | Task | Path |
 |------|------|
-| Edit existing element text | Catalog / **resume library** tab in `serve` (new revision) |
-| Add new jobs, projects, … | **Milestone J** — library “New entry” (today: `content/*.yaml` + `jobdesk import`) |
+| Edit existing element text | **Portfolio** tab in `serve` (new revision) |
+| Add new jobs, projects, … | Portfolio **New entry** in `serve`, or `jobdesk catalog add … --payload file.json` |
 | Seed / bulk YAML | `content/*.yaml` then `jobdesk import` |
 | Backup / git-friendly dump | `jobdesk export` → `workspace/staging/content/` |
 | Per-job resume content | Applications tab → content picker |

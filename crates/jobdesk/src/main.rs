@@ -8,7 +8,7 @@ use resolve::{default_composition, resolve_composition};
 use server::{AppState, run as run_server};
 use store::{
     default_ledger_download_path, export_catalog_to_content, import_legacy_content,
-    CreateApplicationRequest, ImportOptions, ListApplicationsQuery, Store,
+    CreateApplicationRequest, CreateElementRequest, ImportOptions, ListApplicationsQuery, Store,
     UpdateApplicationRequest, STAGING_CONTENT_DIR, DEFAULT_THEME_ID,
 };
 
@@ -58,6 +58,11 @@ enum Commands {
         #[arg(long, default_value = "classic")]
         theme: String,
     },
+    /// Portfolio catalog (create elements)
+    Catalog {
+        #[command(subcommand)]
+        command: CatalogCommands,
+    },
     /// Application tracker (list, add, show, set status)
     Application {
         #[command(subcommand)]
@@ -73,6 +78,18 @@ enum Commands {
         port: u16,
         #[arg(long)]
         open: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum CatalogCommands {
+    /// Create a portfolio element (revision 1) from a JSON payload file
+    Add {
+        kind: String,
+        id: String,
+        /// Element payload object (JSON), e.g. `{"company":"Acme","position":"Engineer",...}`
+        #[arg(long)]
+        payload: PathBuf,
     },
 }
 
@@ -199,6 +216,29 @@ async fn main() -> Result<()> {
                 println!("Wrote {}", pdf_path.display());
             }
             println!("{}", result.content_hash);
+        }
+        Commands::Catalog { command } => {
+            let store = Store::open(&db_path).context(
+                "catalog database missing; run `jobdesk import` first (seed from content/)",
+            )?;
+            match command {
+                CatalogCommands::Add { kind, id, payload } => {
+                    let payload_path = resolve_path(&root, &payload);
+                    let raw = std::fs::read_to_string(&payload_path)
+                        .with_context(|| format!("read payload {}", payload_path.display()))?;
+                    let payload_value: serde_json::Value =
+                        serde_json::from_str(&raw).context("parse payload JSON")?;
+                    let detail = store.create_element(&CreateElementRequest {
+                        kind,
+                        id,
+                        payload: payload_value,
+                    })?;
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&detail).context("serialize element")?
+                    );
+                }
+            }
         }
         Commands::Application { command } => {
             let store = Store::open(&db_path).context(
