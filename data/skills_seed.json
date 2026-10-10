@@ -1,0 +1,97 @@
+[
+  {
+    "id": "tool.ghidra",
+    "kind": "with",
+    "label": "Ghidra",
+    "aliases": ["ghidra"],
+    "pdf_groups": ["securityTools"]
+  },
+  {
+    "id": "tool.ida",
+    "kind": "with",
+    "label": "IDA Pro",
+    "aliases": ["ida", "ida pro"],
+    "pdf_groups": ["securityTools"]
+  },
+  {
+    "id": "tool.nmap",
+    "kind": "with",
+    "label": "nMap",
+    "aliases": ["nmap", "n map"],
+    "pdf_groups": ["securityTools"]
+  },
+  {
+    "id": "tool.nessus",
+    "kind": "with",
+    "label": "Nessus",
+    "pdf_groups": ["securityTools"]
+  },
+  {
+    "id": "lang.rust",
+    "kind": "with",
+    "label": "Rust",
+    "pdf_groups": ["languages"]
+  },
+  {
+    "id": "lang.python",
+    "kind": "with",
+    "label": "Python",
+    "pdf_groups": ["languages"]
+  },
+  {
+    "id": "lang.go",
+    "kind": "with",
+    "label": "Go",
+    "aliases": ["golang", "golang"],
+    "pdf_groups": ["languages"]
+  },
+  {
+    "id": "lang.c",
+    "kind": "with",
+    "label": "C",
+    "pdf_groups": ["languages"]
+  },
+  {
+    "id": "lang.bash",
+    "kind": "with",
+    "label": "Bash",
+    "pdf_groups": ["languages"]
+  },
+  {
+    "id": "lang.sql",
+    "kind": "with",
+    "label": "SQL",
+    "pdf_groups": ["languages"]
+  },
+  {
+    "id": "activity.reverse-engineering",
+    "kind": "what",
+    "label": "Reverse engineering",
+    "aliases": ["reverse engineering", "reversing"],
+    "pdf_groups": ["other"]
+  },
+  {
+    "id": "activity.security-audit",
+    "kind": "what",
+    "label": "Security audit",
+    "pdf_groups": ["other"]
+  },
+  {
+    "id": "activity.code-review",
+    "kind": "what",
+    "label": "Code review",
+    "pdf_groups": ["other"]
+  },
+  {
+    "id": "purpose.malware-analysis",
+    "kind": "for",
+    "label": "Malware analysis",
+    "pdf_groups": ["other"]
+  },
+  {
+    "id": "purpose.performance",
+    "kind": "for",
+    "label": "Performance tuning",
+    "pdf_groups": ["other"]
+  }
+]

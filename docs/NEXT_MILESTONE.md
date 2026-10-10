@@ -42,6 +42,6 @@ Merged via PR #1. Spec: [`MILESTONE_J_RESUME_LIBRARY.md`](MILESTONE_J_RESUME_LIB
 
 ## Milestone E (complete)
 
-Summary in [`NEXT_MILESTONE.md`](NEXT_MILESTONE.md) history on `master` — content picker, themes, presets, applications UX.
+Content picker, themes, presets, applications UX — see [`ARCHITECTURE.md`](../ARCHITECTURE.md) Milestone E.
 
 **Backlog:** submission history UI; phase/pipeline J.1; PDF cache; portfolio **G**; UniFFI **H**.

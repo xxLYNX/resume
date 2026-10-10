@@ -320,6 +320,11 @@
         <button type="button" id="new-catalog-entry">New entry</button>
       </div>
       <p class="help">List filter is for browsing; <strong>New</strong> uses the kind beside New entry.</p>
+      <details id="skill-catalog-details" style="margin:0.5rem 0">
+        <summary class="meta">Skill catalog</summary>
+        <p class="meta" id="skill-catalog-status">Loading…</p>
+        <ul id="skill-node-list" class="meta" style="max-height:10rem;overflow:auto;padding-left:1.2rem"></ul>
+      </details>
       <div id="catalog-list-body">
         <p class="meta" id="catalog-status">Loading portfolio…</p>
         <ul id="element-list"></ul>
@@ -337,6 +342,18 @@
           <p class="help">Stable catalog key (used in compositions). <strong>Not printed on the PDF</strong> — company, title, project name, etc. below are what appear on the resume. You can edit this id before Create; suggested from your labels when possible.</p>
         </div>
         <div id="payload-form" hidden></div>
+        <div id="skill-links-panel" class="hidden">
+          <p class="help">Skills demonstrated on this revision (merged into the PDF skills section with <code>skills.main</code>).</p>
+          <label class="meta">With (tools)
+            <select id="skill-links-with" multiple size="5" style="width:100%;margin-top:0.25rem"></select>
+          </label>
+          <label class="meta">What (activities)
+            <select id="skill-links-what" multiple size="4" style="width:100%;margin-top:0.25rem"></select>
+          </label>
+          <label class="meta">For (purpose)
+            <select id="skill-links-for" multiple size="3" style="width:100%;margin-top:0.25rem"></select>
+          </label>
+        </div>
         <textarea id="payload-editor" spellcheck="false" placeholder="Select an element…" disabled></textarea>
         <div class="row catalog-detail-actions" id="catalog-detail-actions">
           <label id="catalog-revision-label">Revision
@@ -582,6 +599,14 @@
     let catalogByKind = {};
     let elementDetailCache = new Map();
     let selectedCatalogKind = null;
+    let selectedElementKind = null;
+    let skillNodesCache = { with: [], what: [], for: [] };
+    const skillLinksPanel = document.getElementById("skill-links-panel");
+    const skillLinksWith = document.getElementById("skill-links-with");
+    const skillLinksWhat = document.getElementById("skill-links-what");
+    const skillLinksFor = document.getElementById("skill-links-for");
+    const skillCatalogStatus = document.getElementById("skill-catalog-status");
+    const skillNodeList = document.getElementById("skill-node-list");
     let selectedPresetId = null;
     let currentFieldSchema = [];
     const payloadForm = document.getElementById("payload-form");
@@ -1331,7 +1356,9 @@
     function closeElementDetail() {
       elementCreateKind = null;
       selectedCatalogKind = null;
+      selectedElementKind = null;
       copyWorkdayFillBtn.classList.add("hidden");
+      syncSkillLinksPanelVisibility(null);
       selectedElementId = null;
       userEditedElementId = false;
       catalogListBody.classList.remove("hidden");
@@ -1364,7 +1391,10 @@
       catalogCreateHint.classList.remove("hidden");
       catalogElementMeta.textContent = `New ${kind} entry`;
       selectedCatalogKind = kind;
+      selectedElementKind = kind;
       syncWorkdayFillButtonVisibility(kind);
+      syncSkillLinksPanelVisibility(kind);
+      setSkillLinkSelections([]);
       catalogStatus.textContent = "";
       catalogStatus.classList.remove("error");
       revisionSelect.innerHTML = "";
@@ -1731,7 +1761,6 @@
         catalogStatus.classList.add("error");
       }
     }
-
 
     function syncWorkdayFillButtonVisibility(kind) {
       copyWorkdayFillBtn.classList.toggle(
@@ -2272,6 +2301,100 @@
       }
     }
 
+    async function loadSkillNodes() {
+      for (const kind of ["with", "what", "for"]) {
+        const res = await fetch(`/api/skills/nodes?kind=${encodeURIComponent(kind)}`);
+        skillNodesCache[kind] = res.ok ? await res.json() : [];
+      }
+      fillSkillSelect(skillLinksWith, skillNodesCache.with);
+      fillSkillSelect(skillLinksWhat, skillNodesCache.what);
+      fillSkillSelect(skillLinksFor, skillNodesCache.for);
+      skillNodeList.innerHTML = "";
+      const all = [...skillNodesCache.with, ...skillNodesCache.what, ...skillNodesCache.for];
+      skillCatalogStatus.textContent = `${all.length} skill(s)`;
+      for (const node of all.sort((a, b) => a.label.localeCompare(b.label))) {
+        const li = document.createElement("li");
+        li.textContent = `${node.label} (${node.kind}) · ${node.id}`;
+        skillNodeList.appendChild(li);
+      }
+    }
+
+    function fillSkillSelect(select, nodes) {
+      select.innerHTML = "";
+      for (const node of nodes) {
+        const opt = document.createElement("option");
+        opt.value = node.id;
+        opt.textContent = node.label;
+        select.appendChild(opt);
+      }
+    }
+
+    function syncSkillLinksPanelVisibility(kind) {
+      const show = kind === "experience" || kind === "project";
+      skillLinksPanel.classList.toggle("hidden", !show);
+    }
+
+    function setSkillLinkSelections(rows) {
+      const byAxis = { with: new Set(), what: new Set(), for: new Set() };
+      for (const row of rows || []) {
+        if (row.source !== "asserted") continue;
+        if (byAxis[row.axis]) byAxis[row.axis].add(row.skill_id);
+      }
+      for (const [sel, axis] of [
+        [skillLinksWith, "with"],
+        [skillLinksWhat, "what"],
+        [skillLinksFor, "for"],
+      ]) {
+        for (const opt of sel.options) {
+          opt.selected = byAxis[axis].has(opt.value);
+        }
+      }
+    }
+
+    async function loadRevisionSkillLinks(revisionId) {
+      if (!revisionId) {
+        setSkillLinkSelections([]);
+        return;
+      }
+      const res = await fetch(
+        `/api/catalog/revisions/${encodeURIComponent(revisionId)}/skill-links`,
+      );
+      const rows = res.ok ? await res.json() : [];
+      setSkillLinkSelections(rows);
+    }
+
+    function collectSkillLinksFromDom() {
+      const links = [];
+      for (const [sel, axis] of [
+        [skillLinksWith, "with"],
+        [skillLinksWhat, "what"],
+        [skillLinksFor, "for"],
+      ]) {
+        for (const opt of sel.selectedOptions) {
+          links.push({ skill_id: opt.value, axis, source: "asserted" });
+        }
+      }
+      return links;
+    }
+
+    async function saveRevisionSkillLinks(revisionId) {
+      const kind = elementCreateKind || selectedElementKind;
+      if (kind !== "experience" && kind !== "project") return;
+      const links = collectSkillLinksFromDom();
+      const res = await fetch(
+        `/api/catalog/revisions/${encodeURIComponent(revisionId)}/skill-links`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ links }),
+        },
+      );
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Skill links save failed");
+      }
+    }
+
     async function selectElement(id) {
       elementCreateKind = null;
       selectedElementId = id;
@@ -2295,7 +2418,9 @@
       }
       catalogElementMeta.textContent = `${detail.kind} · ${detail.id}`;
       selectedCatalogKind = detail.kind;
+      selectedElementKind = detail.kind;
       syncWorkdayFillButtonVisibility(detail.kind);
+      syncSkillLinksPanelVisibility(detail.kind);
       revisionMap.clear();
       revisionSelect.innerHTML = "";
       for (const rev of detail.revisions) {
@@ -2313,6 +2438,7 @@
         setEditorPayload(detail.latest.payload);
         await renderPayloadForm(detail.kind, detail.latest.payload);
         syncCatalogEditorVisibility();
+        await loadRevisionSkillLinks(detail.latest.id);
       }
     }
 
@@ -2324,7 +2450,13 @@
       const revId = revisionSelect.value;
       const res = await fetch(`/api/catalog/revisions/${encodeURIComponent(revId)}`);
       const rev = await res.json();
-      if (res.ok) setEditorPayload(rev.payload);
+      if (res.ok) {
+        setEditorPayload(rev.payload);
+        if (selectedElementKind) {
+          await renderPayloadForm(selectedElementKind, rev.payload);
+        }
+        await loadRevisionSkillLinks(revId);
+      }
     });
 
     saveBtn.addEventListener("click", async () => {
@@ -2356,6 +2488,11 @@
           return;
         }
         catalogStatus.textContent = `Saved rev ${rev.rev_number}`;
+        try {
+          await saveRevisionSkillLinks(rev.id);
+        } catch (e) {
+          catalogStatus.textContent = `Saved rev ${rev.rev_number}; skills: ${e.message}`;
+        }
         await selectElement(selectedElementId);
         await loadCatalog();
         await rebuildAfterCatalogSave(selectedElementId);
@@ -3037,9 +3174,14 @@
         catalogListBody.classList.remove("hidden");
         await loadCatalog();
         await selectElement(id);
+        try {
+          if (revisionSelect.value) await saveRevisionSkillLinks(revisionSelect.value);
+        } catch (e) {
+          catalogStatus.textContent = `Created ${id}; skills: ${e.message}`;
+        }
         catalogStatus.textContent = `Created ${id}`;
         const savedId = id;
-        const savedKind = elementCreateKind;
+        const savedKind = kind;
         if (includeInOpenApp.checked && selectedAppId && !isCreateMode()) {
           try {
             await addElementToApplicationDraft(selectedAppId, id, savedKind);
@@ -3085,6 +3227,7 @@
 
     loadThemeCatalog()
       .then(loadThemeInfo)
+      .then(loadSkillNodes)
       .then(refreshCatalogByKind)
       .then(loadCatalog)
       .then(loadPresets)

@@ -63,6 +63,11 @@ enum Commands {
         #[command(subcommand)]
         command: CatalogCommands,
     },
+    /// Skill taxonomy (catalog nodes)
+    Skills {
+        #[command(subcommand)]
+        command: SkillsCommands,
+    },
     /// Application tracker (list, add, show, set status)
     Application {
         #[command(subcommand)]
@@ -90,6 +95,15 @@ enum CatalogCommands {
         /// Element payload object (JSON), e.g. `{"company":"Acme","position":"Engineer",...}`
         #[arg(long)]
         payload: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
+enum SkillsCommands {
+    /// Upsert skill nodes from a JSON array (`data/skills_seed.json`)
+    Import {
+        #[arg(long, default_value = "data/skills_seed.json")]
+        file: PathBuf,
     },
 }
 
@@ -216,6 +230,22 @@ async fn main() -> Result<()> {
                 println!("Wrote {}", pdf_path.display());
             }
             println!("{}", result.content_hash);
+        }
+        Commands::Skills { command } => {
+            let store = Store::open(&db_path).context(
+                "catalog database missing; run `jobdesk import` first (seed from content/)",
+            )?;
+            match command {
+                SkillsCommands::Import { file } => {
+                    let path = resolve_path(&root, &file);
+                    let raw = std::fs::read_to_string(&path)
+                        .with_context(|| format!("read {}", path.display()))?;
+                    let nodes: Vec<domain::SkillNode> =
+                        serde_json::from_str(&raw).context("parse skills JSON array")?;
+                    let n = store.import_skill_nodes(&nodes)?;
+                    println!("Imported {n} skill node(s)");
+                }
+            }
         }
         Commands::Catalog { command } => {
             let store = Store::open(&db_path).context(

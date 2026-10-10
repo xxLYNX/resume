@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use anyhow::{Context, Result};
 use domain::{Composition, CompositionItem, CompositionSection, ElementKind, SubmissionManifest};
 use serde_json::{json, Value};
-use store::Store;
+use store::{merge_skills_context, Store};
 
 /// Template context per config section name (`header`, `education`, …).
 pub type ResolvedSections = HashMap<String, Value>;
@@ -58,7 +58,32 @@ pub fn resolve_composition(store: &Store, composition: &Composition) -> Result<R
         out.insert(section.section_key.clone(), ctx);
     }
 
+    enrich_skills_from_provenance(store, composition, &mut out)?;
+
     Ok(out)
+}
+
+fn enrich_skills_from_provenance(
+    store: &Store,
+    composition: &Composition,
+    resolved: &mut ResolvedSections,
+) -> Result<()> {
+    let aggregated = store.aggregate_skills_pdf_context(composition)?;
+    let agg_empty = aggregated
+        .get("skills")
+        .and_then(|v| v.as_object())
+        .is_none_or(|o| o.is_empty());
+    if agg_empty {
+        return Ok(());
+    }
+
+    if let Some(existing) = resolved.get("skills") {
+        let merged = merge_skills_context(existing.clone(), aggregated);
+        resolved.insert("skills".into(), merged);
+    } else {
+        resolved.insert("skills".into(), aggregated);
+    }
+    Ok(())
 }
 
 /// Re-render from an immutable submission manifest (interview prep path).

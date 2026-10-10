@@ -2,6 +2,7 @@ mod application;
 mod compensation;
 mod dates;
 mod location;
+mod skills;
 mod ledger;
 mod composition;
 mod manifest;
@@ -20,6 +21,10 @@ pub use compensation::{
 };
 pub use composition::{Composition, CompositionItem, CompositionSection};
 pub use location::WorkLocation;
+pub use skills::{
+    validate_pdf_group, validate_revision_links, validate_skill_id, validate_skill_node,
+    RevisionSkillLink, SkillError, SkillKind, SkillNode, PDF_SKILL_GROUPS, SKILL_KINDS,
+};
 pub use dates::{
     format_calendar_date, format_date_range, normalize_list_section_document,
     normalize_payload_dates, parse_legacy_date_range, validate_date_range, CalendarDate,

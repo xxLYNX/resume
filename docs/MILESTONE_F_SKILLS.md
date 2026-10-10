@@ -118,7 +118,7 @@ Work **only on `dev/milestone-f`**. Merge each phase to `master` when stable; la
 
 - [x] Reset `dev/milestone-f` to post-J `master`
 - [x] Plan through north star (this file)
-- [ ] Update `NEXT_MILESTONE.md` / `ARCHITECTURE.md` on branch (F active, phased checklist)
+- [x] Update `NEXT_MILESTONE.md` / `ARCHITECTURE.md` on branch (F active, phased checklist)
 
 ### F.1 — Catalog + asserted links (MVP)
 

@@ -100,10 +100,44 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if version < 7 {
         migrate_payload_date_ranges(conn)?;
     }
+    if version < 9 {
+        migrate_skill_catalog(conn)?;
+    }
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '8')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '9')",
         [],
     )?;
+    Ok(())
+}
+
+fn migrate_skill_catalog(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS skill_nodes (
+            id TEXT PRIMARY KEY NOT NULL,
+            kind TEXT NOT NULL,
+            label TEXT NOT NULL,
+            parent_id TEXT REFERENCES skill_nodes(id),
+            aliases_json TEXT NOT NULL DEFAULT '[]',
+            pdf_groups_json TEXT NOT NULL DEFAULT '[\"other\"]',
+            framework_refs_json TEXT NOT NULL DEFAULT '{}'
+        );
+
+        CREATE TABLE IF NOT EXISTS revision_skill_links (
+            revision_id TEXT NOT NULL REFERENCES element_revisions(id) ON DELETE CASCADE,
+            skill_id TEXT NOT NULL REFERENCES skill_nodes(id),
+            axis TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'asserted',
+            PRIMARY KEY (revision_id, skill_id, axis)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_revision_skill_links_revision
+            ON revision_skill_links(revision_id);
+        CREATE INDEX IF NOT EXISTS idx_skill_nodes_kind
+            ON skill_nodes(kind);
+        ",
+    )?;
+    crate::skills::seed_skill_nodes_if_empty(conn)?;
     Ok(())
 }
 

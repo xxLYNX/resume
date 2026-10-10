@@ -2,6 +2,7 @@ mod applications;
 mod assets;
 mod catalog;
 mod presets;
+mod skills;
 mod themes;
 
 use std::net::SocketAddr;
@@ -123,6 +124,12 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
             post(catalog::create_revision),
         )
         .route("/api/catalog/revisions/{id}", get(catalog::get_revision))
+        .route("/api/skills/nodes", get(skills::list_skill_nodes))
+        .route("/api/skills/nodes", post(skills::upsert_skill_node))
+        .route(
+            "/api/catalog/revisions/{id}/skill-links",
+            get(skills::get_revision_skill_links).put(skills::put_revision_skill_links),
+        )
         .route("/api/applications/statuses", get(applications::list_statuses))
         .route("/api/applications", get(applications::list_applications))
         .route("/api/applications", post(applications::create_application))
