@@ -190,13 +190,15 @@ Recommended order (each step is usable on its own):
 
 ---
 
-## Milestone F — Skills catalog & framework refs
+## Milestone F — Skills catalog, provenance & framework refs
 
-**Queued after J.** Spec: [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md).
+**In progress on `dev/milestone-f` only** (not on `master` until merge). Spec: [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md).
 
-- [ ] Skills table + aliases + tags
-- [ ] `framework_refs` (NICE, ESCO, …) + optional import enrichment
-- [ ] Composition/resolver uses skill ids + per-job alias choice
+Phased: **F.1** catalog + revision skill links (what/with/for) + resolver aggregation; **F.2** inference + relationships pane; **F.3** framework import + tailoring hints.
+
+- [ ] F.1 — `skill_nodes`, `revision_skill_links`, UI pickers, PDF path from pinned evidence
+- [ ] F.2 — hierarchy/inferred links, Portfolio relationships view
+- [ ] F.3 — `framework_refs` enrichment files, application overlap hints
 
 ---
 
