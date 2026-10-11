@@ -105,6 +105,11 @@ enum SkillsCommands {
         #[arg(long, default_value = "data/skills_seed.json")]
         file: PathBuf,
     },
+    /// Write docs/LEGACY_SKILLS_INVENTORY.md from skills.yaml and element technologies (no DB writes)
+    LegacyInventory {
+        #[arg(long, default_value = "docs/LEGACY_SKILLS_INVENTORY.md")]
+        out: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -244,6 +249,11 @@ async fn main() -> Result<()> {
                         serde_json::from_str(&raw).context("parse skills JSON array")?;
                     let n = store.import_skill_nodes(&nodes)?;
                     println!("Imported {n} skill node(s)");
+                }
+                SkillsCommands::LegacyInventory { out } => {
+                    let out_path = resolve_path(&root, &out);
+                    store::write_legacy_skills_inventory(&store, &root, &out_path)?;
+                    println!("Wrote {}", out_path.display());
                 }
             }
         }

@@ -343,16 +343,14 @@
         </div>
         <div id="payload-form" hidden></div>
         <div id="skill-links-panel" class="hidden">
-          <p class="help">Skills demonstrated on this revision (merged into the PDF skills section with <code>skills.main</code>).</p>
-          <label class="meta">With (tools)
-            <select id="skill-links-with" multiple size="5" style="width:100%;margin-top:0.25rem"></select>
+          <p class="help">Tools and competencies for this portfolio entry (saved on the element, not a specific revision). PDF skills are derived from pinned entries only.</p>
+          <label class="meta">Tools
+            <select id="skill-links-tool" multiple size="6" style="width:100%;margin-top:0.25rem"></select>
           </label>
-          <label class="meta">What (activities)
-            <select id="skill-links-what" multiple size="4" style="width:100%;margin-top:0.25rem"></select>
+          <label class="meta">Competencies
+            <select id="skill-links-competency" multiple size="5" style="width:100%;margin-top:0.25rem"></select>
           </label>
-          <label class="meta">For (purpose)
-            <select id="skill-links-for" multiple size="3" style="width:100%;margin-top:0.25rem"></select>
-          </label>
+          <p class="meta hidden" id="skill-suggestions-hint"></p>
         </div>
         <textarea id="payload-editor" spellcheck="false" placeholder="Select an element…" disabled></textarea>
         <div class="row catalog-detail-actions" id="catalog-detail-actions">
@@ -600,11 +598,11 @@
     let elementDetailCache = new Map();
     let selectedCatalogKind = null;
     let selectedElementKind = null;
-    let skillNodesCache = { with: [], what: [], for: [] };
+    let skillNodesCache = { tool: [], competency: [] };
     const skillLinksPanel = document.getElementById("skill-links-panel");
-    const skillLinksWith = document.getElementById("skill-links-with");
-    const skillLinksWhat = document.getElementById("skill-links-what");
-    const skillLinksFor = document.getElementById("skill-links-for");
+    const skillLinksTool = document.getElementById("skill-links-tool");
+    const skillLinksCompetency = document.getElementById("skill-links-competency");
+    const skillSuggestionsHint = document.getElementById("skill-suggestions-hint");
     const skillCatalogStatus = document.getElementById("skill-catalog-status");
     const skillNodeList = document.getElementById("skill-node-list");
     let selectedPresetId = null;
@@ -2302,15 +2300,14 @@
     }
 
     async function loadSkillNodes() {
-      for (const kind of ["with", "what", "for"]) {
+      for (const kind of ["tool", "competency"]) {
         const res = await fetch(`/api/skills/nodes?kind=${encodeURIComponent(kind)}`);
         skillNodesCache[kind] = res.ok ? await res.json() : [];
       }
-      fillSkillSelect(skillLinksWith, skillNodesCache.with);
-      fillSkillSelect(skillLinksWhat, skillNodesCache.what);
-      fillSkillSelect(skillLinksFor, skillNodesCache.for);
+      fillSkillSelect(skillLinksTool, skillNodesCache.tool);
+      fillSkillSelect(skillLinksCompetency, skillNodesCache.competency);
       skillNodeList.innerHTML = "";
-      const all = [...skillNodesCache.with, ...skillNodesCache.what, ...skillNodesCache.for];
+      const all = [...skillNodesCache.tool, ...skillNodesCache.competency];
       skillCatalogStatus.textContent = `${all.length} skill(s)`;
       for (const node of all.sort((a, b) => a.label.localeCompare(b.label))) {
         const li = document.createElement("li");
@@ -2330,59 +2327,86 @@
     }
 
     function syncSkillLinksPanelVisibility(kind) {
-      const show = kind === "experience" || kind === "project";
+      const show =
+        kind === "experience" ||
+        kind === "project" ||
+        kind === "education" ||
+        kind === "course";
       skillLinksPanel.classList.toggle("hidden", !show);
     }
 
     function setSkillLinkSelections(rows) {
-      const byAxis = { with: new Set(), what: new Set(), for: new Set() };
+      const byKind = { tool: new Set(), competency: new Set() };
       for (const row of rows || []) {
         if (row.source !== "asserted") continue;
-        if (byAxis[row.axis]) byAxis[row.axis].add(row.skill_id);
+        if (byKind[row.kind]) byKind[row.kind].add(row.skill_id);
       }
-      for (const [sel, axis] of [
-        [skillLinksWith, "with"],
-        [skillLinksWhat, "what"],
-        [skillLinksFor, "for"],
+      for (const [sel, k] of [
+        [skillLinksTool, "tool"],
+        [skillLinksCompetency, "competency"],
       ]) {
         for (const opt of sel.options) {
-          opt.selected = byAxis[axis].has(opt.value);
+          opt.selected = byKind[k].has(opt.value);
         }
       }
     }
 
-    async function loadRevisionSkillLinks(revisionId) {
-      if (!revisionId) {
+    async function loadElementSkillLinks(elementId) {
+      if (!elementId) {
         setSkillLinkSelections([]);
+        skillSuggestionsHint.classList.add("hidden");
         return;
       }
       const res = await fetch(
-        `/api/catalog/revisions/${encodeURIComponent(revisionId)}/skill-links`,
+        `/api/catalog/elements/${encodeURIComponent(elementId)}/skill-links`,
       );
       const rows = res.ok ? await res.json() : [];
       setSkillLinkSelections(rows);
+      await refreshCompetencySuggestions();
+    }
+
+    async function refreshCompetencySuggestions() {
+      const toolIds = [...skillLinksTool.selectedOptions].map((o) => o.value);
+      if (toolIds.length === 0) {
+        skillSuggestionsHint.classList.add("hidden");
+        return;
+      }
+      const q = encodeURIComponent(toolIds.join(","));
+      const res = await fetch(`/api/skills/suggestions?tool_ids=${q}`);
+      const suggestions = res.ok ? await res.json() : [];
+      if (!suggestions.length) {
+        skillSuggestionsHint.classList.add("hidden");
+        return;
+      }
+      skillSuggestionsHint.textContent =
+        "Suggested competencies (from catalog): " +
+        suggestions.map((s) => s.label).join(", ");
+      skillSuggestionsHint.classList.remove("hidden");
     }
 
     function collectSkillLinksFromDom() {
       const links = [];
-      for (const [sel, axis] of [
-        [skillLinksWith, "with"],
-        [skillLinksWhat, "what"],
-        [skillLinksFor, "for"],
-      ]) {
+      for (const sel of [skillLinksTool, skillLinksCompetency]) {
         for (const opt of sel.selectedOptions) {
-          links.push({ skill_id: opt.value, axis, source: "asserted" });
+          links.push({ skill_id: opt.value, source: "asserted" });
         }
       }
       return links;
     }
 
-    async function saveRevisionSkillLinks(revisionId) {
+    async function saveElementSkillLinks(elementId) {
       const kind = elementCreateKind || selectedElementKind;
-      if (kind !== "experience" && kind !== "project") return;
+      if (
+        kind !== "experience" &&
+        kind !== "project" &&
+        kind !== "education" &&
+        kind !== "course"
+      ) {
+        return;
+      }
       const links = collectSkillLinksFromDom();
       const res = await fetch(
-        `/api/catalog/revisions/${encodeURIComponent(revisionId)}/skill-links`,
+        `/api/catalog/elements/${encodeURIComponent(elementId)}/skill-links`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -2394,6 +2418,8 @@
         throw new Error(data.error || "Skill links save failed");
       }
     }
+
+    skillLinksTool.addEventListener("change", () => refreshCompetencySuggestions());
 
     async function selectElement(id) {
       elementCreateKind = null;
@@ -2438,7 +2464,7 @@
         setEditorPayload(detail.latest.payload);
         await renderPayloadForm(detail.kind, detail.latest.payload);
         syncCatalogEditorVisibility();
-        await loadRevisionSkillLinks(detail.latest.id);
+        await loadElementSkillLinks(selectedElementId);
       }
     }
 
@@ -2455,7 +2481,6 @@
         if (selectedElementKind) {
           await renderPayloadForm(selectedElementKind, rev.payload);
         }
-        await loadRevisionSkillLinks(revId);
       }
     });
 
@@ -2489,7 +2514,7 @@
         }
         catalogStatus.textContent = `Saved rev ${rev.rev_number}`;
         try {
-          await saveRevisionSkillLinks(rev.id);
+          await saveElementSkillLinks(selectedElementId);
         } catch (e) {
           catalogStatus.textContent = `Saved rev ${rev.rev_number}; skills: ${e.message}`;
         }
@@ -3175,7 +3200,7 @@
         await loadCatalog();
         await selectElement(id);
         try {
-          if (revisionSelect.value) await saveRevisionSkillLinks(revisionSelect.value);
+          if (selectedElementId) await saveElementSkillLinks(selectedElementId);
         } catch (e) {
           catalogStatus.textContent = `Created ${id}; skills: ${e.message}`;
         }

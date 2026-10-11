@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use domain::{normalize_payload_dates, ElementKind};
 
 use crate::catalog::kind_from_str;
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 use serde_json::Value;
 
 pub fn migrate(conn: &Connection) -> Result<()> {
@@ -103,8 +103,11 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if version < 9 {
         migrate_skill_catalog(conn)?;
     }
+    if version < 10 {
+        migrate_competency_graph_v10(conn)?;
+    }
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '9')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '10')",
         [],
     )?;
     Ok(())
@@ -138,6 +141,91 @@ fn migrate_skill_catalog(conn: &Connection) -> Result<()> {
         ",
     )?;
     crate::skills::seed_skill_nodes_if_empty(conn)?;
+    Ok(())
+}
+
+fn migrate_competency_graph_v10(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "UPDATE skill_nodes SET kind = 'tool' WHERE kind IN ('with', 'tool')",
+        [],
+    )?;
+    conn.execute(
+        "UPDATE skill_nodes SET kind = 'competency' WHERE kind IN ('what', 'competency')",
+        [],
+    )?;
+    for (old, new) in [
+        ("activity.reverse-engineering", "competency.reverse-engineering"),
+        ("activity.security-audit", "competency.security-audit"),
+        ("activity.code-review", "competency.code-review"),
+    ] {
+        conn.execute(
+            "UPDATE revision_skill_links SET skill_id = ?1 WHERE skill_id = ?2",
+            params![new, old],
+        )?;
+        conn.execute(
+            "UPDATE skill_nodes SET id = ?1 WHERE id = ?2",
+            params![new, old],
+        )?;
+    }
+    conn.execute(
+        "DELETE FROM revision_skill_links WHERE skill_id LIKE 'purpose.%'
+         OR skill_id IN (
+           SELECT id FROM skill_nodes WHERE kind IN ('for', 'purpose')
+         )",
+        [],
+    )?;
+    conn.execute(
+        "DELETE FROM skill_nodes WHERE kind IN ('for', 'purpose')",
+        [],
+    )?;
+
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS element_skill_links (
+            element_id TEXT NOT NULL REFERENCES elements(id) ON DELETE CASCADE,
+            skill_id TEXT NOT NULL REFERENCES skill_nodes(id),
+            source TEXT NOT NULL DEFAULT 'asserted',
+            PRIMARY KEY (element_id, skill_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_element_skill_links_skill
+            ON element_skill_links(skill_id);
+
+        CREATE TABLE IF NOT EXISTS tool_competency_edges (
+            tool_id TEXT NOT NULL REFERENCES skill_nodes(id),
+            competency_id TEXT NOT NULL REFERENCES skill_nodes(id),
+            source TEXT NOT NULL DEFAULT 'import',
+            PRIMARY KEY (tool_id, competency_id)
+        );
+        ",
+    )?;
+
+    let has_element_links: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM element_skill_links",
+        [],
+        |r| r.get(0),
+    )?;
+    if has_element_links == 0 {
+        conn.execute(
+            "INSERT OR IGNORE INTO element_skill_links (element_id, skill_id, source)
+             SELECT er.element_id, l.skill_id, l.source
+             FROM revision_skill_links l
+             JOIN element_revisions er ON er.id = l.revision_id
+             JOIN skill_nodes n ON n.id = l.skill_id
+             WHERE n.kind IN ('tool', 'competency')
+               AND l.source = 'asserted'",
+            [],
+        )?;
+    }
+
+    conn.execute_batch(
+        "
+        DROP TABLE IF EXISTS revision_skill_links;
+        ",
+    )?;
+
+    add_column_if_missing(conn, "elements", "parent_element_id", "TEXT REFERENCES elements(id)")?;
+
+    crate::skills::seed_tool_competency_edges(conn)?;
     Ok(())
 }
 

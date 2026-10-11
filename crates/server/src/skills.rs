@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use domain::{RevisionSkillLink, SkillNode};
+use domain::{ElementSkillLink, SkillNode};
 use serde::Deserialize;
 use store::Store;
 
@@ -12,6 +12,11 @@ use crate::AppState;
 #[derive(Debug, Deserialize)]
 pub struct ListSkillNodesQuery {
     pub kind: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SuggestionsQuery {
+    pub tool_ids: Option<String>,
 }
 
 pub async fn list_skill_nodes(
@@ -34,32 +39,51 @@ pub async fn upsert_skill_node(
     Ok(Json(body))
 }
 
-pub async fn get_revision_skill_links(
+pub async fn get_element_skill_links(
     State(state): State<std::sync::Arc<AppState>>,
-    Path(revision_id): Path<String>,
+    Path(element_id): Path<String>,
 ) -> Result<Json<Vec<store::SkillLinkRow>>, (StatusCode, Json<serde_json::Value>)> {
     let store = Store::open(&state.db_path).map_err(internal_err)?;
     let rows = store
-        .get_revision_skill_links(&revision_id)
+        .get_element_skill_links(&element_id)
         .map_err(internal_err)?;
     Ok(Json(rows))
 }
 
 #[derive(Debug, Deserialize)]
-pub struct PutRevisionSkillLinksBody {
-    pub links: Vec<RevisionSkillLink>,
+pub struct PutElementSkillLinksBody {
+    pub links: Vec<ElementSkillLink>,
 }
 
-pub async fn put_revision_skill_links(
+pub async fn put_element_skill_links(
     State(state): State<std::sync::Arc<AppState>>,
-    Path(revision_id): Path<String>,
-    Json(body): Json<PutRevisionSkillLinksBody>,
+    Path(element_id): Path<String>,
+    Json(body): Json<PutElementSkillLinksBody>,
 ) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
     let store = Store::open(&state.db_path).map_err(internal_err)?;
     store
-        .set_revision_skill_links(&revision_id, &body.links)
+        .set_element_skill_links(&element_id, &body.links)
         .map_err(bad_request)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn competency_suggestions(
+    State(state): State<std::sync::Arc<AppState>>,
+    Query(q): Query<SuggestionsQuery>,
+) -> Result<Json<Vec<store::CompetencySuggestion>>, (StatusCode, Json<serde_json::Value>)> {
+    let store = Store::open(&state.db_path).map_err(internal_err)?;
+    let tool_ids: Vec<String> = q
+        .tool_ids
+        .as_deref()
+        .unwrap_or("")
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    let rows = store
+        .suggest_competencies_for_tools(&tool_ids)
+        .map_err(internal_err)?;
+    Ok(Json(rows))
 }
 
 fn internal_err(e: anyhow::Error) -> (StatusCode, Json<serde_json::Value>) {

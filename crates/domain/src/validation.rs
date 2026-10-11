@@ -58,6 +58,10 @@ pub fn validate_payload(kind: ElementKind, payload: &Value) -> Result<(), Valida
             check_optional_date_fields(obj)?;
             check_optional_string_string_array(obj, "details")?;
         }
+        ElementKind::Course => {
+            check_optional_string(obj, "name")?;
+            check_optional_string(obj, "code")?;
+        }
         ElementKind::Skills => {
             if !obj.contains_key("skills") {
                 return Err(ValidationError::MissingSkillsObject);

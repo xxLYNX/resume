@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-/// Skill axis (what / with / for).
-pub const SKILL_KINDS: &[&str] = &["with", "what", "for"];
+/// Catalog node kinds (tool = how, competency = what).
+pub const SKILL_KINDS: &[&str] = &["tool", "competency"];
 
 /// Classic PDF skill line keys in `skills.*` render context.
 pub const PDF_SKILL_GROUPS: &[&str] = &["languages", "securityTools", "certifications", "other"];
@@ -9,25 +9,22 @@ pub const PDF_SKILL_GROUPS: &[&str] = &["languages", "securityTools", "certifica
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SkillKind {
-    With,
-    What,
-    For,
+    Tool,
+    Competency,
 }
 
 impl SkillKind {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::With => "with",
-            Self::What => "what",
-            Self::For => "for",
+            Self::Tool => "tool",
+            Self::Competency => "competency",
         }
     }
 
     pub fn parse(s: &str) -> Option<Self> {
         match s {
-            "with" => Some(Self::With),
-            "what" => Some(Self::What),
-            "for" => Some(Self::For),
+            "tool" | "with" => Some(Self::Tool),
+            "competency" | "what" => Some(Self::Competency),
             _ => None,
         }
     }
@@ -49,10 +46,10 @@ pub struct SkillNode {
     pub framework_refs: serde_json::Value,
 }
 
+/// Evidence link: catalog skill used or demonstrated on a portfolio element.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RevisionSkillLink {
+pub struct ElementSkillLink {
     pub skill_id: String,
-    pub axis: SkillKind,
     #[serde(default = "default_source")]
     pub source: String,
 }
@@ -67,12 +64,6 @@ pub enum SkillError {
     InvalidId(String),
     #[error("invalid skill kind `{0}`")]
     InvalidKind(String),
-    #[error("skill `{skill_id}` kind `{actual}` does not match link axis `{axis}`")]
-    KindAxisMismatch {
-        skill_id: String,
-        actual: String,
-        axis: String,
-    },
     #[error("unknown skill id `{0}`")]
     UnknownSkillId(String),
     #[error("invalid pdf group `{0}`")]
@@ -106,22 +97,15 @@ pub fn validate_skill_node(node: &SkillNode) -> Result<(), SkillError> {
     Ok(())
 }
 
-pub fn validate_revision_links(
-    links: &[RevisionSkillLink],
+pub fn validate_element_links(
+    links: &[ElementSkillLink],
     node_kind: impl Fn(&str) -> Option<SkillKind>,
 ) -> Result<(), SkillError> {
     for link in links {
         validate_skill_id(&link.skill_id)?;
-        let Some(kind) = node_kind(&link.skill_id) else {
+        let Some(_kind) = node_kind(&link.skill_id) else {
             return Err(SkillError::UnknownSkillId(link.skill_id.clone()));
         };
-        if kind != link.axis {
-            return Err(SkillError::KindAxisMismatch {
-                skill_id: link.skill_id.clone(),
-                actual: kind.as_str().into(),
-                axis: link.axis.as_str().into(),
-            });
-        }
         if link.source != "asserted" && link.source != "inferred" {
             return Err(SkillError::InvalidKind(link.source.clone()));
         }
@@ -134,20 +118,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn kind_axis_must_match_node() {
-        let links = vec![RevisionSkillLink {
-            skill_id: "tool.ghidra".into(),
-            axis: SkillKind::What,
+    fn legacy_kind_strings_parse() {
+        assert_eq!(SkillKind::parse("with"), Some(SkillKind::Tool));
+        assert_eq!(SkillKind::parse("what"), Some(SkillKind::Competency));
+    }
+
+    #[test]
+    fn rejects_unknown_skill_id() {
+        let links = vec![ElementSkillLink {
+            skill_id: "missing".into(),
             source: "asserted".into(),
         }];
-        let err = validate_revision_links(&links, |id| {
-            if id == "tool.ghidra" {
-                Some(SkillKind::With)
-            } else {
-                None
-            }
-        })
-        .unwrap_err();
-        assert!(matches!(err, SkillError::KindAxisMismatch { .. }));
+        let err = validate_element_links(&links, |_| None).unwrap_err();
+        assert!(matches!(err, SkillError::UnknownSkillId(_)));
     }
 }

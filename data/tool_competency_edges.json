@@ -1,0 +1,6 @@
+[
+  { "tool_id": "tool.ghidra", "competency_id": "competency.reverse-engineering" },
+  { "tool_id": "tool.ida", "competency_id": "competency.reverse-engineering" },
+  { "tool_id": "tool.nessus", "competency_id": "competency.security-audit" },
+  { "tool_id": "tool.nmap", "competency_id": "competency.security-audit" }
+]

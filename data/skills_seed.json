@@ -1,97 +1,91 @@
 [
   {
     "id": "tool.ghidra",
-    "kind": "with",
+    "kind": "tool",
     "label": "Ghidra",
     "aliases": ["ghidra"],
     "pdf_groups": ["securityTools"]
   },
   {
     "id": "tool.ida",
-    "kind": "with",
+    "kind": "tool",
     "label": "IDA Pro",
     "aliases": ["ida", "ida pro"],
     "pdf_groups": ["securityTools"]
   },
   {
     "id": "tool.nmap",
-    "kind": "with",
+    "kind": "tool",
     "label": "nMap",
     "aliases": ["nmap", "n map"],
     "pdf_groups": ["securityTools"]
   },
   {
     "id": "tool.nessus",
-    "kind": "with",
+    "kind": "tool",
     "label": "Nessus",
     "pdf_groups": ["securityTools"]
   },
   {
     "id": "lang.rust",
-    "kind": "with",
+    "kind": "tool",
     "label": "Rust",
     "pdf_groups": ["languages"]
   },
   {
     "id": "lang.python",
-    "kind": "with",
+    "kind": "tool",
     "label": "Python",
     "pdf_groups": ["languages"]
   },
   {
     "id": "lang.go",
-    "kind": "with",
+    "kind": "tool",
     "label": "Go",
-    "aliases": ["golang", "golang"],
+    "aliases": ["golang"],
     "pdf_groups": ["languages"]
   },
   {
     "id": "lang.c",
-    "kind": "with",
+    "kind": "tool",
     "label": "C",
     "pdf_groups": ["languages"]
   },
   {
     "id": "lang.bash",
-    "kind": "with",
+    "kind": "tool",
     "label": "Bash",
     "pdf_groups": ["languages"]
   },
   {
     "id": "lang.sql",
-    "kind": "with",
+    "kind": "tool",
     "label": "SQL",
     "pdf_groups": ["languages"]
   },
   {
-    "id": "activity.reverse-engineering",
-    "kind": "what",
+    "id": "competency.reverse-engineering",
+    "kind": "competency",
     "label": "Reverse engineering",
     "aliases": ["reverse engineering", "reversing"],
     "pdf_groups": ["other"]
   },
   {
-    "id": "activity.security-audit",
-    "kind": "what",
+    "id": "competency.security-audit",
+    "kind": "competency",
     "label": "Security audit",
     "pdf_groups": ["other"]
   },
   {
-    "id": "activity.code-review",
-    "kind": "what",
+    "id": "competency.code-review",
+    "kind": "competency",
     "label": "Code review",
     "pdf_groups": ["other"]
   },
   {
-    "id": "purpose.malware-analysis",
-    "kind": "for",
+    "id": "competency.malware-analysis",
+    "kind": "competency",
     "label": "Malware analysis",
-    "pdf_groups": ["other"]
-  },
-  {
-    "id": "purpose.performance",
-    "kind": "for",
-    "label": "Performance tuning",
     "pdf_groups": ["other"]
   }
 ]

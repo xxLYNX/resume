@@ -22,8 +22,8 @@ pub use compensation::{
 pub use composition::{Composition, CompositionItem, CompositionSection};
 pub use location::WorkLocation;
 pub use skills::{
-    validate_pdf_group, validate_revision_links, validate_skill_id, validate_skill_node,
-    RevisionSkillLink, SkillError, SkillKind, SkillNode, PDF_SKILL_GROUPS, SKILL_KINDS,
+    validate_element_links, validate_pdf_group, validate_skill_id, validate_skill_node,
+    ElementSkillLink, SkillError, SkillKind, SkillNode, PDF_SKILL_GROUPS, SKILL_KINDS,
 };
 pub use dates::{
     format_calendar_date, format_date_range, normalize_list_section_document,
@@ -69,6 +69,7 @@ pub enum ElementKind {
     Education,
     Project,
     Skills,
+    Course,
 }
 
 impl ElementKind {
@@ -80,6 +81,7 @@ impl ElementKind {
             Self::Education => "education",
             Self::Project => "project",
             Self::Skills => "skills",
+            Self::Course => "course",
         }
     }
 }

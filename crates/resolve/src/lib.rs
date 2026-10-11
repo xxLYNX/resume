@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use anyhow::{Context, Result};
 use domain::{Composition, CompositionItem, CompositionSection, ElementKind, SubmissionManifest};
 use serde_json::{json, Value};
-use store::{merge_skills_context, Store};
+use store::Store;
 
 /// Template context per config section name (`header`, `education`, …).
 pub type ResolvedSections = HashMap<String, Value>;
@@ -18,7 +18,6 @@ pub fn default_composition(store: &Store) -> Result<Composition> {
         ("education", ElementKind::Education),
         ("experience", ElementKind::Experience),
         ("projects", ElementKind::Project),
-        ("skills", ElementKind::Skills),
     ];
 
     let mut sections = Vec::new();
@@ -50,6 +49,9 @@ pub fn resolve_composition(store: &Store, composition: &Composition) -> Result<R
     let mut out = ResolvedSections::new();
 
     for section in &composition.sections {
+        if section.section_key == "skills" {
+            continue;
+        }
         let payloads = load_item_payloads(store, &section.items)?;
         let ctx = normalize::normalize_section_value(
             &section.section_key,
@@ -58,31 +60,19 @@ pub fn resolve_composition(store: &Store, composition: &Composition) -> Result<R
         out.insert(section.section_key.clone(), ctx);
     }
 
-    enrich_skills_from_provenance(store, composition, &mut out)?;
+    inject_skills_from_evidence(store, composition, &mut out)?;
 
     Ok(out)
 }
 
-fn enrich_skills_from_provenance(
+fn inject_skills_from_evidence(
     store: &Store,
     composition: &Composition,
     resolved: &mut ResolvedSections,
 ) -> Result<()> {
     let aggregated = store.aggregate_skills_pdf_context(composition)?;
-    let agg_empty = aggregated
-        .get("skills")
-        .and_then(|v| v.as_object())
-        .is_none_or(|o| o.is_empty());
-    if agg_empty {
-        return Ok(());
-    }
-
-    if let Some(existing) = resolved.get("skills") {
-        let merged = merge_skills_context(existing.clone(), aggregated);
-        resolved.insert("skills".into(), merged);
-    } else {
-        resolved.insert("skills".into(), aggregated);
-    }
+    let skills_obj = aggregated.get("skills").cloned().unwrap_or(json!({}));
+    resolved.insert("skills".into(), json!({ "skills": skills_obj }));
     Ok(())
 }
 

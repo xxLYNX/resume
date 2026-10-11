@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn jobdesk_build_matches_golden_fixture() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let golden_path = root.join("tests/fixtures/golden_resume.tex");
+        let golden_path = root.join("tests/fixtures/golden_resume_catalog.tex");
         if !golden_path.exists() {
             eprintln!("skip: no golden fixture at {}", golden_path.display());
             return;
@@ -200,6 +200,7 @@ mod tests {
         let _ = std::fs::remove_file(&db_path);
         let store = Store::open(&db_path).unwrap();
         import_legacy_content(&root, &store, ImportOptions::default()).unwrap();
+        // PDF skills come from element evidence links only (not skills.main); fixture DB has none yet.
 
         let built = jobdesk_build_to_dir(
             &store,

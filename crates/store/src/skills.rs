@@ -1,8 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result};
 use domain::{
-    validate_revision_links, validate_skill_node, Composition, RevisionSkillLink, SkillKind,
+    validate_element_links, validate_skill_node, Composition, ElementSkillLink, SkillKind,
     SkillNode,
 };
 use rusqlite::{params, Connection};
@@ -13,9 +13,16 @@ use crate::Store;
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SkillLinkRow {
     pub skill_id: String,
-    pub axis: String,
+    pub kind: String,
     pub source: String,
     pub label: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CompetencySuggestion {
+    pub competency_id: String,
+    pub label: String,
+    pub source: String,
 }
 
 impl Store {
@@ -94,20 +101,20 @@ impl Store {
         Ok(n)
     }
 
-    pub fn get_revision_skill_links(&self, revision_id: &str) -> Result<Vec<SkillLinkRow>> {
+    pub fn get_element_skill_links(&self, element_id: &str) -> Result<Vec<SkillLinkRow>> {
         let conn = self.connection();
         let mut stmt = conn.prepare(
-            "SELECT l.skill_id, l.axis, l.source, n.label
-             FROM revision_skill_links l
+            "SELECT l.skill_id, n.kind, l.source, n.label
+             FROM element_skill_links l
              JOIN skill_nodes n ON n.id = l.skill_id
-             WHERE l.revision_id = ?1
-             ORDER BY l.axis, n.label COLLATE NOCASE",
+             WHERE l.element_id = ?1
+             ORDER BY n.kind, n.label COLLATE NOCASE",
         )?;
         let rows = stmt
-            .query_map([revision_id], |row| {
+            .query_map([element_id], |row| {
                 Ok(SkillLinkRow {
                     skill_id: row.get(0)?,
-                    axis: row.get(1)?,
+                    kind: row.get(1)?,
                     source: row.get(2)?,
                     label: row.get(3)?,
                 })
@@ -116,10 +123,10 @@ impl Store {
         Ok(rows)
     }
 
-    pub fn set_revision_skill_links(
+    pub fn set_element_skill_links(
         &self,
-        revision_id: &str,
-        links: &[RevisionSkillLink],
+        element_id: &str,
+        links: &[ElementSkillLink],
     ) -> Result<()> {
         let node_kind = |id: &str| {
             self.get_skill_node(id)
@@ -127,41 +134,76 @@ impl Store {
                 .flatten()
                 .map(|n| n.kind)
         };
-        validate_revision_links(links, |id| node_kind(id))
+        validate_element_links(links, |id| node_kind(id))
             .map_err(|e| anyhow::anyhow!("{e}"))?;
 
         let conn = self.connection();
         conn.execute(
-            "DELETE FROM revision_skill_links WHERE revision_id = ?1 AND source = 'asserted'",
-            [revision_id],
+            "DELETE FROM element_skill_links WHERE element_id = ?1 AND source = 'asserted'",
+            [element_id],
         )?;
         for link in links {
             if link.source != "asserted" {
                 continue;
             }
             conn.execute(
-                "INSERT INTO revision_skill_links (revision_id, skill_id, axis, source)
-                 VALUES (?1, ?2, ?3, ?4)",
-                params![
-                    revision_id,
-                    link.skill_id,
-                    link.axis.as_str(),
-                    link.source,
-                ],
+                "INSERT INTO element_skill_links (element_id, skill_id, source)
+                 VALUES (?1, ?2, ?3)",
+                params![element_id, link.skill_id, link.source],
             )?;
         }
         Ok(())
     }
 
-    /// Aggregate asserted skill labels from experience/project pins into classic PDF groups.
+    pub fn suggest_competencies_for_tools(&self, tool_ids: &[String]) -> Result<Vec<CompetencySuggestion>> {
+        if tool_ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let conn = self.connection();
+        let placeholders = tool_ids
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!(
+            "SELECT DISTINCT e.competency_id, n.label, e.source
+             FROM tool_competency_edges e
+             JOIN skill_nodes n ON n.id = e.competency_id
+             WHERE e.tool_id IN ({placeholders})
+             ORDER BY n.label COLLATE NOCASE"
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let params: Vec<&dyn rusqlite::ToSql> = tool_ids
+            .iter()
+            .map(|s| s as &dyn rusqlite::ToSql)
+            .collect();
+        let rows = stmt
+            .query_map(params.as_slice(), |row| {
+                Ok(CompetencySuggestion {
+                    competency_id: row.get(0)?,
+                    label: row.get(1)?,
+                    source: row.get(2)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// Aggregate asserted skill labels from pinned elements into classic PDF groups.
     pub fn aggregate_skills_pdf_context(&self, composition: &Composition) -> Result<Value> {
+        const EVIDENCE_SECTIONS: &[&str] = &["experience", "projects", "education"];
         let mut by_group: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut seen_elements: BTreeSet<String> = BTreeSet::new();
+
         for section in &composition.sections {
-            if section.section_key != "experience" && section.section_key != "projects" {
+            if !EVIDENCE_SECTIONS.contains(&section.section_key.as_str()) {
                 continue;
             }
             for item in &section.items {
-                let links = self.get_revision_skill_links(&item.revision_id)?;
+                if !seen_elements.insert(item.element_id.clone()) {
+                    continue;
+                }
+                let links = self.get_element_skill_links(&item.element_id)?;
                 for row in links {
                     if row.source != "asserted" {
                         continue;
@@ -184,12 +226,59 @@ impl Store {
             }
         }
 
+        self.aggregate_course_element_skills(&seen_elements, &mut by_group)?;
+
         let mut skills_obj = serde_json::Map::new();
         for (group, labels) in by_group {
             let joined = labels.into_iter().collect::<Vec<_>>().join(", ");
             skills_obj.insert(group, Value::String(joined));
         }
         Ok(json!({ "skills": Value::Object(skills_obj) }))
+    }
+
+    fn aggregate_course_element_skills(
+        &self,
+        pinned_elements: &BTreeSet<String>,
+        by_group: &mut BTreeMap<String, BTreeSet<String>>,
+    ) -> Result<()> {
+        let conn = self.connection();
+        let mut stmt = conn.prepare(
+            "SELECT id, parent_element_id FROM elements WHERE kind = 'course' ORDER BY sort_order, id",
+        )?;
+        let courses: Vec<(String, Option<String>)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        for (element_id, parent_id) in courses {
+            let include = pinned_elements.contains(&element_id)
+                || parent_id
+                    .as_ref()
+                    .is_some_and(|p| pinned_elements.contains(p));
+            if !include {
+                continue;
+            }
+            let links = self.get_element_skill_links(&element_id)?;
+            for row in links {
+                if row.source != "asserted" {
+                    continue;
+                }
+                let node = self
+                    .get_skill_node(&row.skill_id)?
+                    .with_context(|| format!("missing skill `{}`", row.skill_id))?;
+                let groups = if node.pdf_groups.is_empty() {
+                    vec!["other".to_string()]
+                } else {
+                    node.pdf_groups.clone()
+                };
+                for g in groups {
+                    by_group
+                        .entry(g)
+                        .or_default()
+                        .insert(node.label.clone());
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -245,45 +334,24 @@ pub fn seed_skill_nodes_if_empty(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-/// Merge aggregated link labels into an existing skills render context.
-pub fn merge_skills_context(base: Value, aggregated: Value) -> Value {
-    let Some(base_skills) = base.get("skills").and_then(|v| v.as_object()) else {
-        return aggregated;
-    };
-    let Some(agg_skills) = aggregated.get("skills").and_then(|v| v.as_object()) else {
-        return base;
-    };
-
-    let mut merged: HashMap<String, BTreeSet<String>> = HashMap::new();
-
-    for (key, val) in base_skills {
-        if let Some(s) = val.as_str() {
-            for part in split_skill_line(s) {
-                merged.entry(key.clone()).or_default().insert(part);
-            }
-        }
+pub fn seed_tool_competency_edges(conn: &Connection) -> Result<()> {
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM tool_competency_edges", [], |r| r.get(0))?;
+    if count > 0 {
+        return Ok(());
     }
-    for (key, val) in agg_skills {
-        if let Some(s) = val.as_str() {
-            for part in split_skill_line(s) {
-                merged.entry(key.clone()).or_default().insert(part);
-            }
-        }
+    #[derive(serde::Deserialize)]
+    struct Edge {
+        tool_id: String,
+        competency_id: String,
     }
-
-    let mut out_skills = serde_json::Map::new();
-    for (key, set) in merged {
-        let line = set.into_iter().collect::<Vec<_>>().join(", ");
-        if !line.is_empty() {
-            out_skills.insert(key, Value::String(line));
-        }
+    let raw = include_str!("../../../data/tool_competency_edges.json");
+    let edges: Vec<Edge> = serde_json::from_str(raw).context("parse tool_competency_edges")?;
+    for edge in edges {
+        conn.execute(
+            "INSERT OR IGNORE INTO tool_competency_edges (tool_id, competency_id, source)
+             VALUES (?1, ?2, 'import')",
+            params![edge.tool_id, edge.competency_id],
+        )?;
     }
-    json!({ "skills": Value::Object(out_skills) })
-}
-
-fn split_skill_line(s: &str) -> Vec<String> {
-    s.split(',')
-        .map(|p| p.trim().to_string())
-        .filter(|p| !p.is_empty())
-        .collect()
+    Ok(())
 }

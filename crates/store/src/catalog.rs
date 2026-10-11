@@ -390,6 +390,7 @@ pub fn kind_from_str(s: &str) -> Option<ElementKind> {
         "education" => Some(ElementKind::Education),
         "project" => Some(ElementKind::Project),
         "skills" => Some(ElementKind::Skills),
+        "course" => Some(ElementKind::Course),
         _ => None,
     }
 }
