@@ -25,6 +25,24 @@ pub struct CompetencySuggestion {
     pub source: String,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ListSkillRelationshipsFilter {
+    pub skill_id: Option<String>,
+    pub element_id: Option<String>,
+    pub skill_kind: Option<String>,
+    pub element_kind: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SkillRelationshipRow {
+    pub element_id: String,
+    pub element_kind: String,
+    pub skill_id: String,
+    pub skill_kind: String,
+    pub skill_label: String,
+    pub source: String,
+}
+
 impl Store {
     pub fn list_skill_nodes(&self, kind: Option<&str>) -> Result<Vec<SkillNode>> {
         let conn = self.connection();
@@ -117,6 +135,55 @@ impl Store {
                     kind: row.get(1)?,
                     source: row.get(2)?,
                     label: row.get(3)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// All element ↔ skill evidence links (same junction as resolver aggregation).
+    pub fn list_skill_relationships(
+        &self,
+        filter: &ListSkillRelationshipsFilter,
+    ) -> Result<Vec<SkillRelationshipRow>> {
+        let conn = self.connection();
+        let mut sql = String::from(
+            "SELECT e.id, e.kind, l.skill_id, n.kind, n.label, l.source
+             FROM element_skill_links l
+             JOIN elements e ON e.id = l.element_id
+             JOIN skill_nodes n ON n.id = l.skill_id
+             WHERE 1=1",
+        );
+        let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        if let Some(id) = filter.element_id.as_deref().filter(|s| !s.is_empty()) {
+            sql.push_str(" AND e.id = ?");
+            params.push(Box::new(id.to_string()));
+        }
+        if let Some(id) = filter.skill_id.as_deref().filter(|s| !s.is_empty()) {
+            sql.push_str(" AND l.skill_id = ?");
+            params.push(Box::new(id.to_string()));
+        }
+        if let Some(kind) = filter.element_kind.as_deref().filter(|s| !s.is_empty()) {
+            sql.push_str(" AND e.kind = ?");
+            params.push(Box::new(kind.to_string()));
+        }
+        if let Some(kind) = filter.skill_kind.as_deref().filter(|s| !s.is_empty()) {
+            sql.push_str(" AND n.kind = ?");
+            params.push(Box::new(kind.to_string()));
+        }
+        sql.push_str(" ORDER BY n.label COLLATE NOCASE, e.kind, e.id");
+
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(param_refs.as_slice(), |row| {
+                Ok(SkillRelationshipRow {
+                    element_id: row.get(0)?,
+                    element_kind: row.get(1)?,
+                    skill_id: row.get(2)?,
+                    skill_kind: row.get(3)?,
+                    skill_label: row.get(4)?,
+                    source: row.get(5)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

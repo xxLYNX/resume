@@ -19,6 +19,14 @@ pub struct SuggestionsQuery {
     pub tool_ids: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RelationshipsQuery {
+    pub skill_id: Option<String>,
+    pub element_id: Option<String>,
+    pub skill_kind: Option<String>,
+    pub element_kind: Option<String>,
+}
+
 pub async fn list_skill_nodes(
     State(state): State<std::sync::Arc<AppState>>,
     Query(q): Query<ListSkillNodesQuery>,
@@ -65,6 +73,23 @@ pub async fn put_element_skill_links(
         .set_element_skill_links(&element_id, &body.links)
         .map_err(bad_request)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn list_skill_relationships(
+    State(state): State<std::sync::Arc<AppState>>,
+    Query(q): Query<RelationshipsQuery>,
+) -> Result<Json<Vec<store::SkillRelationshipRow>>, (StatusCode, Json<serde_json::Value>)> {
+    let store = Store::open(&state.db_path).map_err(internal_err)?;
+    let filter = store::ListSkillRelationshipsFilter {
+        skill_id: q.skill_id,
+        element_id: q.element_id,
+        skill_kind: q.skill_kind,
+        element_kind: q.element_kind,
+    };
+    let rows = store
+        .list_skill_relationships(&filter)
+        .map_err(internal_err)?;
+    Ok(Json(rows))
 }
 
 pub async fn competency_suggestions(

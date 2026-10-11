@@ -53,6 +53,53 @@
         <p class="meta" id="skill-catalog-status">Loading…</p>
         <ul id="skill-node-list" class="meta" style="max-height:10rem;overflow:auto;padding-left:1.2rem"></ul>
       </details>
+      <details id="skill-relationships-details" style="margin:0.5rem 0">
+        <summary class="meta">Skill relationships</summary>
+        <p class="help">Evidence links between portfolio entries and catalog skills (same data as PDF aggregation).</p>
+        <div class="row skill-rel-filters">
+          <label class="meta">Skill
+            <input type="search" id="skill-rel-filter-skill" list="skill-rel-skill-datalist" placeholder="id or label" autocomplete="off" style="min-width:10rem" />
+            <datalist id="skill-rel-skill-datalist"></datalist>
+          </label>
+          <label class="meta">Element id
+            <input type="search" id="skill-rel-filter-element" placeholder="experience.…" autocomplete="off" style="min-width:10rem" />
+          </label>
+          <label class="meta">Skill kind
+            <select id="skill-rel-filter-skill-kind">
+              <option value="">All</option>
+              <option value="tool">tool</option>
+              <option value="competency">competency</option>
+            </select>
+          </label>
+          <label class="meta">Element kind
+            <select id="skill-rel-filter-element-kind">
+              <option value="">All</option>
+              <option value="experience">experience</option>
+              <option value="project">project</option>
+              <option value="education">education</option>
+              <option value="course">course</option>
+              <option value="certification">certification</option>
+              <option value="award">award</option>
+            </select>
+          </label>
+          <button type="button" id="skill-rel-reload">Apply</button>
+          <button type="button" id="skill-rel-clear">Clear</button>
+        </div>
+        <p class="meta" id="skill-relationships-status">Open to load…</p>
+        <div class="skill-rel-table-wrap">
+          <table class="skill-rel-table" id="skill-relationships-table">
+            <thead>
+              <tr>
+                <th>Skill</th>
+                <th>Kind</th>
+                <th>Element</th>
+                <th>Entry kind</th>
+              </tr>
+            </thead>
+            <tbody id="skill-relationships-body"></tbody>
+          </table>
+        </div>
+      </details>
       <div id="catalog-list-body">
         <p class="meta" id="catalog-status">Loading portfolio…</p>
         <div id="portfolio-groups"></div>
@@ -278,6 +325,7 @@
   <script src="/static/js/60-workday-catalog.js"></script>
   <script src="/static/js/70-skills-element.js"></script>
   <script src="/static/js/71-skill-discovery.js"></script>
+  <script src="/static/js/72-relationships.js"></script>
   <script src="/static/js/90-applications.js"></script>
   <script src="/static/js/95-bootstrap.js"></script>
 </body>

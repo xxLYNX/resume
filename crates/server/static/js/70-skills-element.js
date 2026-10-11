@@ -223,6 +223,10 @@
         catalogStatus.textContent = `Saved rev ${rev.rev_number}`;
         try {
           await saveElementSkillLinks(selectedElementId);
+          const relOpen = document.getElementById("skill-relationships-details")?.open;
+          if (typeof loadSkillRelationships === "function" && relOpen) {
+            loadSkillRelationships();
+          }
         } catch (e) {
           catalogStatus.textContent = `Saved rev ${rev.rev_number}; skills: ${e.message}`;
         }

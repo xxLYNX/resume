@@ -15,6 +15,7 @@ Served at `/` (index) and `/static/*` (see `server` crate `ServeDir`).
 | `js/60-workday-catalog.js` | Workday fill scripts, catalog load/select helpers |
 | `js/70-skills-element.js` | Skill catalog list, element tool/competency links |
 | `js/71-skill-discovery.js` | Typeahead, payload scan, create tools, competency apply |
+| `js/72-relationships.js` | Skill ↔ element relationships table and filters |
 | `js/90-applications.js` | Applications tab CRUD and draft editing |
 | `js/95-bootstrap.js` | Tab wiring, catalog save/create, startup |
 

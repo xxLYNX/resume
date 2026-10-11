@@ -28,7 +28,8 @@
 | **F.2a** | Done | v10 schema, element links, evidence resolver, portfolio grouping v1 |
 | **F.2-cleanup** | Done | Modular UI; `skills.main` retired; v11; file-based build removed |
 | **F.2b** | Done | Skill discovery UI |
-| **F.2c** | **Next** | Relationships pane |
+| **F.2c** | Done | Relationships pane |
+| **F.2d** | **Next** | Portfolio ↔ PDF for cert/award/course |
 | **F.2d** | Planned | Cert/award/course on PDF/composition |
 | **F.3** | Planned | Framework import; tailoring hints |
 
@@ -44,10 +45,10 @@
 
 ---
 
-## F.2c — relationships pane
+## F.2c — relationships pane (complete)
 
-- [ ] Store queries: skills for element; elements for skill id.
-- [ ] Portfolio UI table/filters (same tables as resolver).
+- [x] `GET /api/skills/relationships` — filter by skill, element, kinds.
+- [x] Portfolio **Skill relationships** panel: table, filters, row opens entry.
 
 ---
 

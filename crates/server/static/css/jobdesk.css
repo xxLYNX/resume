@@ -285,3 +285,26 @@
     #preset-list li { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.85rem; }
     #preset-list li.active { background: color-mix(in srgb, var(--accent) 25%, transparent); font-weight: 600; }
     .help { font-size: 0.8rem; color: var(--muted); margin: 0.25rem 0; }
+    .skill-rel-filters { flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; margin: 0.35rem 0; }
+    .skill-rel-table-wrap {
+      overflow: auto;
+      max-height: 14rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    .skill-rel-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+    .skill-rel-table th,
+    .skill-rel-table td {
+      padding: 0.3rem 0.45rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    .skill-rel-table th { font-weight: 600; background: #0001; position: sticky; top: 0; }
+    .skill-rel-table tbody tr { cursor: pointer; }
+    .skill-rel-table tbody tr:hover { background: #0001; }
+    .skill-rel-table .mono { font-family: ui-monospace, monospace; font-size: 0.72rem; }

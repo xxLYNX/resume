@@ -134,6 +134,10 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
             get(skills::competency_suggestions),
         )
         .route(
+            "/api/skills/relationships",
+            get(skills::list_skill_relationships),
+        )
+        .route(
             "/api/catalog/elements/{id}/skill-links",
             get(skills::get_element_skill_links).put(skills::put_element_skill_links),
         )
