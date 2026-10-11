@@ -68,21 +68,27 @@
 
     async function refreshCompetencySuggestions() {
       const toolIds = [...skillLinksTool.selectedOptions].map((o) => o.value);
+      const applyBtn = document.getElementById("skill-apply-comp-suggestions");
       if (toolIds.length === 0) {
+        lastCompetencySuggestions = [];
         skillSuggestionsHint.classList.add("hidden");
+        if (applyBtn) applyBtn.classList.add("hidden");
         return;
       }
       const q = encodeURIComponent(toolIds.join(","));
       const res = await fetch(`/api/skills/suggestions?tool_ids=${q}`);
       const suggestions = res.ok ? await res.json() : [];
+      lastCompetencySuggestions = suggestions;
       if (!suggestions.length) {
         skillSuggestionsHint.classList.add("hidden");
+        if (applyBtn) applyBtn.classList.add("hidden");
         return;
       }
       skillSuggestionsHint.textContent =
         "Suggested competencies (from selected tools): " +
         suggestions.map((s) => s.label).join(", ");
       skillSuggestionsHint.classList.remove("hidden");
+      if (applyBtn) applyBtn.classList.remove("hidden");
     }
 
     function collectSkillLinksFromDom() {

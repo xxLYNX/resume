@@ -27,17 +27,20 @@
 | **F.0** | Done | Branch + plan |
 | **F.2a** | Done | v10 schema, element links, evidence resolver, portfolio grouping v1 |
 | **F.2-cleanup** | Done | Modular UI; `skills.main` retired; v11; file-based build removed |
-| **F.2b** | Next | Skill discovery UI |
-| **F.2c** | Planned | Relationships pane |
+| **F.2b** | Done | Skill discovery UI |
+| **F.2c** | **Next** | Relationships pane |
 | **F.2d** | Planned | Cert/award/course on PDF/composition |
 | **F.3** | Planned | Framework import; tailoring hints |
 
 ---
 
-## F.2b — discovery (next)
+## F.2b — discovery (complete)
 
-- [ ] Typeahead pickers, payload scan (technologies + highlights), create tools for unmatched tokens.
-- [ ] Competency suggestions apply button; applications filter autocomplete off.
+- [x] Typeahead pickers (datalist) + filter lists (Enter selects first visible row).
+- [x] Suggest tools from payload: **technologies** and **highlights**.
+- [x] Unmatched tokens → create `tool.*` catalog nodes via API, then select.
+- [x] Tool selection → competency suggestions + “Add suggested competencies”.
+- [x] Applications search/tag: `autocomplete="off"` to avoid browser prefilled filters.
 
 ---
 

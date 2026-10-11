@@ -92,6 +92,7 @@
     let selectedCatalogKind = null;
     let selectedElementKind = null;
     let skillNodesCache = { tool: [], competency: [] };
+    let lastCompetencySuggestions = [];
     const skillLinksPanel = document.getElementById("skill-links-panel");
     const skillLinksTool = document.getElementById("skill-links-tool");
     const skillLinksCompetency = document.getElementById("skill-links-competency");

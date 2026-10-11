@@ -20,8 +20,8 @@ git reset --hard master
 | **F.0** | Plan + branch aligned to `master` |
 | **F.2a** | Schema v10 (tool/competency, element links, evidence-only PDF); portfolio grouping v1 |
 | **F.2-cleanup** | Modular static UI; retire `skills.main`; schema v11 (smoke UI, then F.2b) |
-| **F.2b** | **Next:** skill discovery UI |
-| **F.2c** | Relationships pane |
+| **F.2b** | Skill discovery (typeahead, payload scan, create tools) |
+| **F.2c** | **Next:** relationships pane |
 | **F.2d** | Cert/award/course on PDF/composition; portfolio UX polish |
 | **F.3** | Framework import; tailoring hints |
 
