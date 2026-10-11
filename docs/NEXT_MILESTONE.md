@@ -22,8 +22,8 @@ git reset --hard master
 | **F.2-cleanup** | Modular static UI; retire `skills.main`; schema v11 (smoke UI, then F.2b) |
 | **F.2b** | Skill discovery (typeahead, payload scan, create tools) |
 | **F.2c** | Relationships pane |
-| **F.2d** | **Next:** cert/award/course on PDF/composition; portfolio UX polish |
-| **F.3** | Framework import; tailoring hints |
+| **F.2d** | Cert/award on PDF; courses under education |
+| **F.3** | **Next:** framework import; tailoring hints |
 
 Full checklists: [`MILESTONE_F_ROLLOUT.md`](MILESTONE_F_ROLLOUT.md).
 

@@ -29,8 +29,8 @@
 | **F.2-cleanup** | Done | Modular UI; `skills.main` retired; v11; file-based build removed |
 | **F.2b** | Done | Skill discovery UI |
 | **F.2c** | Done | Relationships pane |
-| **F.2d** | **Next** | Portfolio ↔ PDF for cert/award/course |
-| **F.2d** | Planned | Cert/award/course on PDF/composition |
+| **F.2d** | Done | Cert/award sections on PDF; courses under education |
+| **F.3** | **Next** | Framework import; tailoring hints |
 | **F.3** | Planned | Framework import; tailoring hints |
 
 ---

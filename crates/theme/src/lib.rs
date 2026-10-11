@@ -180,6 +180,8 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
 fn section_element_kind(section_key: &str) -> String {
     match section_key {
         "projects" => "project".to_string(),
+        "certifications" => "certification".to_string(),
+        "awards" => "award".to_string(),
         other => other.to_string(),
     }
 }

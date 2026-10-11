@@ -28,6 +28,14 @@ template = "sections/projects.jinja.tex"
 optional_fields = ["technologies", "details"]
 date_parts = ["month", "year"]
 
+[sections.certifications]
+template = "sections/certifications.jinja.tex"
+date_parts = ["month", "year"]
+
+[sections.awards]
+template = "sections/awards.jinja.tex"
+date_parts = ["month", "year"]
+
 [sections.skills]
 template = "sections/skills.jinja.tex"
 optional_fields = ["certifications", "languages", "securityTools", "other"]

@@ -22,6 +22,14 @@ sections:
     enabled: true
     template: "themes/classic/sections/projects.jinja.tex"
 
+  - name: "certifications"
+    enabled: true
+    template: "themes/classic/sections/certifications.jinja.tex"
+
+  - name: "awards"
+    enabled: true
+    template: "themes/classic/sections/awards.jinja.tex"
+
   - name: "skills"
     enabled: true
     template: "themes/classic/sections/skills.jinja.tex"

@@ -3,11 +3,43 @@ use serde_json::{json, Map, Value};
 /// Ensure list-section rows have safe defaults before templates run.
 pub fn normalize_section_value(section_key: &str, ctx: Value) -> Value {
     match section_key {
-        "education" => normalize_list_section(ctx, "education", &["highlights"]),
+        "education" => normalize_education_section(ctx),
         "experience" => normalize_list_section(ctx, "experience", &["highlights"]),
         "projects" => normalize_list_section(ctx, "projects", &["details"]),
         _ => ctx,
     }
+}
+
+fn normalize_education_section(ctx: Value) -> Value {
+    let Some(root) = ctx.as_object() else {
+        return ctx;
+    };
+    let Some(items) = root.get("education").and_then(|v| v.as_array()) else {
+        return ctx;
+    };
+    let mut normalized_items = Vec::with_capacity(items.len());
+    for item in items {
+        let mut row = normalize_row(item, &["highlights"]);
+        if let Some(obj) = row.as_object_mut() {
+            match obj.get("courses") {
+                None | Some(Value::Null) => {
+                    obj.insert("courses".to_string(), json!([]));
+                }
+                Some(Value::Array(arr)) => {
+                    let mut courses = Vec::with_capacity(arr.len());
+                    for c in arr {
+                        courses.push(normalize_row(c, &[]));
+                    }
+                    obj.insert("courses".to_string(), Value::Array(courses));
+                }
+                _ => {}
+            }
+        }
+        normalized_items.push(row);
+    }
+    let mut out = root.clone();
+    out.insert("education".to_string(), Value::Array(normalized_items));
+    Value::Object(out)
 }
 
 fn normalize_list_section(ctx: Value, list_key: &str, array_fields: &[&str]) -> Value {

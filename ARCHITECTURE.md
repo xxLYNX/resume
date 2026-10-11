@@ -200,7 +200,7 @@ Phased (v10): **F.2a–F.2b** done on branch; **F.2c** relationships pane next; 
 - [x] F.2-cleanup — modular UI, no `skills.main`, no file-based build, schema v11
 - [x] F.2b — skill discovery UI
 - [x] F.2c — relationships pane
-- [ ] F.2d — cert/award/course on résumé composition
+- [x] F.2d — cert/award on résumé composition; courses under education
 - [ ] F.3 — `framework_refs` enrichment, application hints
 
 ---

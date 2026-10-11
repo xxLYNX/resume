@@ -18,6 +18,8 @@ pub fn default_composition(store: &Store) -> Result<Composition> {
         ("education", ElementKind::Education),
         ("experience", ElementKind::Experience),
         ("projects", ElementKind::Project),
+        ("certifications", ElementKind::Certification),
+        ("awards", ElementKind::Award),
     ];
 
     let mut sections = Vec::new();
@@ -52,11 +54,19 @@ pub fn resolve_composition(store: &Store, composition: &Composition) -> Result<R
         if section.section_key == "skills" {
             continue;
         }
-        let payloads = load_item_payloads(store, &section.items)?;
-        let ctx = normalize::normalize_section_value(
-            &section.section_key,
-            section_context(&section.section_key, payloads)?,
-        );
+        let ctx = if section.section_key == "education" {
+            let payloads = load_education_payloads_with_courses(store, &section.items)?;
+            normalize::normalize_section_value(
+                &section.section_key,
+                section_context(&section.section_key, payloads)?,
+            )
+        } else {
+            let payloads = load_item_payloads(store, &section.items)?;
+            normalize::normalize_section_value(
+                &section.section_key,
+                section_context(&section.section_key, payloads)?,
+            )
+        };
         out.insert(section.section_key.clone(), ctx);
     }
 
@@ -88,6 +98,51 @@ pub fn resolve_from_manifest(manifest: &SubmissionManifest) -> Result<ResolvedSe
     let mut out = ResolvedSections::new();
     for (key, value) in &manifest.resolved {
         out.insert(key.clone(), value.clone());
+    }
+    Ok(out)
+}
+
+fn load_education_payloads_with_courses(
+    store: &Store,
+    items: &[CompositionItem],
+) -> Result<Vec<Value>> {
+    let mut payloads = Vec::with_capacity(items.len());
+    for item in items {
+        let rev = store
+            .get_revision(&item.revision_id)?
+            .with_context(|| format!("revision `{}` not found", item.revision_id))?;
+        if rev.element_id != item.element_id {
+            anyhow::bail!(
+                "revision `{}` belongs to `{}`, expected `{}`",
+                item.revision_id,
+                rev.element_id,
+                item.element_id
+            );
+        }
+        let mut payload = rev.payload;
+        let courses = course_payloads_under_education(store, &item.element_id)?;
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("courses".to_string(), json!(courses));
+        }
+        payloads.push(payload);
+    }
+    Ok(payloads)
+}
+
+fn course_payloads_under_education(store: &Store, education_id: &str) -> Result<Vec<Value>> {
+    let courses = store.list_elements(Some("course"))?;
+    let mut out = Vec::new();
+    for el in courses {
+        if el.parent_element_id.as_deref() != Some(education_id) {
+            continue;
+        }
+        let Some(rev_id) = el.latest_revision_id else {
+            continue;
+        };
+        let rev = store
+            .get_revision(&rev_id)?
+            .with_context(|| format!("course revision for `{}`", el.id))?;
+        out.push(rev.payload);
     }
     Ok(out)
 }
@@ -124,6 +179,8 @@ fn section_context(section_key: &str, payloads: Vec<Value>) -> Result<Value> {
         "education" => Ok(json!({ "education": payloads })),
         "experience" => Ok(json!({ "experience": payloads })),
         "projects" => Ok(json!({ "projects": payloads })),
+        "certifications" => Ok(json!({ "certifications": payloads })),
+        "awards" => Ok(json!({ "awards": payloads })),
         other => anyhow::bail!("unknown section key `{other}`"),
     }
 }

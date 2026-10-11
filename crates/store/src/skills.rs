@@ -258,7 +258,13 @@ impl Store {
 
     /// Aggregate asserted skill labels from pinned elements into classic PDF groups.
     pub fn aggregate_skills_pdf_context(&self, composition: &Composition) -> Result<Value> {
-        const EVIDENCE_SECTIONS: &[&str] = &["experience", "projects", "education"];
+        const EVIDENCE_SECTIONS: &[&str] = &[
+            "experience",
+            "projects",
+            "education",
+            "certifications",
+            "awards",
+        ];
         let mut by_group: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         let mut seen_elements: BTreeSet<String> = BTreeSet::new();
 
