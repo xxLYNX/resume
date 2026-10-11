@@ -1,6 +1,6 @@
 # Next milestone — F (skills catalog, provenance & framework refs)
 
-**Active work:** [`MILESTONE_F_SKILLS.md`](MILESTONE_F_SKILLS.md) on branch **`dev/milestone-f`** only (may be rolled back; do not land on `master` until reviewed).
+**Active work:** [`MILESTONE_F_ROLLOUT.md`](MILESTONE_F_ROLLOUT.md) on branch **`dev/milestone-f`** (breaking changes OK; DB reset acceptable).
 
 **Complete on `master`:** E, I, **J** (Portfolio, dates, themes, experience location, …).
 
@@ -13,24 +13,19 @@ git reset --hard master
 
 ---
 
-## Milestone F — phased plan
-
-See full north star, data model, and checklists in [`MILESTONE_F_SKILLS.md`](MILESTONE_F_SKILLS.md).
+## Milestone F — phased plan (v10)
 
 | Phase | Deliverable |
 |-------|-------------|
 | **F.0** | Plan + branch aligned to `master` |
-| **F.1** | `skill_nodes` + `revision_skill_links` (asserted); UI pickers; resolver aggregation; PDF fallback |
-| **F.2** | Hierarchy/inference; relationships pane; skills summary view |
+| **F.2a** | Schema v10 (tool/competency, element links, evidence-only PDF); portfolio grouping v1 |
+| **F.2-cleanup** | Modular static UI; retire `skills.main`; schema v11 (smoke UI, then F.2b) |
+| **F.2b** | **Next:** skill discovery UI |
+| **F.2c** | Relationships pane |
+| **F.2d** | Cert/award/course on PDF/composition; portfolio UX polish |
 | **F.3** | Framework import; tailoring hints |
 
-**F.1 MVP checklist (start here after F.0):**
-
-- [ ] Migrations + domain validation
-- [ ] API + Portfolio skill admin + experience/project pickers
-- [ ] Seed taxonomy (tools e.g. Ghidra)
-- [ ] Resolver: skills from pinned element revisions
-- [ ] Tests
+Full checklists: [`MILESTONE_F_ROLLOUT.md`](MILESTONE_F_ROLLOUT.md).
 
 ---
 

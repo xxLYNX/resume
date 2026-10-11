@@ -1,0 +1,287 @@
+    :root {
+      color-scheme: light dark;
+      --border: #4444;
+      --muted: #888;
+      --err: #c44;
+      --accent: #48a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    header h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(320px, 42%) 1fr;
+      min-height: 0;
+    }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    }
+    .panel {
+      padding: 0.75rem 1rem;
+      overflow: auto;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      min-height: 0;
+    }
+    .panel.preview {
+      border-right: none;
+      padding: 0;
+    }
+    .meta { font-size: 0.85rem; color: var(--muted); }
+    .hash { font-family: ui-monospace, monospace; font-size: 0.72rem; word-break: break-all; }
+    button, select {
+      padding: 0.35rem 0.6rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    label { font-size: 0.9rem; display: flex; align-items: center; gap: 0.35rem; }
+    #status { font-size: 0.9rem; min-height: 1.25rem; max-width: min(52rem, 100%); }
+    #status.error { color: var(--err); white-space: pre-wrap; word-break: break-word; }
+    #catalog-status.error { color: var(--err); }
+    pre.log {
+      font-size: 0.75rem;
+      background: #0001;
+      padding: 0.5rem;
+      overflow: auto;
+      max-height: 8rem;
+      white-space: pre-wrap;
+    }
+    #portfolio-groups {
+      overflow: auto;
+      flex: 1;
+      min-height: 6rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.25rem 0.35rem;
+    }
+    #portfolio-groups details.portfolio-collection {
+      margin: 0.2rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    #portfolio-groups details.portfolio-collection:last-child {
+      border-bottom: none;
+    }
+    #portfolio-groups summary {
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 0.35rem 0.25rem;
+      list-style: none;
+    }
+    #portfolio-groups summary::-webkit-details-marker { display: none; }
+    #portfolio-groups .portfolio-count {
+      color: var(--muted);
+      font-weight: normal;
+      font-size: 0.75rem;
+      margin-left: 0.35rem;
+    }
+    .portfolio-element {
+      padding: 0.35rem 0.5rem 0.35rem 0.75rem;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 0.85rem;
+      margin: 0.1rem 0;
+    }
+    .portfolio-element:hover { background: #0001; }
+    .portfolio-element.active {
+      background: color-mix(in srgb, var(--accent) 25%, transparent);
+      font-weight: 600;
+    }
+    .portfolio-element.nested {
+      margin-left: 1rem;
+      font-size: 0.82rem;
+      border-left: 2px solid var(--border);
+    }
+    .portfolio-element .meta-line {
+      color: var(--muted);
+      font-size: 0.72rem;
+      display: block;
+    }
+    #payload-editor {
+      flex: 1;
+      min-height: 10rem;
+      font-family: ui-monospace, monospace;
+      font-size: 0.8rem;
+      width: 100%;
+      resize: vertical;
+    }
+    .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .preview-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      position: relative;
+    }
+    iframe {
+      flex: 1;
+      width: 100%;
+      border: none;
+      min-height: 0;
+    }
+    .placeholder {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      background: color-mix(in srgb, Canvas 92%, transparent);
+      pointer-events: none;
+    }
+    .placeholder.visible {
+      display: flex;
+    }
+    details summary { cursor: pointer; font-size: 0.85rem; }
+    .tabs { display: flex; gap: 0.25rem; }
+    .tabs button.active { font-weight: 600; border-color: var(--accent); }
+    .warn { color: #c80; font-size: 0.85rem; }
+    #app-list, #similar-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 4px; overflow: auto; max-height: 8rem; }
+    #similar-list { border: none; max-height: none; }
+    #similar-list li { padding: 0.2rem 0; border: none; font-size: 0.8rem; }
+    #similar-list button { font-size: 0.75rem; margin-left: 0.35rem; }
+    #app-list li { padding: 0.4rem 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+    #app-list li.active { background: color-mix(in srgb, var(--accent) 25%, transparent); font-weight: 600; }
+    #draft-composition { min-height: 8rem; font-family: ui-monospace, monospace; font-size: 0.75rem; width: 100%; }
+    .hidden { display: none !important; }
+    #delete-app { color: var(--err); margin-left: auto; }
+    #close-app-detail { margin-right: auto; }
+    .detail-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.35rem; }
+    #payload-form label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; margin-bottom: 0.5rem; }
+    #payload-form input, #payload-form textarea, #payload-form select { font-size: 0.85rem; padding: 0.25rem; }
+    fieldset.date-range-field {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.55rem 0.75rem 0.65rem;
+      margin: 0 0 0.75rem;
+    }
+    fieldset.date-range-field legend {
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 0 0.35rem;
+    }
+    .date-range-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem 1rem;
+    }
+    @media (max-width: 520px) {
+      .date-range-grid { grid-template-columns: 1fr; }
+    }
+    .date-range-block > .block-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .date-part-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      align-items: center;
+    }
+    .date-part-row label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 0;
+    }
+    .date-part-row select,
+    .date-part-row input[type="number"] {
+      min-width: 4.25rem;
+    }
+    .date-range-present {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+    }
+    .date-range-preview {
+      margin-top: 0.55rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      font-family: ui-monospace, monospace;
+    }
+    .date-range-preview.error { color: var(--err); }
+    .catalog-detail-actions {
+      margin-top: 0.75rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+      position: sticky;
+      bottom: 0;
+      background: Canvas;
+      background: var(--bg, Canvas);
+    }
+    fieldset.string-list-field {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.55rem 0.75rem 0.65rem;
+      margin: 0 0 0.75rem;
+    }
+    fieldset.string-list-field legend {
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 0 0.35rem;
+    }
+    .string-list-row {
+      display: flex;
+      gap: 0.35rem;
+      align-items: center;
+      margin-bottom: 0.35rem;
+    }
+    .string-list-row input {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.85rem;
+      padding: 0.25rem;
+    }
+    .string-list-add {
+      margin-top: 0.25rem;
+      font-size: 0.85rem;
+    }
+    .string-list-remove {
+      font-size: 0.8rem;
+      flex-shrink: 0;
+    }
+    fieldset.work-location-field {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.55rem 0.75rem 0.65rem;
+      margin: 0 0 0.75rem;
+    }
+    fieldset.work-location-field legend {
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 0 0.35rem;
+    }
+    .composition-section { border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; margin-bottom: 0.5rem; }
+    .composition-section.section-off .section-body { opacity: 0.45; pointer-events: none; }
+    .section-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.35rem; flex-wrap: wrap; }
+    .section-head h4 { margin: 0; font-size: 0.85rem; text-transform: capitalize; }
+    .section-head label { font-size: 0.85rem; font-weight: 600; }
+    .comp-row { display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.35rem; font-size: 0.8rem; }
+    .comp-row .element-id { flex: 1; min-width: 8rem; font-family: ui-monospace, monospace; font-size: 0.75rem; }
+    .comp-row select { max-width: 8rem; font-size: 0.8rem; }
+    #preset-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 4px; max-height: 10rem; overflow: auto; }
+    #preset-list li { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.85rem; }
+    #preset-list li.active { background: color-mix(in srgb, var(--accent) 25%, transparent); font-weight: 600; }
+    .help { font-size: 0.8rem; color: var(--muted); margin: 0.25rem 0; }

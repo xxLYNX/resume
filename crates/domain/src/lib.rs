@@ -49,9 +49,6 @@ pub struct LegacySection {
     pub name: String,
     pub enabled: bool,
     pub template: String,
-    /// File-based test fixtures only. jobdesk resolves content from SQLite.
-    #[serde(default)]
-    pub content: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -68,7 +65,6 @@ pub enum ElementKind {
     Experience,
     Education,
     Project,
-    Skills,
     Course,
     Certification,
     Award,
@@ -82,7 +78,6 @@ impl ElementKind {
             Self::Experience => "experience",
             Self::Education => "education",
             Self::Project => "project",
-            Self::Skills => "skills",
             Self::Course => "course",
             Self::Certification => "certification",
             Self::Award => "award",

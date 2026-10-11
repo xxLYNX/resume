@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 use store::Store;
 use store::DEFAULT_THEME_ID;
 use theme::load_theme_info;
+use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 
 #[derive(Default)]
@@ -106,8 +107,10 @@ enum PreviewOutcome {
 
 pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
     let shared = Arc::new(state);
+    let static_dir = assets::static_root();
     let app = Router::new()
         .route("/", get(index))
+        .nest_service("/static", ServeDir::new(static_dir))
         .route("/api/preview", post(run_preview))
         .route("/api/preview/resume.pdf", get(get_preview_pdf))
         .route("/api/health", get(health))
@@ -188,8 +191,15 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
     Ok(())
 }
 
-async fn index() -> Html<&'static str> {
-    Html(assets::INDEX)
+async fn index() -> Result<Html<String>, (StatusCode, String)> {
+    let path = assets::static_root().join("index.html");
+    let html = tokio::fs::read_to_string(&path).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("read {}: {e}", path.display()),
+        )
+    })?;
+    Ok(Html(html))
 }
 
 async fn health() -> &'static str {

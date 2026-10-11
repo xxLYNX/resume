@@ -30,7 +30,7 @@ workspace/
 
 - [x] `elements` table: stable `id`, `kind`, `sort_order`, timestamps
 - [x] `element_revisions` table: append-only `payload_json` per element (`rev_number`)
-- [x] Element kinds: `header`, `objective`, `experience`, `education`, `project`, `skills`
+- [x] Element kinds: `header`, `objective`, `experience`, `education`, `project`, `course`, `certification`, `award`
 - [x] Payload schemas: required shapes per `ElementKind` (`validate_payload` on save/import)
 - [x] UI/rule: edit wording → **new revision** (import skips existing; `--force` appends)
 
@@ -38,7 +38,7 @@ workspace/
 
 - [ ] `skills` table: `id`, `label`, `aliases_json`, `tags_json`, `framework_refs_json`
 - [ ] Resolver expands aliases for display; one canonical id internally
-- [ ] Framework refs (O\*NET, NICE KSAs, ESCO URIs, etc.) — see [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md)
+- [ ] Framework refs (O\*NET, NICE KSAs, ESCO URIs, etc.) — see [`docs/MILESTONE_F_ROLLOUT.md`](docs/MILESTONE_F_ROLLOUT.md) F.3
 
 ### Themes & templates
 
@@ -58,7 +58,7 @@ workspace/
 - [x] `presets` table: saved compositions without posting URL
 - [x] **Application content picker** UI: per application, enable/disable **sections (collections)** and **include toggles per catalog element**; preview/submit render only included elements
 - [ ] **Submission history UI** (deferred post-E): list manifests per app; preview any past send
-- [ ] **Future collections:** tools, certifications, awards as separate kinds/sections (deferred; skills blob covers certifications text today)
+- [x] Certifications, awards, courses as portfolio kinds (PDF/composition wiring → F.2d)
 
 ### Similarity & quickfill
 
@@ -92,7 +92,7 @@ workspace/
 | `domain` | Types, composition, manifest, legacy config | [x] |
 | `store` | SQLite, migrations, import/export | [x] |
 | `resolve` | Catalog / manifest → render model | [x] default + manifest |
-| `render_tex` | MiniJinja assembly | [x] legacy build |
+| `render_tex` | MiniJinja assembly | [x] catalog resolve build |
 | `render_pdf` | Tectonic / pdflatex | [x] detect + compile |
 | `similarity` | Quickfill scoring | [x] |
 | `server` | axum API + static UI | [x] preview v1 |
@@ -192,13 +192,16 @@ Recommended order (each step is usable on its own):
 
 ## Milestone F — Skills catalog, provenance & framework refs
 
-**In progress on `dev/milestone-f` only** (not on `master` until merge). Spec: [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md).
+**In progress on `dev/milestone-f` only** (not on `master` until merge). Spec: [`docs/MILESTONE_F_ROLLOUT.md`](docs/MILESTONE_F_ROLLOUT.md).
 
-Phased: **F.1** catalog + revision skill links (what/with/for) + resolver aggregation; **F.2** inference + relationships pane; **F.3** framework import + tailoring hints.
+Phased (v10): **F.2a–F.2b** done on branch; **F.2c** relationships pane next; **F.2d** portfolio/PDF; **F.3** frameworks.
 
-- [ ] F.1 — `skill_nodes`, `revision_skill_links`, UI pickers, PDF path from pinned evidence
-- [ ] F.2 — hierarchy/inferred links, Portfolio relationships view
-- [ ] F.3 — `framework_refs` enrichment files, application overlap hints
+- [x] F.2a — schema v10, element skill links, evidence-only PDF
+- [x] F.2-cleanup — modular UI, no `skills.main`, no file-based build, schema v11
+- [ ] F.2b — skill discovery UI
+- [ ] F.2c — relationships pane
+- [ ] F.2d — cert/award/course on résumé composition
+- [ ] F.3 — `framework_refs` enrichment, application hints
 
 ---
 

@@ -8,43 +8,12 @@ use anyhow::{Context, Result};
 use domain::{LegacyConfig, MonthDisplay};
 use minijinja::{Environment, Value};
 use resolve::ResolvedSections;
-use serde_json::Value as JsonValue;
 use theme::{load_theme_info, theme_dir_for_id};
 
 pub use legacy_build::{
     hash_tex, jobdesk_build_aligned, jobdesk_build_composition_to_dir,
     jobdesk_build_resolved_to_dir, jobdesk_build_to_dir, write_build_to_dir, LegacyBuildResult,
 };
-
-/// File-based build for tests: reads YAML `content` paths from a build config fixture.
-pub fn build_legacy_resume(config_path: &Path, project_root: &Path) -> Result<String> {
-    let config_text = fs::read_to_string(config_path)
-        .with_context(|| format!("read config {}", config_path.display()))?;
-    let config: LegacyConfig =
-        serde_yaml::from_str(&config_text).context("parse build config YAML")?;
-
-    let mut resolved = ResolvedSections::new();
-    for section in &config.sections {
-        if !section.enabled {
-            continue;
-        }
-        let content_rel = section
-            .content
-            .as_deref()
-            .with_context(|| format!("section `{}` missing `content` path", section.name))?;
-        let content_path = project_root.join(content_rel);
-        let raw = fs::read_to_string(&content_path)
-            .with_context(|| format!("read content {}", content_path.display()))?;
-        let mut yaml_value: JsonValue = serde_yaml::from_str(&raw).with_context(|| {
-            format!("parse YAML content {}", content_path.display())
-        })?;
-        domain::normalize_list_section_document(&section.name, &mut yaml_value);
-        resolved.insert(section.name.clone(), yaml_value);
-    }
-
-    let (config, month_display) = load_themed_build_config(project_root, config_path, "classic")?;
-    build_resume_tex(project_root, &config, &resolved, month_display)
-}
 
 /// Apply `themes/{theme_id}/` template paths and read date display policy from `theme.toml`.
 pub fn load_themed_build_config(
@@ -220,22 +189,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn file_based_content_build_matches_golden() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let golden_path = root.join("tests/fixtures/golden_resume.tex");
-        if !golden_path.exists() {
-            return;
-        }
-
-        let golden = fs::read_to_string(&golden_path).unwrap();
-        let config = root.join("tests/fixtures/file_build.yaml");
-        let built = build_legacy_resume(&config, &root).unwrap();
-
-        assert_eq!(
-            normalize_tex(&built),
-            normalize_tex(&golden),
-            "file-based content/ build diverged from golden"
-        );
-    }
 }

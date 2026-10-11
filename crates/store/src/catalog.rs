@@ -477,7 +477,6 @@ pub fn kind_from_str(s: &str) -> Option<ElementKind> {
         "experience" => Some(ElementKind::Experience),
         "education" => Some(ElementKind::Education),
         "project" => Some(ElementKind::Project),
-        "skills" => Some(ElementKind::Skills),
         "course" => Some(ElementKind::Course),
         "certification" => Some(ElementKind::Certification),
         "award" => Some(ElementKind::Award),

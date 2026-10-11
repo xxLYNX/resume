@@ -16,8 +16,6 @@ pub enum ValidationError {
     ExpectedStringArray(&'static str),
     #[error("field `{0}` must be an object")]
     ExpectedObject(&'static str),
-    #[error("skills section requires a `skills` object")]
-    MissingSkillsObject,
     #[error("invalid date_range: {0}")]
     InvalidDateRange(#[from] crate::dates::DateError),
     #[error("field `date` is deprecated; use structured `date_range`")]
@@ -72,19 +70,6 @@ pub fn validate_payload(kind: ElementKind, payload: &Value) -> Result<(), Valida
             check_optional_string(obj, "title")?;
             check_optional_string(obj, "issuer")?;
             check_optional_date_fields(obj)?;
-        }
-        ElementKind::Skills => {
-            if !obj.contains_key("skills") {
-                return Err(ValidationError::MissingSkillsObject);
-            }
-            let skills = obj
-                .get("skills")
-                .ok_or(ValidationError::MissingSkillsObject)?;
-            let skills_obj = skills.as_object().ok_or(ValidationError::ExpectedObject("skills"))?;
-            check_optional_string(skills_obj, "certifications")?;
-            check_optional_string(skills_obj, "languages")?;
-            check_optional_string(skills_obj, "securityTools")?;
-            check_optional_string(skills_obj, "other")?;
         }
     }
 

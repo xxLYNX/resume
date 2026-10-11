@@ -45,7 +45,7 @@ tests/fixtures/       Golden LaTeX fixture for regression tests
 | [`docs/APPLICATION_LIFECYCLE.md`](docs/APPLICATION_LIFECYCLE.md) | Phase vs workflow vs Submit |
 | [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md) | Active milestone (J) + queued F |
 | [`docs/MILESTONE_J_RESUME_LIBRARY.md`](docs/MILESTONE_J_RESUME_LIBRARY.md) | Resume library, element create, UX fixes (J, active) |
-| [`docs/MILESTONE_F_SKILLS.md`](docs/MILESTONE_F_SKILLS.md) | Skills catalog & framework refs (F, after J) |
+| [`docs/MILESTONE_F_ROLLOUT.md`](docs/MILESTONE_F_ROLLOUT.md) | Skills catalog & competency model (F, branch `dev/milestone-f`) |
 | [`docs/MILESTONE_I_APPLICATION_LEDGER.md`](docs/MILESTONE_I_APPLICATION_LEDGER.md) | Application ledger metadata + PDF export (I, complete) |
 | [`themes/README.md`](themes/README.md) | Writing a theme (short) |
 | [`CHECKLIST.md`](CHECKLIST.md) | Product goals and glossary |

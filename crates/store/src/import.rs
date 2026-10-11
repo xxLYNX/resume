@@ -56,17 +56,6 @@ pub fn import_legacy_content(
         &mut stats,
     )?;
 
-    import_singleton(
-        conn,
-        &now,
-        &project_root.join("content/skills.yaml"),
-        ElementKind::Skills,
-        "skills.main",
-        0,
-        options,
-        &mut stats,
-    )?;
-
     import_list(
         conn,
         &now,

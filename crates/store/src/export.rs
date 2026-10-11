@@ -22,8 +22,6 @@ pub fn export_catalog_to_content(store: &Store, content_dir: &Path) -> Result<()
         ElementKind::Objective,
         "objective.yaml",
     )?;
-    write_singleton(store, content_dir, "skills.main", ElementKind::Skills, "skills.yaml")?;
-
     write_list(
         store,
         content_dir,

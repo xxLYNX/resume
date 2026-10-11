@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use domain::{normalize_payload_dates, ElementKind};
+use domain::{normalize_payload_dates, Composition, ElementKind};
 
 use crate::catalog::kind_from_str;
 use rusqlite::{params, Connection};
@@ -106,10 +106,59 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if version < 10 {
         migrate_competency_graph_v10(conn)?;
     }
+    if version < 11 {
+        migrate_retire_skills_main(conn)?;
+    }
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '10')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '11')",
         [],
     )?;
+    Ok(())
+}
+
+/// Drop legacy `skills.main` elements and remove composable `skills` sections from stored JSON.
+fn migrate_retire_skills_main(conn: &Connection) -> Result<()> {
+    strip_skills_sections_from_compositions(conn, "applications", "draft_composition_json")?;
+    strip_skills_sections_from_compositions(conn, "presets", "composition_json")?;
+
+    let skill_ids: Vec<String> = conn
+        .prepare("SELECT id FROM elements WHERE kind = 'skills'")?
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<_, _>>()?;
+    for id in skill_ids {
+        conn.execute(
+            "DELETE FROM element_revisions WHERE element_id = ?1",
+            params![id],
+        )?;
+        conn.execute("DELETE FROM elements WHERE id = ?1", params![id])?;
+    }
+    Ok(())
+}
+
+fn strip_skills_sections_from_compositions(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+) -> Result<()> {
+    let sql = format!("SELECT id, {column} FROM {table}");
+    let mut stmt = conn.prepare(&sql)?;
+    let rows: Vec<(String, String)> = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<Result<_, _>>()?;
+    for (id, json) in rows {
+        let mut composition: Composition =
+            serde_json::from_str(&json).with_context(|| format!("parse {table}.{column} `{id}`"))?;
+        let before = composition.sections.len();
+        composition
+            .sections
+            .retain(|s| s.section_key != "skills");
+        if composition.sections.len() == before {
+            continue;
+        }
+        let updated = serde_json::to_string(&composition)?;
+        let update = format!("UPDATE {table} SET {column} = ?1 WHERE id = ?2");
+        conn.execute(&update, params![updated, id])?;
+    }
     Ok(())
 }
 
