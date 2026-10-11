@@ -272,6 +272,7 @@ async fn main() -> Result<()> {
                         kind,
                         id,
                         payload: payload_value,
+                        parent_element_id: None,
                     })?;
                     println!(
                         "{}",

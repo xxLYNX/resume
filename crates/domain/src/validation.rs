@@ -61,6 +61,17 @@ pub fn validate_payload(kind: ElementKind, payload: &Value) -> Result<(), Valida
         ElementKind::Course => {
             check_optional_string(obj, "name")?;
             check_optional_string(obj, "code")?;
+            check_optional_date_fields(obj)?;
+        }
+        ElementKind::Certification => {
+            check_optional_string(obj, "name")?;
+            check_optional_string(obj, "issuer")?;
+            check_optional_date_fields(obj)?;
+        }
+        ElementKind::Award => {
+            check_optional_string(obj, "title")?;
+            check_optional_string(obj, "issuer")?;
+            check_optional_date_fields(obj)?;
         }
         ElementKind::Skills => {
             if !obj.contains_key("skills") {

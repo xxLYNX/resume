@@ -70,6 +70,8 @@ pub enum ElementKind {
     Project,
     Skills,
     Course,
+    Certification,
+    Award,
 }
 
 impl ElementKind {
@@ -82,6 +84,8 @@ impl ElementKind {
             Self::Project => "project",
             Self::Skills => "skills",
             Self::Course => "course",
+            Self::Certification => "certification",
+            Self::Award => "award",
         }
     }
 }

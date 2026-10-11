@@ -70,30 +70,55 @@
       max-height: 8rem;
       white-space: pre-wrap;
     }
-    #element-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
+    #portfolio-groups {
       overflow: auto;
       flex: 1;
       min-height: 6rem;
       border: 1px solid var(--border);
       border-radius: 4px;
+      padding: 0.25rem 0.35rem;
     }
-    #element-list li {
-      padding: 0.4rem 0.5rem;
-      cursor: pointer;
+    #portfolio-groups details.portfolio-collection {
+      margin: 0.2rem 0;
       border-bottom: 1px solid var(--border);
-      font-size: 0.85rem;
     }
-    #element-list li:hover { background: #0001; }
-    #element-list li.active {
+    #portfolio-groups details.portfolio-collection:last-child {
+      border-bottom: none;
+    }
+    #portfolio-groups summary {
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 0.35rem 0.25rem;
+      list-style: none;
+    }
+    #portfolio-groups summary::-webkit-details-marker { display: none; }
+    #portfolio-groups .portfolio-count {
+      color: var(--muted);
+      font-weight: normal;
+      font-size: 0.75rem;
+      margin-left: 0.35rem;
+    }
+    .portfolio-element {
+      padding: 0.35rem 0.5rem 0.35rem 0.75rem;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 0.85rem;
+      margin: 0.1rem 0;
+    }
+    .portfolio-element:hover { background: #0001; }
+    .portfolio-element.active {
       background: color-mix(in srgb, var(--accent) 25%, transparent);
       font-weight: 600;
     }
-    #element-list .kind {
+    .portfolio-element.nested {
+      margin-left: 1rem;
+      font-size: 0.82rem;
+      border-left: 2px solid var(--border);
+    }
+    .portfolio-element .meta-line {
       color: var(--muted);
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       display: block;
     }
     #payload-editor {
@@ -295,31 +320,22 @@
   <main>
     <section class="panel" id="panel-catalog" aria-label="Portfolio">
       <div class="row">
-        <label>Kind
-          <select id="kind-filter">
-            <option value="">All</option>
-            <option value="header">header</option>
-            <option value="objective">objective</option>
-            <option value="education">education</option>
-            <option value="experience">experience</option>
-            <option value="project">project</option>
-            <option value="skills">skills</option>
-          </select>
-        </label>
         <button type="button" id="reload-catalog">Reload</button>
         <label class="meta">New
           <select id="new-entry-kind">
-            <option value="experience">experience</option>
-            <option value="education">education</option>
-            <option value="project">project</option>
-            <option value="header">header</option>
+            <option value="header">contact</option>
             <option value="objective">objective</option>
-            <option value="skills">skills</option>
+            <option value="experience">experience</option>
+            <option value="project">project</option>
+            <option value="education">education program</option>
+            <option value="course">class (under a program)</option>
+            <option value="certification">certification</option>
+            <option value="award">award</option>
           </select>
         </label>
         <button type="button" id="new-catalog-entry">New entry</button>
       </div>
-      <p class="help">List filter is for browsing; <strong>New</strong> uses the kind beside New entry.</p>
+      <p class="help">Collections are grouped below (collapsed by default). Entries sort by timeline: ongoing first, then most recent.</p>
       <details id="skill-catalog-details" style="margin:0.5rem 0">
         <summary class="meta">Skill catalog</summary>
         <p class="meta" id="skill-catalog-status">Loading…</p>
@@ -327,7 +343,7 @@
       </details>
       <div id="catalog-list-body">
         <p class="meta" id="catalog-status">Loading portfolio…</p>
-        <ul id="element-list"></ul>
+        <div id="portfolio-groups"></div>
       </div>
       <div id="catalog-element-detail" class="hidden">
         <div class="detail-head">
@@ -340,6 +356,12 @@
               placeholder="experience.acme-2024" style="width:100%;margin-top:0.25rem;font-family:ui-monospace,monospace" />
           </label>
           <p class="help">Stable catalog key (used in compositions). <strong>Not printed on the PDF</strong> — company, title, project name, etc. below are what appear on the resume. You can edit this id before Create; suggested from your labels when possible.</p>
+        </div>
+        <div id="catalog-create-parent-row" class="hidden">
+          <label class="meta">Education program (parent)
+            <select id="catalog-parent-element" style="width:100%;margin-top:0.25rem"></select>
+          </label>
+          <p class="help">Classes link competencies/tools to a specific program, not the whole degree span.</p>
         </div>
         <div id="payload-form" hidden></div>
         <div id="skill-links-panel" class="hidden">
@@ -524,8 +546,19 @@
     const iframe = document.getElementById("pdf");
     const placeholder = document.getElementById("placeholder");
     const rebuildBtn = document.getElementById("rebuild");
-    const kindFilter = document.getElementById("kind-filter");
-    const elementList = document.getElementById("element-list");
+    const portfolioGroups = document.getElementById("portfolio-groups");
+    const catalogCreateParentRow = document.getElementById("catalog-create-parent-row");
+    const catalogParentElementSelect = document.getElementById("catalog-parent-element");
+
+    const PORTFOLIO_COLLECTIONS = [
+      { id: "contact", label: "Contact", kinds: ["header"] },
+      { id: "objective", label: "Objective", kinds: ["objective"] },
+      { id: "experience", label: "Professional experience", kinds: ["experience"] },
+      { id: "projects", label: "Projects", kinds: ["project"] },
+      { id: "education", label: "Education", kinds: ["education"], nestedKind: "course" },
+      { id: "certifications", label: "Certifications", kinds: ["certification"] },
+      { id: "awards", label: "Awards", kinds: ["award"] },
+    ];
     const revisionSelect = document.getElementById("revision-select");
     const payloadEditor = document.getElementById("payload-editor");
     const saveBtn = document.getElementById("save-revision");
@@ -853,10 +886,112 @@
 
     async function refreshCatalogByKind() {
       catalogByKind = {};
-      for (const kind of ["header", "objective", "education", "experience", "project", "skills"]) {
+      const kinds = [
+        "header",
+        "objective",
+        "education",
+        "experience",
+        "project",
+        "course",
+        "certification",
+        "award",
+      ];
+      for (const kind of kinds) {
         const res = await fetch(`/api/catalog/elements?kind=${encodeURIComponent(kind)}`);
         if (res.ok) catalogByKind[kind] = await res.json();
       }
+    }
+
+    function sortByTimeline(elements) {
+      return [...(elements || [])].sort(
+        (a, b) => (b.timeline_sort_key || 0) - (a.timeline_sort_key || 0),
+      );
+    }
+
+    function clearPortfolioActive() {
+      for (const row of portfolioGroups.querySelectorAll(".portfolio-element")) {
+        row.classList.remove("active");
+      }
+    }
+
+    function setPortfolioActive(id) {
+      clearPortfolioActive();
+      const row = portfolioGroups.querySelector(`.portfolio-element[data-id="${CSS.escape(id)}"]`);
+      if (row) row.classList.add("active");
+    }
+
+    function renderPortfolioElement(el, { nested = false } = {}) {
+      const row = document.createElement("div");
+      row.className = "portfolio-element" + (nested ? " nested" : "");
+      row.dataset.id = el.id;
+      const title = el.display_label || el.id;
+      row.innerHTML = `<span class="meta-line">${el.kind} · rev ${el.latest_rev_number}</span>${title}`;
+      row.addEventListener("click", () => selectElement(el.id));
+      return row;
+    }
+
+    function renderPortfolioGroups() {
+      portfolioGroups.innerHTML = "";
+      let total = 0;
+      for (const col of PORTFOLIO_COLLECTIONS) {
+        const items = [];
+        for (const kind of col.kinds) {
+          const list = catalogByKind[kind] || [];
+          if (col.id === "education") {
+            items.push(...list.filter((el) => !el.parent_element_id));
+          } else {
+            items.push(...list);
+          }
+        }
+        const sorted = sortByTimeline(items);
+        const courses = col.nestedKind ? sortByTimeline(catalogByKind[col.nestedKind] || []) : [];
+        if (sorted.length === 0 && courses.length === 0) continue;
+        total += sorted.length + courses.length;
+
+        const details = document.createElement("details");
+        details.className = "portfolio-collection";
+        const summary = document.createElement("summary");
+        summary.innerHTML = `${col.label}<span class="portfolio-count">${sorted.length + (col.nestedKind ? ` + ${courses.length} classes` : "")}</span>`;
+        details.appendChild(summary);
+
+        for (const el of sorted) {
+          details.appendChild(renderPortfolioElement(el));
+          if (col.nestedKind) {
+            const kids = courses.filter((c) => c.parent_element_id === el.id);
+            for (const course of kids) {
+              details.appendChild(renderPortfolioElement(course, { nested: true }));
+            }
+          }
+        }
+        // Orphan courses (missing parent)
+        if (col.nestedKind) {
+          const orphans = courses.filter(
+            (c) => !sorted.some((p) => p.id === c.parent_element_id),
+          );
+          for (const course of orphans) {
+            details.appendChild(renderPortfolioElement(course, { nested: true }));
+          }
+        }
+        portfolioGroups.appendChild(details);
+      }
+      return total;
+    }
+
+    function fillEducationParentSelect() {
+      catalogParentElementSelect.innerHTML = "";
+      const programs = sortByTimeline(catalogByKind.education || []);
+      for (const el of programs) {
+        const opt = document.createElement("option");
+        opt.value = el.id;
+        opt.textContent = el.display_label ? `${el.display_label} (${el.id})` : el.id;
+        catalogParentElementSelect.appendChild(opt);
+      }
+    }
+
+    function syncCreateParentRow(kind) {
+      const show = kind === "course";
+      catalogCreateParentRow.classList.toggle("hidden", !show);
+      if (show) fillEducationParentSelect();
     }
 
     async function getElementDetail(id) {
@@ -1362,6 +1497,7 @@
       catalogListBody.classList.remove("hidden");
       catalogElementDetail.classList.add("hidden");
       catalogCreateIdRow.classList.add("hidden");
+      catalogCreateParentRow.classList.add("hidden");
       createElementBtn.classList.add("hidden");
       deleteElementBtn.classList.add("hidden");
       saveBtn.classList.remove("hidden");
@@ -1371,7 +1507,7 @@
       payloadEditor.disabled = true;
       payloadEditor.value = "";
       payloadForm.innerHTML = "";
-      for (const li of elementList.querySelectorAll("li")) li.classList.remove("active");
+      clearPortfolioActive();
     }
 
     async function openNewElementForm(kind) {
@@ -1392,6 +1528,7 @@
       selectedElementKind = kind;
       syncWorkdayFillButtonVisibility(kind);
       syncSkillLinksPanelVisibility(kind);
+      syncCreateParentRow(kind);
       setSkillLinkSelections([]);
       catalogStatus.textContent = "";
       catalogStatus.classList.remove("error");
@@ -1403,7 +1540,7 @@
       await renderPayloadForm(kind, payload);
       syncCatalogEditorVisibility();
       catalogElementIdInput.value = suggestElementIdFromPayload(kind, payload);
-      for (const li of elementList.querySelectorAll("li")) li.classList.remove("active");
+      clearPortfolioActive();
       syncIncludeInAppWrap();
     }
 
@@ -1727,6 +1864,33 @@
           return { name: "", email: "", phone: "" };
         case "objective":
           return { objective: "" };
+        case "course":
+          return {
+            name: "",
+            code: "",
+            date_range: {
+              start: { year: 2024, month: 1 },
+              end: { kind: "date", date: { year: 2024, month: 5 } },
+            },
+          };
+        case "certification":
+          return {
+            name: "",
+            issuer: "",
+            date_range: {
+              start: { year: 2024, month: 1 },
+              end: { kind: "date", date: { year: 2026, month: 12 } },
+            },
+          };
+        case "award":
+          return {
+            title: "",
+            issuer: "",
+            date_range: {
+              start: { year: 2020, month: 1 },
+              end: { kind: "date", date: { year: 2020, month: 6 } },
+            },
+          };
         default:
           return {};
       }
@@ -1735,25 +1899,10 @@
     async function loadCatalog() {
       catalogStatus.classList.remove("error");
       catalogStatus.textContent = "Loading…";
-      elementList.innerHTML = "";
-      const kind = kindFilter.value;
-      const url = kind ? `/api/catalog/elements?kind=${encodeURIComponent(kind)}` : "/api/catalog/elements";
       try {
-        const res = await fetch(url);
-        const data = await res.json();
-        if (!res.ok) {
-          catalogStatus.textContent = data.error || "Failed to load portfolio";
-          catalogStatus.classList.add("error");
-          return;
-        }
-        catalogStatus.textContent = `${data.length} entr${data.length === 1 ? "y" : "ies"}`;
-        for (const el of data) {
-          const li = document.createElement("li");
-          li.dataset.id = el.id;
-          li.innerHTML = `<span class="kind">${el.kind} · rev ${el.latest_rev_number}</span>${el.id}`;
-          li.addEventListener("click", () => selectElement(el.id));
-          elementList.appendChild(li);
-        }
+        await refreshCatalogByKind();
+        const total = renderPortfolioGroups();
+        catalogStatus.textContent = `${total} entr${total === 1 ? "y" : "ies"} in collections`;
       } catch (e) {
         catalogStatus.textContent = String(e);
         catalogStatus.classList.add("error");
@@ -2331,7 +2480,9 @@
         kind === "experience" ||
         kind === "project" ||
         kind === "education" ||
-        kind === "course";
+        kind === "course" ||
+        kind === "certification" ||
+        kind === "award";
       skillLinksPanel.classList.toggle("hidden", !show);
     }
 
@@ -2400,7 +2551,9 @@
         kind !== "experience" &&
         kind !== "project" &&
         kind !== "education" &&
-        kind !== "course"
+        kind !== "course" &&
+        kind !== "certification" &&
+        kind !== "award"
       ) {
         return;
       }
@@ -2427,14 +2580,13 @@
       catalogListBody.classList.add("hidden");
       catalogElementDetail.classList.remove("hidden");
       catalogCreateIdRow.classList.add("hidden");
+      catalogCreateParentRow.classList.add("hidden");
       createElementBtn.classList.add("hidden");
       deleteElementBtn.classList.remove("hidden");
       saveBtn.classList.remove("hidden");
       catalogRevisionLabel.classList.remove("hidden");
       catalogCreateHint.classList.add("hidden");
-      for (const li of elementList.querySelectorAll("li")) {
-        li.classList.toggle("active", li.dataset.id === id);
-      }
+      setPortfolioActive(id);
       const res = await fetch(`/api/catalog/elements/${encodeURIComponent(id)}`);
       const detail = await res.json();
       if (!res.ok) {
@@ -3182,10 +3334,20 @@
       createElementBtn.disabled = true;
       catalogStatus.textContent = "Creating…";
       try {
+        const body = { id, kind, payload };
+        if (kind === "course") {
+          body.parent_element_id = catalogParentElementSelect.value;
+          if (!body.parent_element_id) {
+            catalogStatus.textContent = "Choose an education program for this class";
+            catalogStatus.classList.add("error");
+            createElementBtn.disabled = false;
+            return;
+          }
+        }
         const res = await fetch("/api/catalog/elements", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, kind, payload }),
+          body: JSON.stringify(body),
         });
         const detail = await res.json();
         if (!res.ok) {
@@ -3240,7 +3402,6 @@
       }
     }
 
-    kindFilter.addEventListener("change", loadCatalog);
     reloadCatalogBtn.addEventListener("click", loadCatalog);
     rebuildBtn.addEventListener("click", rebuild);
     previewThemeSelect.addEventListener("change", () => {

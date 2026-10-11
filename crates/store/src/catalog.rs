@@ -15,6 +15,13 @@ pub struct ElementSummary {
     pub created_at: String,
     pub latest_rev_number: i64,
     pub latest_revision_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_element_id: Option<String>,
+    /// Higher sorts first (present/ongoing at top, then recent end dates).
+    #[serde(default)]
+    pub timeline_sort_key: i64,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub display_label: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -52,6 +59,8 @@ pub struct CreateElementRequest {
     pub id: String,
     pub kind: String,
     pub payload: Value,
+    #[serde(default)]
+    pub parent_element_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -89,7 +98,13 @@ impl Store {
                       SELECT r2.id FROM element_revisions r2
                       WHERE r2.element_id = e.id
                       ORDER BY r2.rev_number DESC LIMIT 1
-                    ) AS latest_revision_id
+                    ) AS latest_revision_id,
+                    e.parent_element_id,
+                    (
+                      SELECT r3.payload_json FROM element_revisions r3
+                      WHERE r3.element_id = e.id
+                      ORDER BY r3.rev_number DESC LIMIT 1
+                    ) AS latest_payload_json
              FROM elements e
              LEFT JOIN element_revisions r ON r.element_id = e.id
              WHERE 1=1",
@@ -301,9 +316,23 @@ impl Store {
             |row| row.get(0),
         )?;
 
+        if let Some(parent) = req.parent_element_id.as_deref() {
+            let parent_kind: String = conn.query_row(
+                "SELECT kind FROM elements WHERE id = ?1",
+                [parent],
+                |row| row.get(0),
+            )?;
+            if req.kind == "course" && parent_kind != "education" {
+                anyhow::bail!("course parent must be an education element");
+            }
+        } else if req.kind == "course" {
+            anyhow::bail!("course elements require parent_element_id (education program)");
+        }
+
         conn.execute(
-            "INSERT INTO elements (id, kind, created_at, sort_order) VALUES (?1, ?2, ?3, ?4)",
-            params![id, req.kind, now, sort_order],
+            "INSERT INTO elements (id, kind, created_at, sort_order, parent_element_id)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, req.kind, now, sort_order, req.parent_element_id],
         )?;
 
         let rev_id = Uuid::new_v4().to_string();
@@ -355,13 +384,72 @@ impl Store {
 }
 
 fn map_element_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<ElementSummary> {
+    let kind: String = row.get(1)?;
+    let payload_json: Option<String> = row.get(6)?;
+    let (timeline_sort_key, display_label) = payload_json
+        .as_deref()
+        .map(|raw| {
+            let payload: Value = serde_json::from_str(raw).unwrap_or(Value::Null);
+            (
+                timeline_end_sort_key(&payload).unwrap_or(0),
+                display_label_for_payload(&kind, &payload),
+            )
+        })
+        .unwrap_or((0, String::new()));
     Ok(ElementSummary {
         id: row.get(0)?,
-        kind: row.get(1)?,
+        kind,
         created_at: row.get(2)?,
         latest_rev_number: row.get(3)?,
         latest_revision_id: row.get(4)?,
+        parent_element_id: row.get(5)?,
+        timeline_sort_key,
+        display_label,
     })
+}
+
+fn display_label_for_payload(kind: &str, payload: &Value) -> String {
+    let obj = payload.as_object();
+    let pick = |keys: &[&str]| -> String {
+        for k in keys {
+            if let Some(s) = obj.and_then(|o| o.get(*k)).and_then(|v| v.as_str()) {
+                let t = s.trim();
+                if !t.is_empty() {
+                    return t.to_string();
+                }
+            }
+        }
+        String::new()
+    };
+    match kind {
+        "header" => pick(&["name"]),
+        "objective" => "Objective".to_string(),
+        "experience" => pick(&["position", "company"]),
+        "project" => pick(&["name"]),
+        "education" => pick(&["degree", "school"]),
+        "course" => pick(&["name", "code"]),
+        "certification" => pick(&["name"]),
+        "award" => pick(&["title"]),
+        _ => String::new(),
+    }
+}
+
+/// Sort key for portfolio timeline: ongoing/present first, then most recent end dates.
+fn timeline_end_sort_key(payload: &Value) -> Option<i64> {
+    let range = payload.get("date_range")?;
+    let end = range.get("end")?;
+    match end.get("kind").and_then(|v| v.as_str()) {
+        Some("present") => Some(999_999_99),
+        Some("date") => calendar_sort_key(end.get("date")?),
+        _ => None,
+    }
+}
+
+fn calendar_sort_key(date: &Value) -> Option<i64> {
+    let year = date.get("year")?.as_i64()?;
+    let month = date.get("month").and_then(|v| v.as_i64()).unwrap_or(12);
+    let day = date.get("day").and_then(|v| v.as_i64()).unwrap_or(28);
+    Some(year * 10_000 + month * 100 + day)
 }
 
 trait OptionalExt<T> {
@@ -391,6 +479,8 @@ pub fn kind_from_str(s: &str) -> Option<ElementKind> {
         "project" => Some(ElementKind::Project),
         "skills" => Some(ElementKind::Skills),
         "course" => Some(ElementKind::Course),
+        "certification" => Some(ElementKind::Certification),
+        "award" => Some(ElementKind::Award),
         _ => None,
     }
 }
