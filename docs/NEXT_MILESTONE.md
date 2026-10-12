@@ -23,7 +23,8 @@ git reset --hard master
 | **F.2b** | Skill discovery (typeahead, payload scan, create tools) |
 | **F.2c** | Relationships pane |
 | **F.2d** | Cert/award on PDF; courses under education |
-| **F.3** | **Next:** framework import; tailoring hints |
+| **F.3a** | `tag` kind, toolbelt PDF, bundled `catalog_seed.json`, schema v12 |
+| **F.3b** | **Next:** `framework_refs` import; application posting hints |
 
 Full checklists: [`MILESTONE_F_ROLLOUT.md`](MILESTONE_F_ROLLOUT.md).
 

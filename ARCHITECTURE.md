@@ -34,11 +34,11 @@ workspace/
 - [x] Payload schemas: required shapes per `ElementKind` (`validate_payload` on save/import)
 - [x] UI/rule: edit wording → **new revision** (import skips existing; `--force` appends)
 
-### Skills (lightweight association) — **Milestone F**
+### Skills catalog & evidence — **Milestone F**
 
-- [ ] `skills` table: `id`, `label`, `aliases_json`, `tags_json`, `framework_refs_json`
-- [ ] Resolver expands aliases for display; one canonical id internally
-- [ ] Framework refs (O\*NET, NICE KSAs, ESCO URIs, etc.) — see [`docs/MILESTONE_F_ROLLOUT.md`](docs/MILESTONE_F_ROLLOUT.md) F.3
+- [x] `skill_nodes` (tool / competency / tag), `element_skill_links`, `tool_competency_edges`
+- [x] PDF **toolbelt** section: deduped labels from pinned evidence (not a parallel skills blob)
+- [ ] `framework_refs_json` enrichment — see [`docs/MILESTONE_F_ROLLOUT.md`](docs/MILESTONE_F_ROLLOUT.md) F.3b
 
 ### Themes & templates
 
@@ -194,14 +194,15 @@ Recommended order (each step is usable on its own):
 
 **In progress on `dev/milestone-f` only** (not on `master` until merge). Spec: [`docs/MILESTONE_F_ROLLOUT.md`](docs/MILESTONE_F_ROLLOUT.md).
 
-Phased (v10): **F.2a–F.2b** done on branch; **F.2c** relationships pane next; **F.2d** portfolio/PDF; **F.3** frameworks.
+Phased (v10–v12): **F.2** done on branch; **F.3a** toolbelt + tag kind; **F.3b** frameworks next.
 
-- [x] F.2a — schema v10, element skill links, evidence-only PDF
+- [x] F.2a — schema v10, element skill links, evidence-only skills projection
 - [x] F.2-cleanup — modular UI, no `skills.main`, no file-based build, schema v11
 - [x] F.2b — skill discovery UI
 - [x] F.2c — relationships pane
 - [x] F.2d — cert/award on résumé composition; courses under education
-- [ ] F.3 — `framework_refs` enrichment, application hints
+- [x] F.3a — `tag` kind, toolbelt PDF, `catalog_seed.json`, schema v12
+- [ ] F.3b — `framework_refs` enrichment, application hints
 
 ---
 

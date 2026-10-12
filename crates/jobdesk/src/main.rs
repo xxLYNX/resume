@@ -100,9 +100,9 @@ enum CatalogCommands {
 
 #[derive(Subcommand)]
 enum SkillsCommands {
-    /// Upsert skill nodes from a JSON array (`data/skills_seed.json`)
+    /// Upsert skill nodes from a JSON array (`data/catalog_seed.json`)
     Import {
-        #[arg(long, default_value = "data/skills_seed.json")]
+        #[arg(long, default_value = "data/catalog_seed.json")]
         file: PathBuf,
     },
     /// Write docs/LEGACY_SKILLS_INVENTORY.md from skills.yaml and element technologies (no DB writes)
