@@ -49,6 +49,9 @@ pub struct LegacySection {
     pub name: String,
     pub enabled: bool,
     pub template: String,
+    /// Optional PDF section heading (from theme.toml `title`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section_title: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

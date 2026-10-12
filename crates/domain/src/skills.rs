@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-/// Catalog node kinds (tool = how, competency = what).
-pub const SKILL_KINDS: &[&str] = &["tool", "competency"];
+/// Catalog node kinds: tool (how), competency (what), tag (other / standards / niche labels).
+pub const SKILL_KINDS: &[&str] = &["tool", "competency", "tag"];
 
-/// Classic PDF skill line keys in `skills.*` render context.
+/// Legacy PDF bucket keys (deprecated; toolbelt uses flat tag list).
 pub const PDF_SKILL_GROUPS: &[&str] = &["languages", "securityTools", "certifications", "other"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -11,6 +11,7 @@ pub const PDF_SKILL_GROUPS: &[&str] = &["languages", "securityTools", "certifica
 pub enum SkillKind {
     Tool,
     Competency,
+    Tag,
 }
 
 impl SkillKind {
@@ -18,6 +19,7 @@ impl SkillKind {
         match self {
             Self::Tool => "tool",
             Self::Competency => "competency",
+            Self::Tag => "tag",
         }
     }
 
@@ -25,6 +27,7 @@ impl SkillKind {
         match s {
             "tool" | "with" => Some(Self::Tool),
             "competency" | "what" => Some(Self::Competency),
+            "tag" | "other" => Some(Self::Tag),
             _ => None,
         }
     }
@@ -39,7 +42,7 @@ pub struct SkillNode {
     pub parent_id: Option<String>,
     #[serde(default)]
     pub aliases: Vec<String>,
-    /// Which classic PDF groups this label appears under when aggregated.
+    /// Deprecated presentation hint (pre–toolbelt themes). Ignored for `tag` nodes.
     #[serde(default, rename = "pdf_groups")]
     pub pdf_groups: Vec<String>,
     #[serde(default, skip_serializing_if = "serde_json::Value::is_null")]
@@ -91,8 +94,10 @@ pub fn validate_skill_node(node: &SkillNode) -> Result<(), SkillError> {
     if node.label.trim().is_empty() {
         return Err(SkillError::InvalidId("empty label".into()));
     }
-    for g in &node.pdf_groups {
-        validate_pdf_group(g)?;
+    if node.kind != SkillKind::Tag {
+        for g in &node.pdf_groups {
+            validate_pdf_group(g)?;
+        }
     }
     Ok(())
 }
@@ -121,6 +126,8 @@ mod tests {
     fn legacy_kind_strings_parse() {
         assert_eq!(SkillKind::parse("with"), Some(SkillKind::Tool));
         assert_eq!(SkillKind::parse("what"), Some(SkillKind::Competency));
+        assert_eq!(SkillKind::parse("tag"), Some(SkillKind::Tag));
+        assert_eq!(SkillKind::parse("other"), Some(SkillKind::Tag));
     }
 
     #[test]

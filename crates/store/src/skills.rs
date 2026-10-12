@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use anyhow::{Context, Result};
 use domain::{
@@ -256,8 +256,8 @@ impl Store {
         Ok(rows)
     }
 
-    /// Aggregate asserted skill labels from pinned elements into classic PDF groups.
-    pub fn aggregate_skills_pdf_context(&self, composition: &Composition) -> Result<Value> {
+    /// Deduped catalog labels from asserted links on pinned evidence elements (all kinds).
+    pub fn aggregate_toolbelt_tags(&self, composition: &Composition) -> Result<Vec<String>> {
         const EVIDENCE_SECTIONS: &[&str] = &[
             "experience",
             "projects",
@@ -265,7 +265,7 @@ impl Store {
             "certifications",
             "awards",
         ];
-        let mut by_group: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut labels: BTreeSet<String> = BTreeSet::new();
         let mut seen_elements: BTreeSet<String> = BTreeSet::new();
 
         for section in &composition.sections {
@@ -276,43 +276,36 @@ impl Store {
                 if !seen_elements.insert(item.element_id.clone()) {
                     continue;
                 }
-                let links = self.get_element_skill_links(&item.element_id)?;
-                for row in links {
-                    if row.source != "asserted" {
-                        continue;
-                    }
-                    let node = self
-                        .get_skill_node(&row.skill_id)?
-                        .with_context(|| format!("missing skill `{}`", row.skill_id))?;
-                    let groups = if node.pdf_groups.is_empty() {
-                        vec!["other".to_string()]
-                    } else {
-                        node.pdf_groups.clone()
-                    };
-                    for g in groups {
-                        by_group
-                            .entry(g)
-                            .or_default()
-                            .insert(node.label.clone());
-                    }
-                }
+                self.collect_asserted_skill_labels(&item.element_id, &mut labels)?;
             }
         }
 
-        self.aggregate_course_element_skills(&seen_elements, &mut by_group)?;
-
-        let mut skills_obj = serde_json::Map::new();
-        for (group, labels) in by_group {
-            let joined = labels.into_iter().collect::<Vec<_>>().join(", ");
-            skills_obj.insert(group, Value::String(joined));
-        }
-        Ok(json!({ "skills": Value::Object(skills_obj) }))
+        self.collect_course_skill_labels(&seen_elements, &mut labels)?;
+        Ok(labels.into_iter().collect())
     }
 
-    fn aggregate_course_element_skills(
+    fn collect_asserted_skill_labels(
+        &self,
+        element_id: &str,
+        labels: &mut BTreeSet<String>,
+    ) -> Result<()> {
+        let links = self.get_element_skill_links(element_id)?;
+        for row in links {
+            if row.source != "asserted" {
+                continue;
+            }
+            let node = self
+                .get_skill_node(&row.skill_id)?
+                .with_context(|| format!("missing skill `{}`", row.skill_id))?;
+            labels.insert(node.label.clone());
+        }
+        Ok(())
+    }
+
+    fn collect_course_skill_labels(
         &self,
         pinned_elements: &BTreeSet<String>,
-        by_group: &mut BTreeMap<String, BTreeSet<String>>,
+        labels: &mut BTreeSet<String>,
     ) -> Result<()> {
         let conn = self.connection();
         let mut stmt = conn.prepare(
@@ -330,26 +323,7 @@ impl Store {
             if !include {
                 continue;
             }
-            let links = self.get_element_skill_links(&element_id)?;
-            for row in links {
-                if row.source != "asserted" {
-                    continue;
-                }
-                let node = self
-                    .get_skill_node(&row.skill_id)?
-                    .with_context(|| format!("missing skill `{}`", row.skill_id))?;
-                let groups = if node.pdf_groups.is_empty() {
-                    vec!["other".to_string()]
-                } else {
-                    node.pdf_groups.clone()
-                };
-                for g in groups {
-                    by_group
-                        .entry(g)
-                        .or_default()
-                        .insert(node.label.clone());
-                }
-            }
+            self.collect_asserted_skill_labels(&element_id, labels)?;
         }
         Ok(())
     }
@@ -381,9 +355,15 @@ pub fn seed_skill_nodes_if_empty(conn: &Connection) -> Result<()> {
     if count > 0 {
         return Ok(());
     }
-    let raw = include_str!("../../../data/skills_seed.json");
-    let nodes: Vec<SkillNode> = serde_json::from_str(raw).context("parse embedded skills_seed")?;
+    upsert_catalog_seed(conn)
+}
+
+/// Merge bundled catalog nodes (insert or update by id). Used on fresh DB and migration v12+.
+pub fn upsert_catalog_seed(conn: &Connection) -> Result<()> {
+    let raw = include_str!("../../../data/catalog_seed.json");
+    let nodes: Vec<SkillNode> = serde_json::from_str(raw).context("parse catalog_seed")?;
     for node in nodes {
+        validate_skill_node(&node)?;
         let aliases = serde_json::to_string(&node.aliases)?;
         let pdf_groups = serde_json::to_string(&node.pdf_groups)?;
         let framework_refs = if node.framework_refs.is_null() {
@@ -393,7 +373,13 @@ pub fn seed_skill_nodes_if_empty(conn: &Connection) -> Result<()> {
         };
         conn.execute(
             "INSERT INTO skill_nodes (id, kind, label, parent_id, aliases_json, pdf_groups_json, framework_refs_json)
-             VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6)",
+             VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6)
+             ON CONFLICT(id) DO UPDATE SET
+               kind = excluded.kind,
+               label = excluded.label,
+               aliases_json = excluded.aliases_json,
+               pdf_groups_json = excluded.pdf_groups_json,
+               framework_refs_json = excluded.framework_refs_json",
             params![
                 node.id,
                 node.kind.as_str(),

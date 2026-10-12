@@ -109,10 +109,18 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if version < 11 {
         migrate_retire_skills_main(conn)?;
     }
+    if version < 12 {
+        migrate_catalog_seed_v12(conn)?;
+    }
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '11')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '12')",
         [],
     )?;
+    Ok(())
+}
+
+fn migrate_catalog_seed_v12(conn: &Connection) -> Result<()> {
+    crate::skills::upsert_catalog_seed(conn)?;
     Ok(())
 }
 
