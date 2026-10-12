@@ -1,12 +1,13 @@
     async function loadSkillNodes() {
-      for (const kind of ["tool", "competency"]) {
+      for (const kind of ["tool", "competency", "tag"]) {
         const res = await fetch(`/api/skills/nodes?kind=${encodeURIComponent(kind)}`);
         skillNodesCache[kind] = res.ok ? await res.json() : [];
       }
       fillSkillSelect(skillLinksTool, skillNodesCache.tool);
       fillSkillSelect(skillLinksCompetency, skillNodesCache.competency);
+      if (skillLinksTag) fillSkillSelect(skillLinksTag, skillNodesCache.tag);
       skillNodeList.innerHTML = "";
-      const all = [...skillNodesCache.tool, ...skillNodesCache.competency];
+      const all = [...skillNodesCache.tool, ...skillNodesCache.competency, ...skillNodesCache.tag];
       skillCatalogStatus.textContent = `${all.length} skill(s)`;
       for (const node of all.sort((a, b) => a.label.localeCompare(b.label))) {
         const li = document.createElement("li");
@@ -37,7 +38,7 @@
     }
 
     function setSkillLinkSelections(rows) {
-      const byKind = { tool: new Set(), competency: new Set() };
+      const byKind = { tool: new Set(), competency: new Set(), tag: new Set() };
       for (const row of rows || []) {
         if (row.source !== "asserted") continue;
         if (byKind[row.kind]) byKind[row.kind].add(row.skill_id);
@@ -45,7 +46,9 @@
       for (const [sel, k] of [
         [skillLinksTool, "tool"],
         [skillLinksCompetency, "competency"],
+        [skillLinksTag, "tag"],
       ]) {
+        if (!sel) continue;
         for (const opt of sel.options) {
           opt.selected = byKind[k].has(opt.value);
         }
@@ -93,7 +96,8 @@
 
     function collectSkillLinksFromDom() {
       const links = [];
-      for (const sel of [skillLinksTool, skillLinksCompetency]) {
+      for (const sel of [skillLinksTool, skillLinksCompetency, skillLinksTag]) {
+        if (!sel) continue;
         for (const opt of sel.selectedOptions) {
           links.push({ skill_id: opt.value, source: "asserted" });
         }

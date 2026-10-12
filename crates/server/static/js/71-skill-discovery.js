@@ -172,23 +172,22 @@
         .slice(0, 40);
     }
 
-    async function createToolNodesForUnmatched() {
+    async function createTagNodesForUnmatched() {
       if (!lastUnmatchedTokens.length) return;
       const created = [];
       for (const token of lastUnmatchedTokens) {
         const slug = slugForToolId(token);
         if (!slug) continue;
-        const id = `tool.${slug}`;
+        const id = `tag.${slug}`;
         const label =
           token.length <= 3
             ? token.toUpperCase()
             : token.replace(/\b\w/g, (c) => c.toUpperCase());
         const body = {
           id,
-          kind: "tool",
+          kind: "tag",
           label,
           aliases: [token, label],
-          pdf_groups: ["other"],
         };
         const res = await fetch("/api/skills/nodes", {
           method: "POST",
@@ -204,10 +203,16 @@
         created.push(id);
       }
       await loadSkillNodes();
-      selectToolIds(new Set(created));
+      if (skillLinksTag) {
+        for (const id of created) {
+          for (const opt of skillLinksTag.options) {
+            if (opt.value === id) opt.selected = true;
+          }
+        }
+      }
       syncUnmatchedUi([]);
       refreshCompetencySuggestions();
-      catalogStatus.textContent = `Created ${created.length} tool(s) and selected them.`;
+      catalogStatus.textContent = `Created ${created.length} tag(s); add tools manually if needed.`;
       catalogStatus.classList.remove("error");
     }
 
@@ -263,6 +268,7 @@
     function populateSkillDatalists() {
       const toolDl = document.getElementById("skill-tool-datalist");
       const compDl = document.getElementById("skill-comp-datalist");
+      const tagDl = document.getElementById("skill-tag-datalist");
       if (toolDl) {
         toolDl.innerHTML = "";
         for (const node of skillNodesCache.tool || []) {
@@ -277,6 +283,14 @@
           const opt = document.createElement("option");
           opt.value = node.label;
           compDl.appendChild(opt);
+        }
+      }
+      if (tagDl) {
+        tagDl.innerHTML = "";
+        for (const node of skillNodesCache.tag || []) {
+          const opt = document.createElement("option");
+          opt.value = node.label;
+          tagDl.appendChild(opt);
         }
       }
     }
@@ -294,6 +308,8 @@
     const skillApplyCompSuggestions = document.getElementById("skill-apply-comp-suggestions");
     const skillToolPick = document.getElementById("skill-tool-pick");
     const skillCompPick = document.getElementById("skill-comp-pick");
+    const skillTagFilter = document.getElementById("skill-tag-filter");
+    const skillTagPick = document.getElementById("skill-tag-pick");
 
     if (skillToolFilter) {
       skillToolFilter.addEventListener("input", () => {
@@ -342,12 +358,34 @@
         }
       });
     }
+    if (skillTagFilter && skillLinksTag) {
+      skillTagFilter.addEventListener("input", () => {
+        filterSkillSelect(skillLinksTag, skillTagFilter.value);
+      });
+      skillTagFilter.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        const opt = firstVisibleOption(skillLinksTag);
+        if (opt) opt.selected = true;
+      });
+    }
+    if (skillTagPick && skillLinksTag) {
+      skillTagPick.addEventListener("change", () =>
+        addPickToSelect(skillTagPick, skillLinksTag, "tag"),
+      );
+      skillTagPick.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addPickToSelect(skillTagPick, skillLinksTag, "tag");
+        }
+      });
+    }
     if (skillSuggestFromPayload) {
       skillSuggestFromPayload.addEventListener("click", applyToolsFromPayload);
     }
     if (skillCreateUnmatched) {
       skillCreateUnmatched.addEventListener("click", () => {
-        createToolNodesForUnmatched().catch((e) => {
+        createTagNodesForUnmatched().catch((e) => {
           catalogStatus.textContent = String(e);
           catalogStatus.classList.add("error");
         });

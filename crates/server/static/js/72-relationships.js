@@ -10,7 +10,11 @@
     function populateSkillRelDatalist() {
       if (!skillRelSkillDatalist) return;
       skillRelSkillDatalist.innerHTML = "";
-      const all = [...(skillNodesCache.tool || []), ...(skillNodesCache.competency || [])];
+      const all = [
+        ...(skillNodesCache.tool || []),
+        ...(skillNodesCache.competency || []),
+        ...(skillNodesCache.tag || []),
+      ];
       for (const node of all.sort((a, b) => a.label.localeCompare(b.label))) {
         const opt = document.createElement("option");
         opt.value = node.label;
@@ -22,11 +26,16 @@
     function resolveSkillIdFromFilterInput(raw) {
       const q = raw.trim();
       if (!q) return "";
-      for (const node of [...(skillNodesCache.tool || []), ...(skillNodesCache.competency || [])]) {
+      const catalogNodes = [
+        ...(skillNodesCache.tool || []),
+        ...(skillNodesCache.competency || []),
+        ...(skillNodesCache.tag || []),
+      ];
+      for (const node of catalogNodes) {
         if (node.id === q || node.label === q) return node.id;
       }
       const lower = q.toLowerCase();
-      for (const node of [...(skillNodesCache.tool || []), ...(skillNodesCache.competency || [])]) {
+      for (const node of catalogNodes) {
         if (node.label.toLowerCase() === lower) return node.id;
         for (const alias of node.aliases || []) {
           if (alias.toLowerCase() === lower) return node.id;

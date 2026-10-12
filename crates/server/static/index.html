@@ -69,6 +69,7 @@
               <option value="">All</option>
               <option value="tool">tool</option>
               <option value="competency">competency</option>
+              <option value="tag">tag (other)</option>
             </select>
           </label>
           <label class="meta">Element kind
@@ -124,10 +125,10 @@
         </div>
         <div id="payload-form" hidden></div>
         <div id="skill-links-panel" class="hidden">
-          <p class="help">Link tools and competencies as evidence for this entry. PDF skills aggregate from pinned experience, projects, and education only.</p>
+          <p class="help">Link tools, competencies, and other tags as evidence. PDF toolbelt lists deduped labels from pinned experience, projects, education, certifications, and awards.</p>
           <div class="row">
             <button type="button" id="skill-suggest-from-payload">Suggest tools from payload</button>
-            <button type="button" id="skill-create-unmatched" class="hidden">Create catalog tools for unmatched</button>
+            <button type="button" id="skill-create-unmatched" class="hidden">Create catalog tags for unmatched</button>
             <button type="button" id="skill-apply-comp-suggestions" class="hidden">Add suggested competencies</button>
           </div>
           <p class="meta hidden" id="skill-unmatched-hint"></p>
@@ -150,6 +151,16 @@
           </label>
           <label class="meta">Competencies
             <select id="skill-links-competency" multiple size="5" style="width:100%;margin-top:0.25rem"></select>
+          </label>
+          <label class="meta">Add other tag (typeahead)
+            <input type="text" id="skill-tag-pick" list="skill-tag-datalist" placeholder="Standards, frameworks, niche labels…" style="width:100%;margin-top:0.25rem" autocomplete="off" />
+            <datalist id="skill-tag-datalist"></datalist>
+          </label>
+          <label class="meta">Filter other tags
+            <input type="search" id="skill-tag-filter" placeholder="Filter list below (Enter adds first match)" style="width:100%;margin-top:0.25rem" autocomplete="off" />
+          </label>
+          <label class="meta">Other tags
+            <select id="skill-links-tag" multiple size="4" style="width:100%;margin-top:0.25rem"></select>
           </label>
           <p class="meta hidden" id="skill-suggestions-hint"></p>
         </div>

@@ -91,11 +91,12 @@
     let elementDetailCache = new Map();
     let selectedCatalogKind = null;
     let selectedElementKind = null;
-    let skillNodesCache = { tool: [], competency: [] };
+    let skillNodesCache = { tool: [], competency: [], tag: [] };
     let lastCompetencySuggestions = [];
     const skillLinksPanel = document.getElementById("skill-links-panel");
     const skillLinksTool = document.getElementById("skill-links-tool");
     const skillLinksCompetency = document.getElementById("skill-links-competency");
+    const skillLinksTag = document.getElementById("skill-links-tag");
     const skillSuggestionsHint = document.getElementById("skill-suggestions-hint");
     const skillCatalogStatus = document.getElementById("skill-catalog-status");
     const skillNodeList = document.getElementById("skill-node-list");
