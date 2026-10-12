@@ -31,6 +31,7 @@ pub fn load_themed_build_config(
     for section in &mut config.sections {
         if let Some(sec) = info.sections.get(&section.name) {
             section.template = format!("themes/{theme_id}/{}", sec.template);
+            section.section_title = sec.title.clone();
         }
     }
     Ok((config, MonthDisplay::parse(&info.month_display)))
@@ -96,7 +97,14 @@ pub fn build_resume_tex(
             .get_template(&template_name)
             .with_context(|| format!("load template {}", template_path.display()))?;
 
-        let ctx = Value::from_serialize(yaml_value);
+        let mut ctx_value = yaml_value.clone();
+        if let Some(title) = &section.section_title {
+            if let Some(obj) = ctx_value.as_object_mut() {
+                obj.entry("section_title".to_string())
+                    .or_insert_with(|| serde_json::Value::String(title.clone()));
+            }
+        }
+        let ctx = Value::from_serialize(&ctx_value);
         let rendered = tmpl
             .render(ctx)
             .with_context(|| format!("render section {}", section.name))?;

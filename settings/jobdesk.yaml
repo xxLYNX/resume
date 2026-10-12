@@ -30,9 +30,9 @@ sections:
     enabled: true
     template: "themes/classic/sections/awards.jinja.tex"
 
-  - name: "skills"
+  - name: "toolbelt"
     enabled: true
-    template: "themes/classic/sections/skills.jinja.tex"
+    template: "themes/classic/sections/toolbelt.jinja.tex"
 
 output:
   directory: "output"

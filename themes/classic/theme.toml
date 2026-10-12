@@ -36,6 +36,10 @@ date_parts = ["month", "year"]
 template = "sections/awards.jinja.tex"
 date_parts = ["month", "year"]
 
+[sections.toolbelt]
+template = "sections/toolbelt.jinja.tex"
+title = "Technical skills & standards"
+
 [sections.skills]
 template = "sections/skills.jinja.tex"
 optional_fields = ["certifications", "languages", "securityTools", "other"]

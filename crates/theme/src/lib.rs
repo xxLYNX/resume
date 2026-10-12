@@ -26,6 +26,9 @@ pub struct ThemeInfo {
 #[derive(Debug, Clone, Serialize)]
 pub struct ThemeSectionInfo {
     pub template: String,
+    /// PDF \\section{...} title when the template uses `section_title`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub optional_fields: Vec<String>,
     /// Which calendar parts row dates use for display (`month`, `year`, optional `day`).
@@ -133,6 +136,10 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
+            let title = sec
+                .get("title")
+                .and_then(|v| v.as_str())
+                .map(String::from);
             let optional_fields: Vec<String> = sec
                 .get("optional_fields")
                 .and_then(|v| v.as_array())
@@ -155,6 +162,7 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
                 key.clone(),
                 ThemeSectionInfo {
                     template,
+                    title,
                     optional_fields,
                     date_parts,
                     element_kind: section_element_kind(key),

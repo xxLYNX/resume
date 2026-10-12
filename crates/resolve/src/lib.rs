@@ -51,7 +51,7 @@ pub fn resolve_composition(store: &Store, composition: &Composition) -> Result<R
     let mut out = ResolvedSections::new();
 
     for section in &composition.sections {
-        if section.section_key == "skills" {
+        if section.section_key == "skills" || section.section_key == "toolbelt" {
             continue;
         }
         let ctx = if section.section_key == "education" {
@@ -70,19 +70,21 @@ pub fn resolve_composition(store: &Store, composition: &Composition) -> Result<R
         out.insert(section.section_key.clone(), ctx);
     }
 
-    inject_skills_from_evidence(store, composition, &mut out)?;
+    inject_toolbelt_from_evidence(store, composition, &mut out)?;
 
     Ok(out)
 }
 
-fn inject_skills_from_evidence(
+fn inject_toolbelt_from_evidence(
     store: &Store,
     composition: &Composition,
     resolved: &mut ResolvedSections,
 ) -> Result<()> {
-    let aggregated = store.aggregate_skills_pdf_context(composition)?;
-    let skills_obj = aggregated.get("skills").cloned().unwrap_or(json!({}));
-    resolved.insert("skills".into(), json!({ "skills": skills_obj }));
+    let tags = store.aggregate_toolbelt_tags(composition)?;
+    if tags.is_empty() {
+        return Ok(());
+    }
+    resolved.insert("toolbelt".into(), json!({ "tags": tags }));
     Ok(())
 }
 
