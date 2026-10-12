@@ -33,7 +33,7 @@ ATS/keywords: prefer narratives + linked tags on anchors, not a separate keyword
 | **F.2c** | Done | Relationships pane |
 | **F.2d** | Done | Cert/award PDF sections; courses under education |
 | **F.3a** | Done | `tag` kind, three pickers, **toolbelt** PDF, **`data/catalog_seed.json`** + v12 upsert |
-| **F.3b** | **Next** | `framework_refs` import/cache; application posting hints |
+| **F.3b** | Done | Framework refs merge, posting hints + preview |
 
 ---
 
@@ -48,11 +48,14 @@ ATS/keywords: prefer narratives + linked tags on anchors, not a separate keyword
 
 ---
 
-## F.3b — frameworks & tailoring (planned)
+## F.3b — frameworks & tailoring (complete)
 
-- [ ] Enrich `skill_nodes.framework_refs_json` from framework imports (NIST, etc.).
-- [ ] Read-only application hints (posting keyword ↔ catalog overlap).
-- [ ] Optional: posting-driven “suggested links” (no auto-write).
+- [x] `data/framework_refs_seed.json` + v13 merge; `jobdesk skills import-frameworks`.
+- [x] `applications.posting_text`; `GET /api/applications/{id}/posting-hints` (read-only).
+- [x] Applications UI: paste posting, analyze vs catalog + draft links.
+- [x] Live preview: `POST …/posting-hints/preview` (unsaved posting + draft composition).
+- [x] Read-only “suggested links”: hints flag **in posting, not on draft** (link manually in Portfolio).
+- [x] External imports: any JSON file via `jobdesk skills import-frameworks` (see [`data/FRAMEWORK_REFS.md`](../data/FRAMEWORK_REFS.md)).
 
 ---
 
@@ -66,7 +69,7 @@ ATS/keywords: prefer narratives + linked tags on anchors, not a separate keyword
 
 ## Operations
 
-- **DB:** v12 runs on open (catalog seed upsert). v11 dropped legacy skills elements. No wipe required.
+- **DB:** v13 adds `posting_text` + framework ref seed merge; v12 catalog upsert; v11 dropped legacy skills elements. No wipe required.
 - **Import:** `jobdesk import` seeds header/objective/education/experience/projects from `content/` — not `skills.yaml`.
 - **Build config:** `settings/jobdesk.yaml` lists **section templates only**; content always from DB resolve.
 - **Serve:** `cargo run -p jobdesk -- serve` (DB typically `workspace/jobdesk.db`).

@@ -100,6 +100,83 @@
       }
     }
 
+    function clearPostingHintsUi() {
+      if (appPostingHintsList) appPostingHintsList.innerHTML = "";
+      if (appPostingHintsStatus) appPostingHintsStatus.textContent = "";
+    }
+
+    function renderPostingHints(data) {
+      if (!appPostingHintsList || !appPostingHintsStatus) return;
+      appPostingHintsList.innerHTML = "";
+      const hints = data.hints || [];
+      if (!hints.length) {
+        appPostingHintsStatus.textContent = data.used_posting_text
+          ? "No catalog matches in posting text."
+          : "Paste posting text or save title/tags, then analyze.";
+        return;
+      }
+      const inPostNotDraft = hints.filter((h) => h.in_posting && !h.on_draft);
+      const inBoth = hints.filter((h) => h.in_posting && h.on_draft);
+      const draftOnly = hints.filter((h) => !h.in_posting && h.on_draft);
+      appPostingHintsStatus.textContent = data.used_posting_text
+        ? `${inBoth.length} on posting & draft · ${inPostNotDraft.length} in posting only · ${draftOnly.length} on draft only`
+        : `Hints from title/tags only — paste posting text for better matches. ${inBoth.length} on draft overlap.`;
+      for (const h of hints) {
+        const li = document.createElement("li");
+        let flag = "";
+        if (h.in_posting && h.on_draft) flag = "✓ posting + draft";
+        else if (h.in_posting) flag = "→ in posting, not on draft";
+        else if (h.on_draft) flag = "on draft only";
+        li.textContent = `${h.label} (${h.kind}) · ${flag}`;
+        if (h.matched_phrase) {
+          li.title = `Matched: ${h.matched_phrase}`;
+        }
+        appPostingHintsList.appendChild(li);
+      }
+    }
+
+    async function loadPostingHints(appId, { livePreview } = {}) {
+      if (!appId) {
+        clearPostingHintsUi();
+        return;
+      }
+      let res;
+      if (livePreview) {
+        let draft_composition;
+        try {
+          draft_composition = compositionFromEditorDom();
+        } catch (e) {
+          if (appPostingHintsStatus) {
+            appPostingHintsStatus.textContent = "Fix composition before analyzing: " + e.message;
+          }
+          return;
+        }
+        res = await fetch(
+          `/api/applications/${encodeURIComponent(appId)}/posting-hints/preview`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              posting_text: appPostingText ? appPostingText.value : "",
+              draft_composition,
+            }),
+          },
+        );
+      } else {
+        res = await fetch(
+          `/api/applications/${encodeURIComponent(appId)}/posting-hints`,
+        );
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        if (appPostingHintsStatus) {
+          appPostingHintsStatus.textContent = data.error || "Hints failed";
+        }
+        return;
+      }
+      renderPostingHints(data);
+    }
+
     async function loadSimilar(appId) {
       similarList.innerHTML = "";
       similarHint.classList.add("hidden");
@@ -196,6 +273,8 @@
       appCompany.value = "";
       appTitle.value = "";
       appPostingUrl.value = "";
+      if (appPostingText) appPostingText.value = "";
+      clearPostingHintsUi();
       appSource.value = "";
       appTagsInput.value = "";
       clearApplicationMetaFields();
@@ -237,6 +316,8 @@
       appCompany.value = app.company || "";
       appTitle.value = app.title || "";
       appPostingUrl.value = app.posting_url || "";
+      if (appPostingText) appPostingText.value = app.posting_text || "";
+      clearPostingHintsUi();
       appSource.value = app.source || "";
       fillApplicationMetaFields(app);
       syncDetailWorkflowOptions(app.phase, app.submissions.length > 0);
@@ -247,6 +328,7 @@
       await refreshCatalogByKind();
       await renderCompositionEditor(app.draft_composition);
       await loadSimilar(id);
+      await loadPostingHints(id);
       await rebuild();
     }
 
@@ -293,6 +375,10 @@
       if (!appId) {
         const createBody = { company, title, tags, ...applicationMetaPayload() };
         if (url) createBody.posting_url = url;
+        if (appPostingText) {
+          const pt = appPostingText.value.trim();
+          if (pt) createBody.posting_text = pt;
+        }
         if (source) createBody.source = source;
         if (cloneFromApp.value) createBody.clone_from_application_id = cloneFromApp.value;
         if (cloneFromPreset.value) createBody.clone_from_preset_id = cloneFromPreset.value;
@@ -320,6 +406,7 @@
           status: appWorkflowSelect.value,
           tags,
           posting_url: url ? url : null,
+          posting_text: appPostingText ? appPostingText.value : "",
           source: source ? source : null,
           ...applicationMetaPayload(),
           draft_composition,
@@ -340,6 +427,8 @@
       appCompany.value = app.company || "";
       appTitle.value = app.title || "";
       appPostingUrl.value = app.posting_url || "";
+      if (appPostingText) appPostingText.value = app.posting_text || "";
+      clearPostingHintsUi();
       appSource.value = app.source || "";
       fillApplicationMetaFields(app);
       draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
@@ -349,8 +438,21 @@
         li.classList.toggle("active", li.dataset.id === appId);
       }
       await loadSimilar(appId);
+      await loadPostingHints(appId);
       await rebuild();
     });
+
+    if (appRefreshPostingHints) {
+      appRefreshPostingHints.addEventListener("click", () => {
+        if (!selectedAppId) {
+          if (appPostingHintsStatus) {
+            appPostingHintsStatus.textContent = "Save the application first.";
+          }
+          return;
+        }
+        loadPostingHints(selectedAppId, { livePreview: true });
+      });
+    }
 
     deleteAppBtn.addEventListener("click", async () => {
       if (!selectedAppId) return;

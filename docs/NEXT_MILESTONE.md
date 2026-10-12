@@ -24,7 +24,7 @@ git reset --hard master
 | **F.2c** | Relationships pane |
 | **F.2d** | Cert/award on PDF; courses under education |
 | **F.3a** | `tag` kind, toolbelt PDF, bundled `catalog_seed.json`, schema v12 |
-| **F.3b** | **Next:** `framework_refs` import; application posting hints |
+| **F.3b** | Framework refs import; posting hints + live preview |
 
 Full checklists: [`MILESTONE_F_ROLLOUT.md`](MILESTONE_F_ROLLOUT.md).
 

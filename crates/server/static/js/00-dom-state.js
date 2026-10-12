@@ -49,6 +49,10 @@
     const similarList = document.getElementById("similar-list");
     const cloneFromApp = document.getElementById("clone-from-app");
     const appPostingUrl = document.getElementById("app-posting-url");
+    const appPostingText = document.getElementById("app-posting-text");
+    const appPostingHintsStatus = document.getElementById("app-posting-hints-status");
+    const appPostingHintsList = document.getElementById("app-posting-hints-list");
+    const appRefreshPostingHints = document.getElementById("app-refresh-posting-hints");
     const appCompany = document.getElementById("app-company");
     const appTitle = document.getElementById("app-title");
     const appSource = document.getElementById("app-source");

@@ -38,7 +38,7 @@ workspace/
 
 - [x] `skill_nodes` (tool / competency / tag), `element_skill_links`, `tool_competency_edges`
 - [x] PDF **toolbelt** section: deduped labels from pinned evidence (not a parallel skills blob)
-- [ ] `framework_refs_json` enrichment — see [`docs/MILESTONE_F_ROLLOUT.md`](docs/MILESTONE_F_ROLLOUT.md) F.3b
+- [x] `framework_refs_json` merge import + posting keyword hints — [`docs/MILESTONE_F_ROLLOUT.md`](docs/MILESTONE_F_ROLLOUT.md) F.3b
 
 ### Themes & templates
 
@@ -202,7 +202,7 @@ Phased (v10–v12): **F.2** done on branch; **F.3a** toolbelt + tag kind; **F.3b
 - [x] F.2c — relationships pane
 - [x] F.2d — cert/award on résumé composition; courses under education
 - [x] F.3a — `tag` kind, toolbelt PDF, `catalog_seed.json`, schema v12
-- [ ] F.3b — `framework_refs` enrichment, application hints
+- [x] F.3b — `framework_refs` import, posting hints + preview
 
 ---
 

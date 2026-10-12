@@ -238,6 +238,14 @@
         <label class="meta">Posting URL
           <input type="url" id="app-posting-url" placeholder="https://…" style="width:100%;margin-top:0.25rem" />
         </label>
+        <label class="meta">Posting text (for keyword hints)
+          <textarea id="app-posting-text" rows="5" placeholder="Paste job description…" style="width:100%;margin-top:0.25rem"></textarea>
+        </label>
+        <div class="row">
+          <button type="button" id="app-refresh-posting-hints">Analyze catalog vs posting</button>
+          <p class="meta" id="app-posting-hints-status"></p>
+        </div>
+        <ul id="app-posting-hints-list" class="meta"></ul>
         <label class="meta">Source
           <input type="text" id="app-source" placeholder="LinkedIn, referral, …" style="width:100%;margin-top:0.25rem" />
         </label>
