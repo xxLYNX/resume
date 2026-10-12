@@ -8,7 +8,7 @@ use axum::{
     Json,
 };
 use domain::{
-    APPLICATION_PHASES, DRAFT_WORKFLOW, SUBMITTED_WORKFLOWS,
+    Composition, APPLICATION_PHASES, DRAFT_WORKFLOW, SUBMITTED_WORKFLOWS,
 };
 use resolve::{default_composition, resolve_composition};
 use serde::{Deserialize, Serialize};
@@ -126,6 +126,76 @@ pub async fn list_similar(
     with_store(state, move |store| {
         let matches = store.rank_similar_applications(&app_id, limit)?;
         Ok(Json(matches).into_response())
+    })
+    .await
+}
+
+#[derive(Serialize)]
+pub struct PostingHintsResponse {
+    pub hints: Vec<domain::PostingHintRow>,
+    /// True when hints used pasted posting text; false when only title/tags fallback.
+    pub used_posting_text: bool,
+}
+
+pub async fn posting_hints(
+    State(state): State<Arc<AppState>>,
+    Path(app_id): Path<String>,
+) -> impl IntoResponse {
+    with_store(state, move |store| {
+        let app = store
+            .get_application(&app_id)?
+            .ok_or_else(|| anyhow::anyhow!("application not found"))?;
+        let used_posting_text = !app.posting_text.trim().is_empty();
+        let hints = store.application_posting_hints(&app_id)?;
+        Ok(Json(PostingHintsResponse {
+            hints,
+            used_posting_text,
+        })
+            .into_response())
+    })
+    .await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PostingHintsPreviewBody {
+    pub posting_text: String,
+    #[serde(default)]
+    pub draft_composition: Option<Composition>,
+}
+
+/// Analyze unsaved posting text and/or draft composition (read-only).
+pub async fn posting_hints_preview(
+    State(state): State<Arc<AppState>>,
+    Path(app_id): Path<String>,
+    Json(body): Json<PostingHintsPreviewBody>,
+) -> impl IntoResponse {
+    with_store(state, move |store| {
+        let app = store
+            .get_application(&app_id)?
+            .ok_or_else(|| anyhow::anyhow!("application not found"))?;
+        let composition = body
+            .draft_composition
+            .as_ref()
+            .unwrap_or(&app.draft_composition);
+        resolve_composition(store, composition)?;
+        let posting_text = body.posting_text.trim();
+        let used_posting_text = !posting_text.is_empty();
+        let text = if used_posting_text {
+            posting_text.to_string()
+        } else {
+            let mut fallback = format!("{} {}", app.title, app.company);
+            for tag in &app.tags {
+                fallback.push(' ');
+                fallback.push_str(tag);
+            }
+            fallback
+        };
+        let hints = store.posting_skill_hints(&text, composition)?;
+        Ok(Json(PostingHintsResponse {
+            hints,
+            used_posting_text,
+        })
+            .into_response())
     })
     .await
 }

@@ -2,10 +2,10 @@ use std::collections::BTreeSet;
 
 use anyhow::{Context, Result};
 use domain::{
-    validate_element_links, validate_skill_node, Composition, ElementSkillLink, SkillKind,
-    SkillNode,
+    build_posting_hints, merge_framework_refs_into, validate_element_links, validate_skill_node,
+    Composition, ElementSkillLink, FrameworkRefsImportRow, PostingHintRow, SkillKind, SkillNode,
 };
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 
 use crate::Store;
@@ -117,6 +117,95 @@ impl Store {
             n += 1;
         }
         Ok(n)
+    }
+
+    pub fn import_framework_refs(&self, rows: &[FrameworkRefsImportRow]) -> Result<usize> {
+        let mut n = 0;
+        for row in rows {
+            let Some(mut node) = self.get_skill_node(&row.skill_id)? else {
+                anyhow::bail!("unknown skill id `{}`", row.skill_id);
+            };
+            merge_framework_refs_into(&mut node.framework_refs, &row.framework_refs);
+            self.upsert_skill_node(&node)?;
+            n += 1;
+        }
+        Ok(n)
+    }
+
+    /// Asserted skill ids linked to pinned evidence in this composition.
+    pub fn skill_ids_on_composition(&self, composition: &Composition) -> Result<BTreeSet<String>> {
+        const EVIDENCE_SECTIONS: &[&str] = &[
+            "experience",
+            "projects",
+            "education",
+            "certifications",
+            "awards",
+        ];
+        let mut ids = BTreeSet::new();
+        let mut seen_elements = BTreeSet::new();
+
+        for section in &composition.sections {
+            if !EVIDENCE_SECTIONS.contains(&section.section_key.as_str()) {
+                continue;
+            }
+            for item in &section.items {
+                if !seen_elements.insert(item.element_id.clone()) {
+                    continue;
+                }
+                self.collect_asserted_skill_ids(&item.element_id, &mut ids)?;
+            }
+        }
+        self.collect_course_skill_ids(&seen_elements, &mut ids)?;
+        Ok(ids)
+    }
+
+    pub fn posting_skill_hints(
+        &self,
+        posting_text: &str,
+        composition: &Composition,
+    ) -> Result<Vec<PostingHintRow>> {
+        let nodes = self.list_skill_nodes(None)?;
+        let on_draft = self.skill_ids_on_composition(composition)?;
+        Ok(build_posting_hints(&nodes, posting_text, &on_draft))
+    }
+
+    fn collect_asserted_skill_ids(
+        &self,
+        element_id: &str,
+        ids: &mut BTreeSet<String>,
+    ) -> Result<()> {
+        for row in self.get_element_skill_links(element_id)? {
+            if row.source == "asserted" {
+                ids.insert(row.skill_id);
+            }
+        }
+        Ok(())
+    }
+
+    fn collect_course_skill_ids(
+        &self,
+        pinned_elements: &BTreeSet<String>,
+        ids: &mut BTreeSet<String>,
+    ) -> Result<()> {
+        let conn = self.connection();
+        let mut stmt = conn.prepare(
+            "SELECT id, parent_element_id FROM elements WHERE kind = 'course' ORDER BY sort_order, id",
+        )?;
+        let courses: Vec<(String, Option<String>)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        for (element_id, parent_id) in courses {
+            let include = pinned_elements.contains(&element_id)
+                || parent_id
+                    .as_ref()
+                    .is_some_and(|p| pinned_elements.contains(p));
+            if !include {
+                continue;
+            }
+            self.collect_asserted_skill_ids(&element_id, ids)?;
+        }
+        Ok(())
     }
 
     pub fn get_element_skill_links(&self, element_id: &str) -> Result<Vec<SkillLinkRow>> {
@@ -359,6 +448,30 @@ pub fn seed_skill_nodes_if_empty(conn: &Connection) -> Result<()> {
 }
 
 /// Merge bundled catalog nodes (insert or update by id). Used on fresh DB and migration v12+.
+pub fn apply_framework_refs_seed(conn: &Connection) -> Result<()> {
+    let raw = include_str!("../../../data/framework_refs_seed.json");
+    let rows: Vec<FrameworkRefsImportRow> =
+        serde_json::from_str(raw).context("parse framework_refs_seed")?;
+    for row in rows {
+        let mut stmt = conn.prepare(
+            "SELECT framework_refs_json FROM skill_nodes WHERE id = ?1",
+        )?;
+        let existing: Option<String> = stmt
+            .query_row(params![row.skill_id], |r| r.get(0))
+            .optional()?;
+        let Some(existing_json) = existing else {
+            continue;
+        };
+        let mut base: Value = serde_json::from_str(&existing_json).unwrap_or(json!({}));
+        merge_framework_refs_into(&mut base, &row.framework_refs);
+        conn.execute(
+            "UPDATE skill_nodes SET framework_refs_json = ?1 WHERE id = ?2",
+            params![base.to_string(), row.skill_id],
+        )?;
+    }
+    Ok(())
+}
+
 pub fn upsert_catalog_seed(conn: &Connection) -> Result<()> {
     let raw = include_str!("../../../data/catalog_seed.json");
     let nodes: Vec<SkillNode> = serde_json::from_str(raw).context("parse catalog_seed")?;

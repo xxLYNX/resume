@@ -112,8 +112,11 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if version < 12 {
         migrate_catalog_seed_v12(conn)?;
     }
+    if version < 13 {
+        migrate_posting_text_and_framework_refs_v13(conn)?;
+    }
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '12')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '13')",
         [],
     )?;
     Ok(())
@@ -121,6 +124,12 @@ pub fn migrate(conn: &Connection) -> Result<()> {
 
 fn migrate_catalog_seed_v12(conn: &Connection) -> Result<()> {
     crate::skills::upsert_catalog_seed(conn)?;
+    Ok(())
+}
+
+fn migrate_posting_text_and_framework_refs_v13(conn: &Connection) -> Result<()> {
+    add_column_if_missing(conn, "applications", "posting_text", "TEXT NOT NULL DEFAULT ''")?;
+    crate::skills::apply_framework_refs_seed(conn)?;
     Ok(())
 }
 

@@ -1,0 +1,57 @@
+[
+  {
+    "skill_id": "tag.nist-sp-800-53",
+    "framework_refs": {
+      "nist": {
+        "publication": "SP 800-53",
+        "title": "Security and Privacy Controls for Information Systems and Organizations",
+        "revision": "Rev. 5"
+      }
+    }
+  },
+  {
+    "skill_id": "tag.nist-sp-800-76-2",
+    "framework_refs": {
+      "nist": {
+        "publication": "SP 800-76-2",
+        "title": "Biometric Data Specifications for Personal Identity Verification"
+      }
+    }
+  },
+  {
+    "skill_id": "tag.fips-201-3",
+    "framework_refs": {
+      "nist": {
+        "publication": "FIPS 201-3",
+        "title": "Personal Identity Verification (PIV) of Federal Employees and Contractors"
+      }
+    }
+  },
+  {
+    "skill_id": "tag.fedramp",
+    "framework_refs": {
+      "fedramp": {
+        "program": "FedRAMP",
+        "scope": "cloud security authorization"
+      }
+    }
+  },
+  {
+    "skill_id": "tag.iso-27001",
+    "framework_refs": {
+      "iso": {
+        "standard": "ISO/IEC 27001",
+        "topic": "information security management systems"
+      }
+    }
+  },
+  {
+    "skill_id": "tag.irex",
+    "framework_refs": {
+      "biometric": {
+        "program": "IREX",
+        "title": "Iris Exchange"
+      }
+    }
+  }
+]

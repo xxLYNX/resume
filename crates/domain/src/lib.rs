@@ -2,6 +2,8 @@ mod application;
 mod compensation;
 mod dates;
 mod location;
+mod framework_refs;
+mod posting_hints;
 mod skills;
 mod ledger;
 mod composition;
@@ -21,6 +23,12 @@ pub use compensation::{
 };
 pub use composition::{Composition, CompositionItem, CompositionSection};
 pub use location::WorkLocation;
+pub use framework_refs::{
+    merge_framework_refs, merge_framework_refs_into, FrameworkRefsImportRow,
+};
+pub use posting_hints::{
+    build_posting_hints, match_skills_in_posting, PostingHintRow, SkillPostingMatch,
+};
 pub use skills::{
     validate_element_links, validate_pdf_group, validate_skill_id, validate_skill_node,
     ElementSkillLink, SkillError, SkillKind, SkillNode, PDF_SKILL_GROUPS, SKILL_KINDS,

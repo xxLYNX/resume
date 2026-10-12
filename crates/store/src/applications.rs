@@ -52,6 +52,9 @@ pub struct ApplicationDetail {
     pub company: String,
     pub title: String,
     pub posting_url: Option<String>,
+    /// Pasted job description / posting body for keyword hints (read-only analysis).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub posting_text: String,
     pub source: Option<String>,
     pub phase: String,
     pub status: String,
@@ -99,6 +102,8 @@ pub struct CreateApplicationRequest {
     #[serde(default)]
     pub posting_url: Option<String>,
     #[serde(default)]
+    pub posting_text: Option<String>,
+    #[serde(default)]
     pub source: Option<String>,
     #[serde(default)]
     pub status: Option<String>,
@@ -133,6 +138,8 @@ pub struct UpdateApplicationRequest {
     pub title: Option<String>,
     #[serde(default)]
     pub posting_url: Option<Option<String>>,
+    #[serde(default)]
+    pub posting_text: Option<String>,
     #[serde(default)]
     pub source: Option<Option<String>>,
     #[serde(default)]
@@ -286,7 +293,7 @@ impl Store {
         let conn = self.connection();
         let row = conn
             .query_row(
-                "SELECT id, company, title, posting_url, source, phase, status, tags_json,
+                "SELECT id, company, title, posting_url, posting_text, source, phase, status, tags_json,
                         employment_type, work_mode, location, compensation_json,
                         draft_composition_json, created_at, updated_at
                  FROM applications WHERE id = ?1",
@@ -297,17 +304,18 @@ impl Store {
                         row.get::<_, String>(1)?,
                         row.get::<_, String>(2)?,
                         row.get::<_, Option<String>>(3)?,
-                        row.get::<_, Option<String>>(4)?,
-                        row.get::<_, String>(5)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, Option<String>>(5)?,
                         row.get::<_, String>(6)?,
                         row.get::<_, String>(7)?,
-                        row.get::<_, Option<String>>(8)?,
+                        row.get::<_, String>(8)?,
                         row.get::<_, Option<String>>(9)?,
                         row.get::<_, Option<String>>(10)?,
-                        row.get::<_, String>(11)?,
+                        row.get::<_, Option<String>>(11)?,
                         row.get::<_, String>(12)?,
                         row.get::<_, String>(13)?,
                         row.get::<_, String>(14)?,
+                        row.get::<_, String>(15)?,
                     ))
                 },
             )
@@ -317,6 +325,7 @@ impl Store {
             company,
             title,
             posting_url,
+            posting_text,
             source,
             phase,
             status,
@@ -345,6 +354,7 @@ impl Store {
             company,
             title,
             posting_url,
+            posting_text,
             source,
             phase,
             status,
@@ -358,6 +368,21 @@ impl Store {
             updated_at,
             submissions,
         }))
+    }
+
+    pub fn application_posting_hints(&self, application_id: &str) -> Result<Vec<domain::PostingHintRow>> {
+        let app = self
+            .get_application(application_id)?
+            .with_context(|| format!("unknown application `{application_id}`"))?;
+        let mut text = app.posting_text.clone();
+        if text.trim().is_empty() {
+            text = format!("{} {}", app.title, app.company);
+            for tag in &app.tags {
+                text.push(' ');
+                text.push_str(tag);
+            }
+        }
+        self.posting_skill_hints(&text, &app.draft_composition)
     }
 
     pub fn create_application(
@@ -400,15 +425,18 @@ impl Store {
         .map_err(|e| anyhow::anyhow!("{e}"))?;
         let compensation_json = serde_json::to_string(&compensation)?;
 
+        let posting_text = req.posting_text.unwrap_or_default();
+
         conn.execute(
             "INSERT INTO applications
-             (id, posting_url, company, title, source, phase, status, tags_json,
+             (id, posting_url, posting_text, company, title, source, phase, status, tags_json,
               employment_type, work_mode, location, compensation_json,
               draft_composition_json, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             params![
                 id,
                 req.posting_url,
+                posting_text,
                 req.company,
                 req.title,
                 req.source,
@@ -444,6 +472,7 @@ impl Store {
             Some(v) => v,
             None => existing.posting_url,
         };
+        let posting_text = req.posting_text.unwrap_or(existing.posting_text);
         let source = match req.source {
             Some(v) => v,
             None => existing.source,
@@ -493,15 +522,16 @@ impl Store {
         let conn = self.connection();
         conn.execute(
             "UPDATE applications SET
-                company = ?2, title = ?3, posting_url = ?4, source = ?5, phase = ?6, status = ?7,
-                tags_json = ?8, employment_type = ?9, work_mode = ?10, location = ?11,
-                compensation_json = ?12, draft_composition_json = ?13, updated_at = ?14
+                company = ?2, title = ?3, posting_url = ?4, posting_text = ?5, source = ?6, phase = ?7, status = ?8,
+                tags_json = ?9, employment_type = ?10, work_mode = ?11, location = ?12,
+                compensation_json = ?13, draft_composition_json = ?14, updated_at = ?15
              WHERE id = ?1",
             params![
                 application_id,
                 company,
                 title,
                 posting_url,
+                posting_text,
                 source,
                 phase,
                 status,

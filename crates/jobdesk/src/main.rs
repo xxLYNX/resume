@@ -105,6 +105,11 @@ enum SkillsCommands {
         #[arg(long, default_value = "data/catalog_seed.json")]
         file: PathBuf,
     },
+    /// Merge framework_refs onto existing skill nodes (`data/framework_refs_seed.json`)
+    ImportFrameworks {
+        #[arg(long, default_value = "data/framework_refs_seed.json")]
+        file: PathBuf,
+    },
     /// Write docs/LEGACY_SKILLS_INVENTORY.md from skills.yaml and element technologies (no DB writes)
     LegacyInventory {
         #[arg(long, default_value = "docs/LEGACY_SKILLS_INVENTORY.md")]
@@ -250,6 +255,15 @@ async fn main() -> Result<()> {
                     let n = store.import_skill_nodes(&nodes)?;
                     println!("Imported {n} skill node(s)");
                 }
+                SkillsCommands::ImportFrameworks { file } => {
+                    let path = resolve_path(&root, &file);
+                    let raw = std::fs::read_to_string(&path)
+                        .with_context(|| format!("read {}", path.display()))?;
+                    let rows: Vec<domain::FrameworkRefsImportRow> =
+                        serde_json::from_str(&raw).context("parse framework refs JSON array")?;
+                    let n = store.import_framework_refs(&rows)?;
+                    println!("Merged framework refs on {n} skill node(s)");
+                }
                 SkillsCommands::LegacyInventory { out } => {
                     let out_path = resolve_path(&root, &out);
                     store::write_legacy_skills_inventory(&store, &root, &out_path)?;
@@ -331,6 +345,7 @@ async fn main() -> Result<()> {
                             company,
                             title,
                             posting_url,
+                            posting_text: None,
                             source: None,
                             status,
                             tags: tag,
