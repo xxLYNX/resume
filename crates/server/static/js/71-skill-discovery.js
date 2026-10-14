@@ -289,41 +289,97 @@
       if (kind === "tool") refreshCompetencySuggestions();
     }
 
-    function populateSkillDatalists() {
-      const toolDl = document.getElementById("skill-tool-datalist");
-      const compDl = document.getElementById("skill-comp-datalist");
-      const tagDl = document.getElementById("skill-tag-datalist");
-      if (toolDl) {
-        toolDl.innerHTML = "";
-        for (const node of skillNodesCache.tool || []) {
-          const opt = document.createElement("option");
-          opt.value = node.label;
-          toolDl.appendChild(opt);
+    function nodesMatchingPickQuery(kind, raw) {
+      const v = normalizeSkillToken(raw);
+      if (!v || v.length < 2) return [];
+      const exact = [];
+      const partial = [];
+      for (const node of skillNodesCache[kind] || []) {
+        const label = normalizeSkillToken(node.label);
+        const id = normalizeSkillToken(node.id);
+        let isExact = label === v || id === v;
+        for (const alias of node.aliases || []) {
+          if (normalizeSkillToken(alias) === v) isExact = true;
         }
-      }
-      if (compDl) {
-        compDl.innerHTML = "";
-        for (const node of skillNodesCache.competency || []) {
-          const opt = document.createElement("option");
-          opt.value = node.label;
-          compDl.appendChild(opt);
+        if (isExact) {
+          exact.push(node);
+          continue;
         }
-      }
-      if (tagDl) {
-        tagDl.innerHTML = "";
-        for (const node of skillNodesCache.tag || []) {
-          const opt = document.createElement("option");
-          opt.value = node.label;
-          tagDl.appendChild(opt);
+        let isPartial = label.includes(v) || v.includes(label);
+        if (!isPartial) {
+          for (const alias of node.aliases || []) {
+            const a = normalizeSkillToken(alias);
+            if (a.includes(v) || v.includes(a)) {
+              isPartial = true;
+              break;
+            }
+          }
         }
+        if (isPartial) partial.push(node);
       }
+      partial.sort((a, b) => a.label.localeCompare(b.label));
+      const seen = new Set();
+      const out = [];
+      for (const node of [...exact, ...partial]) {
+        if (seen.has(node.id)) continue;
+        seen.add(node.id);
+        out.push(node);
+        if (out.length >= 8) break;
+      }
+      return out;
     }
 
-    const _loadSkillNodesOrig = loadSkillNodes;
-    loadSkillNodes = async function () {
-      await _loadSkillNodesOrig();
-      populateSkillDatalists();
-    };
+    function wireFilteredPickTypeahead(input, kind) {
+      if (!input) return;
+      input.removeAttribute("list");
+      const menu = document.createElement("div");
+      menu.className = "skill-pick-menu hidden";
+      menu.setAttribute("role", "listbox");
+      input.insertAdjacentElement("afterend", menu);
+
+      function hideMenu() {
+        menu.classList.add("hidden");
+        menu.innerHTML = "";
+      }
+
+      function showMatches() {
+        const nodes = nodesMatchingPickQuery(kind, input.value);
+        menu.innerHTML = "";
+        if (!nodes.length) {
+          hideMenu();
+          return;
+        }
+        menu.classList.remove("hidden");
+        for (const node of nodes) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "skill-pick-menu-item";
+          btn.textContent = node.label;
+          btn.addEventListener("mousedown", (e) => e.preventDefault());
+          btn.addEventListener("click", () => {
+            addEvidenceSkillId(kind, node.id);
+            input.value = "";
+            hideMenu();
+            if (kind === "tool") refreshCompetencySuggestions();
+          });
+          menu.appendChild(btn);
+        }
+      }
+
+      input.addEventListener("input", showMatches);
+      input.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        const first = menu.querySelector(".skill-pick-menu-item");
+        if (first && !menu.classList.contains("hidden")) {
+          first.click();
+          return;
+        }
+        addPickToEvidence(input, kind);
+        hideMenu();
+      });
+      input.addEventListener("blur", () => setTimeout(hideMenu, 150));
+    }
 
     const skillSuggestFromPayload = document.getElementById("skill-suggest-from-payload");
     const skillCreateUnmatched = document.getElementById("skill-create-unmatched");
@@ -331,18 +387,9 @@
     const skillCompPick = document.getElementById("skill-comp-pick");
     const skillTagPick = document.getElementById("skill-tag-pick");
 
-    function wirePickInput(input, kind) {
-      if (!input) return;
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          addPickToEvidence(input, kind);
-        }
-      });
-    }
-    wirePickInput(skillToolPick, "tool");
-    wirePickInput(skillCompPick, "competency");
-    wirePickInput(skillTagPick, "tag");
+    wireFilteredPickTypeahead(skillToolPick, "tool");
+    wireFilteredPickTypeahead(skillCompPick, "competency");
+    wireFilteredPickTypeahead(skillTagPick, "tag");
     if (skillSuggestFromPayload) {
       skillSuggestFromPayload.addEventListener("click", applyToolsFromPayload);
     }

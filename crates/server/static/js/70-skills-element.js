@@ -80,12 +80,13 @@
         return;
       }
       box.classList.remove("hidden");
-      skillSuggestionsHint.textContent = "Suggested competencies (from selected tools):";
+      skillSuggestionsHint.textContent =
+        "Suggested competencies (not saved until you click +):";
       skillSuggestionsHint.classList.remove("hidden");
       for (const s of suggestions) {
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "evidence-chip evidence-chip-competency";
+        btn.className = "evidence-suggestion-chip evidence-chip-competency";
         btn.textContent = `+ ${s.label}`;
         btn.addEventListener("click", () => {
           addEvidenceSkillId("competency", s.competency_id);

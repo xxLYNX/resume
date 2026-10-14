@@ -31,7 +31,7 @@
         return la.localeCompare(lb);
       });
       if (!ids.length) {
-        container.textContent = "—";
+        container.textContent = "None saved on this entry";
         container.classList.add("empty");
         return;
       }

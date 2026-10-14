@@ -125,7 +125,7 @@
         </div>
         <div id="payload-form" hidden></div>
         <div id="skill-links-panel" class="hidden">
-          <p class="help">Evidence tags on this entry (tools, competencies, custom markers). Saved separately from revision text. PDF toolbelt uses pinned entries only.</p>
+          <p class="help">Evidence tags on this entry (tools, competencies, custom markers). <strong>Only chips in the rows below are saved</strong> (after “Save evidence tags”). Search boxes match the catalog; they are not applied tags until you add a chip. PDF toolbelt uses pinned entries only.</p>
           <p class="meta" id="evidence-chips-meta"></p>
           <div class="row">
             <button type="button" id="save-evidence-tags">Save evidence tags</button>
@@ -141,20 +141,17 @@
           <div class="evidence-section">
             <span class="meta">Tools</span>
             <div id="evidence-chips-tool" class="evidence-chip-row"></div>
-            <input type="search" id="skill-tool-pick" list="skill-tool-datalist" placeholder="Search tools… Enter to add" style="width:100%;margin-top:0.25rem" autocomplete="off" />
-            <datalist id="skill-tool-datalist"></datalist>
+            <input type="search" id="skill-tool-pick" placeholder="Type 2+ letters to search catalog… Enter to add" style="width:100%;margin-top:0.25rem" autocomplete="off" />
           </div>
           <div class="evidence-section">
             <span class="meta">Competencies</span>
             <div id="evidence-chips-competency" class="evidence-chip-row"></div>
-            <input type="search" id="skill-comp-pick" list="skill-comp-datalist" placeholder="Search competencies… Enter to add" style="width:100%;margin-top:0.25rem" autocomplete="off" />
-            <datalist id="skill-comp-datalist"></datalist>
+            <input type="search" id="skill-comp-pick" placeholder="Type 2+ letters to search catalog… Enter to add" style="width:100%;margin-top:0.25rem" autocomplete="off" />
           </div>
           <div class="evidence-section">
             <span class="meta">Custom markers</span>
             <div id="evidence-chips-marker" class="evidence-chip-row"></div>
-            <input type="search" id="skill-tag-pick" list="skill-tag-datalist" placeholder="RMF, FIPS… Enter to add" style="width:100%;margin-top:0.25rem" autocomplete="off" />
-            <datalist id="skill-tag-datalist"></datalist>
+            <input type="search" id="skill-tag-pick" placeholder="Type 2+ letters (RMF, FIPS…) Enter to add" style="width:100%;margin-top:0.25rem" autocomplete="off" />
           </div>
           <select id="skill-links-tool" multiple class="hidden" aria-hidden="true"></select>
           <select id="skill-links-competency" multiple class="hidden" aria-hidden="true"></select>
