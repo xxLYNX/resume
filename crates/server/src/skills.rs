@@ -75,6 +75,28 @@ pub async fn put_element_skill_links(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Debug, Deserialize)]
+pub struct SkillLinkSummariesQuery {
+    pub ids: String,
+}
+
+pub async fn element_skill_link_summaries(
+    State(state): State<std::sync::Arc<AppState>>,
+    Query(q): Query<SkillLinkSummariesQuery>,
+) -> Result<Json<Vec<store::ElementSkillLinkSummary>>, (StatusCode, Json<serde_json::Value>)> {
+    let store = Store::open(&state.db_path).map_err(internal_err)?;
+    let element_ids: Vec<String> = q
+        .ids
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    let rows = store
+        .element_skill_link_summaries(&element_ids)
+        .map_err(internal_err)?;
+    Ok(Json(rows))
+}
+
 pub async fn list_skill_relationships(
     State(state): State<std::sync::Arc<AppState>>,
     Query(q): Query<RelationshipsQuery>,

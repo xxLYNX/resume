@@ -6,9 +6,11 @@
       fillSkillSelect(skillLinksTool, skillNodesCache.tool);
       fillSkillSelect(skillLinksCompetency, skillNodesCache.competency);
       if (skillLinksTag) fillSkillSelect(skillLinksTag, skillNodesCache.tag);
+      syncHiddenSelectsFromEvidence();
+      renderAllEvidenceChips();
       skillNodeList.innerHTML = "";
       const all = [...skillNodesCache.tool, ...skillNodesCache.competency, ...skillNodesCache.tag];
-      skillCatalogStatus.textContent = `${all.length} skill(s)`;
+      skillCatalogStatus.textContent = `${all.length} catalog node(s)`;
       for (const node of all.sort((a, b) => a.label.localeCompare(b.label))) {
         const li = document.createElement("li");
         li.textContent = `${node.label} (${node.kind}) · ${node.id}`;
@@ -17,6 +19,7 @@
     }
 
     function fillSkillSelect(select, nodes) {
+      if (!select) return;
       select.innerHTML = "";
       for (const node of nodes) {
         const opt = document.createElement("option");
@@ -38,44 +41,33 @@
     }
 
     function setSkillLinkSelections(rows) {
-      const byKind = { tool: new Set(), competency: new Set(), tag: new Set() };
-      for (const row of rows || []) {
-        if (row.source !== "asserted") continue;
-        if (byKind[row.kind]) byKind[row.kind].add(row.skill_id);
-      }
-      for (const [sel, k] of [
-        [skillLinksTool, "tool"],
-        [skillLinksCompetency, "competency"],
-        [skillLinksTag, "tag"],
-      ]) {
-        if (!sel) continue;
-        for (const opt of sel.options) {
-          opt.selected = byKind[k].has(opt.value);
-        }
-      }
+      setEvidenceFromLinkRows(rows);
     }
 
     async function loadElementSkillLinks(elementId) {
       if (!elementId) {
-        setSkillLinkSelections([]);
+        clearEvidenceChips();
         skillSuggestionsHint.classList.add("hidden");
+        document.getElementById("skill-comp-suggestions")?.classList.add("hidden");
         return;
       }
       const res = await fetch(
         `/api/catalog/elements/${encodeURIComponent(elementId)}/skill-links`,
       );
       const rows = res.ok ? await res.json() : [];
-      setSkillLinkSelections(rows);
+      setEvidenceFromLinkRows(rows);
       await refreshCompetencySuggestions();
     }
 
     async function refreshCompetencySuggestions() {
-      const toolIds = [...skillLinksTool.selectedOptions].map((o) => o.value);
-      const applyBtn = document.getElementById("skill-apply-comp-suggestions");
+      const toolIds = getEvidenceToolIds();
+      const box = document.getElementById("skill-comp-suggestions");
+      if (!box) return;
+      box.innerHTML = "";
       if (toolIds.length === 0) {
         lastCompetencySuggestions = [];
+        box.classList.add("hidden");
         skillSuggestionsHint.classList.add("hidden");
-        if (applyBtn) applyBtn.classList.add("hidden");
         return;
       }
       const q = encodeURIComponent(toolIds.join(","));
@@ -83,26 +75,24 @@
       const suggestions = res.ok ? await res.json() : [];
       lastCompetencySuggestions = suggestions;
       if (!suggestions.length) {
+        box.classList.add("hidden");
         skillSuggestionsHint.classList.add("hidden");
-        if (applyBtn) applyBtn.classList.add("hidden");
         return;
       }
-      skillSuggestionsHint.textContent =
-        "Suggested competencies (from selected tools): " +
-        suggestions.map((s) => s.label).join(", ");
+      box.classList.remove("hidden");
+      skillSuggestionsHint.textContent = "Suggested competencies (from selected tools):";
       skillSuggestionsHint.classList.remove("hidden");
-      if (applyBtn) applyBtn.classList.remove("hidden");
-    }
-
-    function collectSkillLinksFromDom() {
-      const links = [];
-      for (const sel of [skillLinksTool, skillLinksCompetency, skillLinksTag]) {
-        if (!sel) continue;
-        for (const opt of sel.selectedOptions) {
-          links.push({ skill_id: opt.value, source: "asserted" });
-        }
+      for (const s of suggestions) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "evidence-chip evidence-chip-competency";
+        btn.textContent = `+ ${s.label}`;
+        btn.addEventListener("click", () => {
+          addEvidenceSkillId("competency", s.competency_id);
+          refreshCompetencySuggestions();
+        });
+        box.appendChild(btn);
       }
-      return links;
     }
 
     async function saveElementSkillLinks(elementId) {
@@ -132,7 +122,43 @@
       }
     }
 
-    skillLinksTool.addEventListener("change", () => refreshCompetencySuggestions());
+    const saveEvidenceBtn = document.getElementById("save-evidence-tags");
+    if (saveEvidenceBtn) {
+      saveEvidenceBtn.addEventListener("click", async () => {
+        if (!selectedElementId) {
+          catalogStatus.textContent = "Select or create an entry first.";
+          return;
+        }
+        try {
+          await saveElementSkillLinks(selectedElementId);
+          catalogStatus.textContent = "Evidence tags saved.";
+          catalogStatus.classList.remove("error");
+          await loadCatalog();
+          const relOpen = document.getElementById("skill-relationships-details")?.open;
+          if (typeof loadSkillRelationships === "function" && relOpen) {
+            loadSkillRelationships();
+          }
+        } catch (e) {
+          catalogStatus.textContent = String(e);
+          catalogStatus.classList.add("error");
+        }
+      });
+    }
+
+    const skillViewRelBtn = document.getElementById("skill-view-relationships");
+    if (skillViewRelBtn) {
+      skillViewRelBtn.addEventListener("click", () => {
+        if (!selectedElementId) return;
+        const details = document.getElementById("skill-relationships-details");
+        const filterEl = document.getElementById("skill-rel-filter-element");
+        if (filterEl) filterEl.value = selectedElementId;
+        if (details) details.open = true;
+        if (typeof loadSkillRelationships === "function") loadSkillRelationships();
+        catalogListBody.classList.remove("hidden");
+        catalogElementDetail.classList.add("hidden");
+        loadCatalog();
+      });
+    }
 
     async function selectElement(id) {
       elementCreateKind = null;
@@ -216,7 +242,7 @@
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ payload }),
-          }
+          },
         );
         const rev = await res.json();
         if (!res.ok) {
@@ -225,15 +251,6 @@
           return;
         }
         catalogStatus.textContent = `Saved rev ${rev.rev_number}`;
-        try {
-          await saveElementSkillLinks(selectedElementId);
-          const relOpen = document.getElementById("skill-relationships-details")?.open;
-          if (typeof loadSkillRelationships === "function" && relOpen) {
-            loadSkillRelationships();
-          }
-        } catch (e) {
-          catalogStatus.textContent = `Saved rev ${rev.rev_number}; skills: ${e.message}`;
-        }
         await selectElement(selectedElementId);
         await loadCatalog();
         await rebuildAfterCatalogSave(selectedElementId);

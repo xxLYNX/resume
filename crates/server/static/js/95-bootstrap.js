@@ -152,11 +152,6 @@
         catalogListBody.classList.remove("hidden");
         await loadCatalog();
         await selectElement(id);
-        try {
-          if (selectedElementId) await saveElementSkillLinks(selectedElementId);
-        } catch (e) {
-          catalogStatus.textContent = `Created ${id}; skills: ${e.message}`;
-        }
         catalogStatus.textContent = `Created ${id}`;
         const savedId = id;
         const savedKind = kind;

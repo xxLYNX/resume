@@ -525,7 +525,7 @@
       syncWorkdayFillButtonVisibility(kind);
       syncSkillLinksPanelVisibility(kind);
       syncCreateParentRow(kind);
-      setSkillLinkSelections([]);
+      clearEvidenceChips();
       catalogStatus.textContent = "";
       catalogStatus.classList.remove("error");
       revisionSelect.innerHTML = "";

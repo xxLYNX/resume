@@ -119,11 +119,7 @@
     }
 
     function selectToolIds(ids) {
-      for (const opt of skillLinksTool.options) {
-        if (ids.has(opt.value)) {
-          opt.selected = true;
-        }
-      }
+      addEvidenceSkillIds("tool", ids);
     }
 
     function syncUnmatchedUi(tokens) {
@@ -142,6 +138,57 @@
       if (createBtn) createBtn.classList.remove("hidden");
     }
 
+    function showToolSuggestPreview(idSet) {
+      const box = document.getElementById("skill-suggest-preview");
+      if (!box) return;
+      box.innerHTML = "";
+      if (!idSet.size) {
+        box.classList.add("hidden");
+        return;
+      }
+      box.classList.remove("hidden");
+      const title = document.createElement("p");
+      title.className = "meta";
+      title.textContent = "Matched tools from payload (uncheck to skip):";
+      box.appendChild(title);
+      const list = document.createElement("div");
+      for (const id of idSet) {
+        const node = skillNodeById(id);
+        const label = document.createElement("label");
+        label.style.display = "block";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = true;
+        cb.dataset.skillId = id;
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(" " + (node?.label || id)));
+        list.appendChild(label);
+      }
+      box.appendChild(list);
+      const row = document.createElement("div");
+      row.className = "row";
+      const applyBtn = document.createElement("button");
+      applyBtn.type = "button";
+      applyBtn.textContent = "Add checked tools";
+      applyBtn.addEventListener("click", () => {
+        const chosen = new Set();
+        for (const cb of list.querySelectorAll('input[type="checkbox"]')) {
+          if (cb.checked) chosen.add(cb.dataset.skillId);
+        }
+        selectToolIds(chosen);
+        box.classList.add("hidden");
+        refreshCompetencySuggestions();
+        catalogStatus.textContent = `Added ${chosen.size} tool(s) from preview. Save evidence tags when ready.`;
+      });
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.addEventListener("click", () => box.classList.add("hidden"));
+      row.appendChild(applyBtn);
+      row.appendChild(cancelBtn);
+      box.appendChild(row);
+    }
+
     function applyToolsFromPayload() {
       const tokens = collectPayloadEvidenceTokens();
       if (!tokens.length) {
@@ -152,15 +199,14 @@
       }
       const ids = findToolIdsForTokens(tokens);
       const unmatched = unmatchedTokens(tokens);
-      if (ids.size) selectToolIds(ids);
       syncUnmatchedUi(unmatched);
-      refreshCompetencySuggestions();
+      showToolSuggestPreview(ids);
       if (ids.size && unmatched.length) {
-        catalogStatus.textContent = `Selected ${ids.size} tool(s); ${unmatched.length} token(s) need new catalog tools.`;
+        catalogStatus.textContent = `${ids.size} tool match(es); review preview. ${unmatched.length} unmatched token(s).`;
       } else if (ids.size) {
-        catalogStatus.textContent = `Selected ${ids.size} tool(s) from payload.`;
+        catalogStatus.textContent = `${ids.size} tool match(es); review preview.`;
       } else {
-        catalogStatus.textContent = "No catalog tools matched; create tools for unmatched tokens.";
+        catalogStatus.textContent = "No catalog tools matched; create markers for unmatched tokens.";
       }
     }
 
@@ -203,28 +249,11 @@
         created.push(id);
       }
       await loadSkillNodes();
-      if (skillLinksTag) {
-        for (const id of created) {
-          for (const opt of skillLinksTag.options) {
-            if (opt.value === id) opt.selected = true;
-          }
-        }
-      }
+      addEvidenceSkillIds("tag", created);
       syncUnmatchedUi([]);
       refreshCompetencySuggestions();
       catalogStatus.textContent = `Created ${created.length} tag(s); add tools manually if needed.`;
       catalogStatus.classList.remove("error");
-    }
-
-    function applyCompetencySuggestionsToSelection() {
-      if (!lastCompetencySuggestions.length) return;
-      const ids = new Set(lastCompetencySuggestions.map((s) => s.competency_id));
-      for (const opt of skillLinksCompetency.options) {
-        if (ids.has(opt.value)) {
-          opt.selected = true;
-        }
-      }
-      catalogStatus.textContent = "Added suggested competencies to selection.";
     }
 
     function findNodeByPickValue(kind, value) {
@@ -249,20 +278,15 @@
       return null;
     }
 
-    function addPickToSelect(pickInput, selectEl, kind) {
+    function addPickToEvidence(pickInput, kind) {
       const node = findNodeByPickValue(kind, pickInput.value);
       if (!node) {
         catalogStatus.textContent = `No ${kind} matched “${pickInput.value.trim()}”.`;
         return;
       }
-      for (const opt of selectEl.options) {
-        if (opt.value === node.id) {
-          opt.selected = true;
-          pickInput.value = "";
-          if (kind === "tool") refreshCompetencySuggestions();
-          return;
-        }
-      }
+      addEvidenceSkillId(kind, node.id);
+      pickInput.value = "";
+      if (kind === "tool") refreshCompetencySuggestions();
     }
 
     function populateSkillDatalists() {
@@ -301,85 +325,24 @@
       populateSkillDatalists();
     };
 
-    const skillToolFilter = document.getElementById("skill-tool-filter");
-    const skillCompFilter = document.getElementById("skill-comp-filter");
     const skillSuggestFromPayload = document.getElementById("skill-suggest-from-payload");
     const skillCreateUnmatched = document.getElementById("skill-create-unmatched");
-    const skillApplyCompSuggestions = document.getElementById("skill-apply-comp-suggestions");
     const skillToolPick = document.getElementById("skill-tool-pick");
     const skillCompPick = document.getElementById("skill-comp-pick");
-    const skillTagFilter = document.getElementById("skill-tag-filter");
     const skillTagPick = document.getElementById("skill-tag-pick");
 
-    if (skillToolFilter) {
-      skillToolFilter.addEventListener("input", () => {
-        filterSkillSelect(skillLinksTool, skillToolFilter.value);
-      });
-      skillToolFilter.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter") return;
-        e.preventDefault();
-        const opt = firstVisibleOption(skillLinksTool);
-        if (opt) {
-          opt.selected = true;
-          refreshCompetencySuggestions();
-        }
-      });
-    }
-    if (skillCompFilter) {
-      skillCompFilter.addEventListener("input", () => {
-        filterSkillSelect(skillLinksCompetency, skillCompFilter.value);
-      });
-      skillCompFilter.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter") return;
-        e.preventDefault();
-        const opt = firstVisibleOption(skillLinksCompetency);
-        if (opt) opt.selected = true;
-      });
-    }
-    if (skillToolPick) {
-      skillToolPick.addEventListener("change", () =>
-        addPickToSelect(skillToolPick, skillLinksTool, "tool"),
-      );
-      skillToolPick.addEventListener("keydown", (e) => {
+    function wirePickInput(input, kind) {
+      if (!input) return;
+      input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
-          addPickToSelect(skillToolPick, skillLinksTool, "tool");
+          addPickToEvidence(input, kind);
         }
       });
     }
-    if (skillCompPick) {
-      skillCompPick.addEventListener("change", () =>
-        addPickToSelect(skillCompPick, skillLinksCompetency, "competency"),
-      );
-      skillCompPick.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          addPickToSelect(skillCompPick, skillLinksCompetency, "competency");
-        }
-      });
-    }
-    if (skillTagFilter && skillLinksTag) {
-      skillTagFilter.addEventListener("input", () => {
-        filterSkillSelect(skillLinksTag, skillTagFilter.value);
-      });
-      skillTagFilter.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter") return;
-        e.preventDefault();
-        const opt = firstVisibleOption(skillLinksTag);
-        if (opt) opt.selected = true;
-      });
-    }
-    if (skillTagPick && skillLinksTag) {
-      skillTagPick.addEventListener("change", () =>
-        addPickToSelect(skillTagPick, skillLinksTag, "tag"),
-      );
-      skillTagPick.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          addPickToSelect(skillTagPick, skillLinksTag, "tag");
-        }
-      });
-    }
+    wirePickInput(skillToolPick, "tool");
+    wirePickInput(skillCompPick, "competency");
+    wirePickInput(skillTagPick, "tag");
     if (skillSuggestFromPayload) {
       skillSuggestFromPayload.addEventListener("click", applyToolsFromPayload);
     }
@@ -390,7 +353,4 @@
           catalogStatus.classList.add("error");
         });
       });
-    }
-    if (skillApplyCompSuggestions) {
-      skillApplyCompSuggestions.addEventListener("click", applyCompetencySuggestionsToSelection);
     }

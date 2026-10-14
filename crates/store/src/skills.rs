@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result};
 use domain::{
@@ -9,6 +9,14 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 
 use crate::Store;
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ElementSkillLinkSummary {
+    pub element_id: String,
+    pub tools: Vec<String>,
+    pub competencies: Vec<String>,
+    pub markers: Vec<String>,
+}
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SkillLinkRow {
@@ -110,6 +118,16 @@ impl Store {
         Ok(())
     }
 
+    /// Remove all asserted evidence links (portfolio tags). Returns rows deleted.
+    pub fn clear_asserted_element_skill_links(&self) -> Result<usize> {
+        let conn = self.connection();
+        let n = conn.execute(
+            "DELETE FROM element_skill_links WHERE source = 'asserted'",
+            [],
+        )?;
+        Ok(n)
+    }
+
     pub fn import_skill_nodes(&self, nodes: &[SkillNode]) -> Result<usize> {
         let mut n = 0;
         for node in nodes {
@@ -206,6 +224,65 @@ impl Store {
             self.collect_asserted_skill_ids(&element_id, ids)?;
         }
         Ok(())
+    }
+
+    pub fn element_skill_link_summaries(
+        &self,
+        element_ids: &[String],
+    ) -> Result<Vec<ElementSkillLinkSummary>> {
+        if element_ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let conn = self.connection();
+        let placeholders = element_ids
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!(
+            "SELECT l.element_id, n.kind, n.label
+             FROM element_skill_links l
+             JOIN skill_nodes n ON n.id = l.skill_id
+             WHERE l.source = 'asserted' AND l.element_id IN ({placeholders})
+             ORDER BY l.element_id, n.kind, n.label COLLATE NOCASE"
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let params: Vec<&dyn rusqlite::ToSql> = element_ids
+            .iter()
+            .map(|s| s as &dyn rusqlite::ToSql)
+            .collect();
+        let rows = stmt.query_map(params.as_slice(), |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?;
+        let mut map: BTreeMap<String, ElementSkillLinkSummary> = BTreeMap::new();
+        for id in element_ids {
+            map.insert(
+                id.clone(),
+                ElementSkillLinkSummary {
+                    element_id: id.clone(),
+                    tools: vec![],
+                    competencies: vec![],
+                    markers: vec![],
+                },
+            );
+        }
+        for row in rows {
+            let (element_id, kind, label) = row?;
+            let Some(summary) = map.get_mut(&element_id) else {
+                continue;
+            };
+            match kind.as_str() {
+                "tool" => summary.tools.push(label),
+                "competency" => summary.competencies.push(label),
+                "tag" => summary.markers.push(label),
+                _ => {}
+            }
+        }
+        Ok(map.into_values().collect())
     }
 
     pub fn get_element_skill_links(&self, element_id: &str) -> Result<Vec<SkillLinkRow>> {

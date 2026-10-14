@@ -308,3 +308,32 @@
     .skill-rel-table tbody tr { cursor: pointer; }
     .skill-rel-table tbody tr:hover { background: #0001; }
     .skill-rel-table .mono { font-family: ui-monospace, monospace; font-size: 0.72rem; }
+    .evidence-section { margin: 0.5rem 0; }
+    .evidence-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      min-height: 1.5rem;
+      margin: 0.25rem 0;
+      align-items: center;
+    }
+    .evidence-chip-row.empty { color: var(--muted); font-size: 0.85rem; }
+    .evidence-chip {
+      font-size: 0.78rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #0001;
+      cursor: pointer;
+    }
+    .evidence-chip-tool { border-color: color-mix(in srgb, #48a 50%, var(--border)); }
+    .evidence-chip-competency { border-color: color-mix(in srgb, #6a4 50%, var(--border)); }
+    .evidence-chip-tag { border-color: color-mix(in srgb, #a84 50%, var(--border)); }
+    .evidence-preview, .evidence-suggestions {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.5rem;
+      margin: 0.35rem 0;
+      font-size: 0.85rem;
+    }
+    .portfolio-evidence-line { font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }

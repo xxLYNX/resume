@@ -73,6 +73,7 @@ ATS/keywords: prefer narratives + linked tags on anchors, not a separate keyword
 - **Import:** `jobdesk import` seeds header/objective/education/experience/projects from `content/` — not `skills.yaml`.
 - **Build config:** `settings/jobdesk.yaml` lists **section templates only**; content always from DB resolve.
 - **Serve:** `cargo run -p jobdesk -- serve` (DB typically `workspace/jobdesk.db`).
+- **Reset evidence links:** `jobdesk skills clear-links --yes` (removes all asserted portfolio tags).
 
 ---
 

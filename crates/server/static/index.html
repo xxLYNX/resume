@@ -125,43 +125,40 @@
         </div>
         <div id="payload-form" hidden></div>
         <div id="skill-links-panel" class="hidden">
-          <p class="help">Link tools, competencies, and other tags as evidence. PDF toolbelt lists deduped labels from pinned experience, projects, education, certifications, and awards.</p>
+          <p class="help">Evidence tags on this entry (tools, competencies, custom markers). Saved separately from revision text. PDF toolbelt uses pinned entries only.</p>
+          <p class="meta" id="evidence-chips-meta"></p>
           <div class="row">
-            <button type="button" id="skill-suggest-from-payload">Suggest tools from payload</button>
-            <button type="button" id="skill-create-unmatched" class="hidden">Create catalog tags for unmatched</button>
-            <button type="button" id="skill-apply-comp-suggestions" class="hidden">Add suggested competencies</button>
+            <button type="button" id="save-evidence-tags">Save evidence tags</button>
+            <button type="button" id="skill-view-relationships">View in relationships</button>
+          </div>
+          <div class="row">
+            <button type="button" id="skill-suggest-from-payload">Suggest tools from payload…</button>
+            <button type="button" id="skill-create-unmatched" class="hidden">Create markers for unmatched</button>
           </div>
           <p class="meta hidden" id="skill-unmatched-hint"></p>
-          <label class="meta">Add tool (typeahead)
-            <input type="text" id="skill-tool-pick" list="skill-tool-datalist" placeholder="Search catalog…" style="width:100%;margin-top:0.25rem" autocomplete="off" />
+          <div id="skill-suggest-preview" class="hidden evidence-preview"></div>
+          <div id="skill-comp-suggestions" class="hidden evidence-suggestions"></div>
+          <div class="evidence-section">
+            <span class="meta">Tools</span>
+            <div id="evidence-chips-tool" class="evidence-chip-row"></div>
+            <input type="search" id="skill-tool-pick" list="skill-tool-datalist" placeholder="Search tools… Enter to add" style="width:100%;margin-top:0.25rem" autocomplete="off" />
             <datalist id="skill-tool-datalist"></datalist>
-          </label>
-          <label class="meta">Filter tools
-            <input type="search" id="skill-tool-filter" placeholder="Filter list below (Enter adds first match)" style="width:100%;margin-top:0.25rem" autocomplete="off" />
-          </label>
-          <label class="meta">Tools (Ctrl/Cmd+click for multiple)
-            <select id="skill-links-tool" multiple size="6" style="width:100%;margin-top:0.25rem"></select>
-          </label>
-          <label class="meta">Add competency (typeahead)
-            <input type="text" id="skill-comp-pick" list="skill-comp-datalist" placeholder="Search catalog…" style="width:100%;margin-top:0.25rem" autocomplete="off" />
+          </div>
+          <div class="evidence-section">
+            <span class="meta">Competencies</span>
+            <div id="evidence-chips-competency" class="evidence-chip-row"></div>
+            <input type="search" id="skill-comp-pick" list="skill-comp-datalist" placeholder="Search competencies… Enter to add" style="width:100%;margin-top:0.25rem" autocomplete="off" />
             <datalist id="skill-comp-datalist"></datalist>
-          </label>
-          <label class="meta">Filter competencies
-            <input type="search" id="skill-comp-filter" placeholder="Filter list below (Enter adds first match)" style="width:100%;margin-top:0.25rem" autocomplete="off" />
-          </label>
-          <label class="meta">Competencies
-            <select id="skill-links-competency" multiple size="5" style="width:100%;margin-top:0.25rem"></select>
-          </label>
-          <label class="meta">Add other tag (typeahead)
-            <input type="text" id="skill-tag-pick" list="skill-tag-datalist" placeholder="Standards, frameworks, niche labels…" style="width:100%;margin-top:0.25rem" autocomplete="off" />
+          </div>
+          <div class="evidence-section">
+            <span class="meta">Custom markers</span>
+            <div id="evidence-chips-marker" class="evidence-chip-row"></div>
+            <input type="search" id="skill-tag-pick" list="skill-tag-datalist" placeholder="RMF, FIPS… Enter to add" style="width:100%;margin-top:0.25rem" autocomplete="off" />
             <datalist id="skill-tag-datalist"></datalist>
-          </label>
-          <label class="meta">Filter other tags
-            <input type="search" id="skill-tag-filter" placeholder="Filter list below (Enter adds first match)" style="width:100%;margin-top:0.25rem" autocomplete="off" />
-          </label>
-          <label class="meta">Other tags
-            <select id="skill-links-tag" multiple size="4" style="width:100%;margin-top:0.25rem"></select>
-          </label>
+          </div>
+          <select id="skill-links-tool" multiple class="hidden" aria-hidden="true"></select>
+          <select id="skill-links-competency" multiple class="hidden" aria-hidden="true"></select>
+          <select id="skill-links-tag" multiple class="hidden" aria-hidden="true"></select>
           <p class="meta hidden" id="skill-suggestions-hint"></p>
         </div>
         <textarea id="payload-editor" spellcheck="false" placeholder="Select an element…" disabled></textarea>
@@ -342,6 +339,7 @@
   <script src="/static/js/40-composition.js"></script>
   <script src="/static/js/50-presets.js"></script>
   <script src="/static/js/60-workday-catalog.js"></script>
+  <script src="/static/js/69-evidence-chips.js"></script>
   <script src="/static/js/70-skills-element.js"></script>
   <script src="/static/js/71-skill-discovery.js"></script>
   <script src="/static/js/72-relationships.js"></script>

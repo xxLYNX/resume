@@ -141,6 +141,10 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
             "/api/catalog/elements/{id}/skill-links",
             get(skills::get_element_skill_links).put(skills::put_element_skill_links),
         )
+        .route(
+            "/api/catalog/skill-link-summaries",
+            get(skills::element_skill_link_summaries),
+        )
         .route("/api/applications/statuses", get(applications::list_statuses))
         .route("/api/applications", get(applications::list_applications))
         .route("/api/applications", post(applications::create_application))

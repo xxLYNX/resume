@@ -115,6 +115,11 @@ enum SkillsCommands {
         #[arg(long, default_value = "docs/LEGACY_SKILLS_INVENTORY.md")]
         out: PathBuf,
     },
+    /// Delete all asserted element_skill_links (portfolio evidence tags)
+    ClearLinks {
+        #[arg(long, action = clap::ArgAction::SetTrue)]
+        yes: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -268,6 +273,13 @@ async fn main() -> Result<()> {
                     let out_path = resolve_path(&root, &out);
                     store::write_legacy_skills_inventory(&store, &root, &out_path)?;
                     println!("Wrote {}", out_path.display());
+                }
+                SkillsCommands::ClearLinks { yes } => {
+                    if !yes {
+                        anyhow::bail!("pass --yes to delete all asserted portfolio evidence links");
+                    }
+                    let n = store.clear_asserted_element_skill_links()?;
+                    println!("Deleted {n} asserted element skill link(s)");
                 }
             }
         }

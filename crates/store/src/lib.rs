@@ -28,7 +28,8 @@ pub use ledger::default_ledger_download_path;
 pub use migrate::migrate;
 pub use legacy_inventory::write_legacy_skills_inventory;
 pub use skills::{
-    CompetencySuggestion, ListSkillRelationshipsFilter, SkillLinkRow, SkillRelationshipRow,
+    CompetencySuggestion, ElementSkillLinkSummary, ListSkillRelationshipsFilter, SkillLinkRow,
+    SkillRelationshipRow,
 };
 pub use presets::{
     create_preset, delete_preset, get_preset, list_presets, update_preset, CreatePresetRequest,

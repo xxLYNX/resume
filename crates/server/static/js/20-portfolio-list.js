@@ -34,12 +34,49 @@
       if (row) row.classList.add("active");
     }
 
+    let skillLinkSummaryByElement = {};
+
+    function formatEvidenceSummaryLine(elementId) {
+      const s = skillLinkSummaryByElement[elementId];
+      if (!s) return "";
+      const labels = [
+        ...s.tools.slice(0, 2),
+        ...s.competencies.slice(0, 2),
+        ...s.markers.slice(0, 2),
+      ];
+      if (!labels.length) return "";
+      const extra =
+        s.tools.length +
+        s.competencies.length +
+        s.markers.length -
+        labels.length;
+      const suffix = extra > 0 ? ` +${extra}` : "";
+      return `<div class="portfolio-evidence-line">${labels.join(" · ")}${suffix}</div>`;
+    }
+
+    async function refreshEvidenceSummaries() {
+      const ids = [];
+      for (const list of Object.values(catalogByKind)) {
+        for (const el of list || []) ids.push(el.id);
+      }
+      if (!ids.length) {
+        skillLinkSummaryByElement = {};
+        return;
+      }
+      const res = await fetch(
+        `/api/catalog/skill-link-summaries?ids=${encodeURIComponent(ids.join(","))}`,
+      );
+      if (!res.ok) return;
+      const rows = await res.json();
+      skillLinkSummaryByElement = Object.fromEntries(rows.map((s) => [s.element_id, s]));
+    }
+
     function renderPortfolioElement(el, { nested = false } = {}) {
       const row = document.createElement("div");
       row.className = "portfolio-element" + (nested ? " nested" : "");
       row.dataset.id = el.id;
       const title = el.display_label || el.id;
-      row.innerHTML = `<span class="meta-line">${el.kind} · rev ${el.latest_rev_number}</span>${title}`;
+      row.innerHTML = `<span class="meta-line">${el.kind} · rev ${el.latest_rev_number}</span>${title}${formatEvidenceSummaryLine(el.id)}`;
       row.addEventListener("click", () => selectElement(el.id));
       return row;
     }

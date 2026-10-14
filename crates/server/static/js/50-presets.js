@@ -102,6 +102,7 @@
       catalogStatus.textContent = "Loading…";
       try {
         await refreshCatalogByKind();
+        await refreshEvidenceSummaries();
         const total = renderPortfolioGroups();
         catalogStatus.textContent = `${total} entr${total === 1 ? "y" : "ies"} in collections`;
       } catch (e) {
