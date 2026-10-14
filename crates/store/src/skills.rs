@@ -118,6 +118,179 @@ impl Store {
         Ok(())
     }
 
+    /// Wipe catalog and all evidence links (used before O*NET `--replace` import).
+    pub fn reset_skill_catalog(&self) -> Result<()> {
+        let conn = self.connection();
+        conn.execute("DELETE FROM element_skill_links", [])?;
+        conn.execute("DELETE FROM tool_competency_edges", [])?;
+        conn.execute("DELETE FROM skill_nodes", [])?;
+        Ok(())
+    }
+
+    pub fn skill_catalog_stats(&self) -> Result<std::collections::BTreeMap<String, i64>> {
+        let conn = self.connection();
+        let mut stmt = conn.prepare("SELECT kind, COUNT(*) FROM skill_nodes GROUP BY kind")?;
+        let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))?;
+        let mut map = std::collections::BTreeMap::new();
+        for row in rows {
+            let (kind, n) = row?;
+            map.insert(kind, n);
+        }
+        Ok(map)
+    }
+
+    pub fn import_skill_nodes_batch(&self, nodes: &[SkillNode]) -> Result<usize> {
+        let conn = self.connection();
+        let tx = conn.unchecked_transaction()?;
+        let mut n = 0usize;
+        for node in nodes {
+            validate_skill_node(node).map_err(|e| anyhow::anyhow!("{e}"))?;
+            let aliases = serde_json::to_string(&node.aliases)?;
+            let pdf_groups = serde_json::to_string(&node.pdf_groups)?;
+            let framework_refs = if node.framework_refs.is_null() {
+                "{}".to_string()
+            } else {
+                node.framework_refs.to_string()
+            };
+            tx.execute(
+                "INSERT INTO skill_nodes (id, kind, label, parent_id, aliases_json, pdf_groups_json, framework_refs_json)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(id) DO UPDATE SET
+                   kind = excluded.kind,
+                   label = excluded.label,
+                   parent_id = excluded.parent_id,
+                   aliases_json = excluded.aliases_json,
+                   pdf_groups_json = excluded.pdf_groups_json,
+                   framework_refs_json = excluded.framework_refs_json",
+                params![
+                    node.id,
+                    node.kind.as_str(),
+                    node.label,
+                    node.parent_id,
+                    aliases,
+                    pdf_groups,
+                    framework_refs,
+                ],
+            )?;
+            n += 1;
+        }
+        tx.commit()?;
+        Ok(n)
+    }
+
+    pub fn replace_tool_competency_edges(&self, edges: &[(String, String)]) -> Result<usize> {
+        let conn = self.connection();
+        let tx = conn.unchecked_transaction()?;
+        tx.execute("DELETE FROM tool_competency_edges", [])?;
+        let mut n = 0usize;
+        for (tool_id, competency_id) in edges {
+            tx.execute(
+                "INSERT OR IGNORE INTO tool_competency_edges (tool_id, competency_id, source)
+                 VALUES (?1, ?2, 'onet')",
+                params![tool_id, competency_id],
+            )?;
+            n += 1;
+        }
+        tx.commit()?;
+        Ok(n)
+    }
+
+    pub fn search_skill_nodes(
+        &self,
+        q: &str,
+        kind: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<SkillNode>> {
+        let q = q.trim();
+        if q.len() < 2 {
+            return Ok(vec![]);
+        }
+        let limit = limit.clamp(1, 500);
+        let pattern = format!("%{}%", q.to_lowercase());
+        let conn = self.connection();
+        let (sql, use_kind) = if kind.is_some() {
+            (
+                "SELECT id, kind, label, parent_id, aliases_json, pdf_groups_json, framework_refs_json
+                 FROM skill_nodes
+                 WHERE kind = ?1 AND (
+                   LOWER(label) LIKE ?2
+                   OR LOWER(aliases_json) LIKE ?2
+                   OR LOWER(id) LIKE ?2
+                 )
+                 ORDER BY label COLLATE NOCASE
+                 LIMIT ?3",
+                true,
+            )
+        } else {
+            (
+                "SELECT id, kind, label, parent_id, aliases_json, pdf_groups_json, framework_refs_json
+                 FROM skill_nodes
+                 WHERE LOWER(label) LIKE ?1
+                   OR LOWER(aliases_json) LIKE ?1
+                   OR LOWER(id) LIKE ?1
+                 ORDER BY kind, label COLLATE NOCASE
+                 LIMIT ?2",
+                false,
+            )
+        };
+        let mut stmt = conn.prepare(sql)?;
+        let rows = if use_kind {
+            stmt.query_map(params![kind.unwrap(), pattern, limit as i64], map_skill_node)?
+        } else {
+            stmt.query_map(params![pattern, limit as i64], map_skill_node)?
+        };
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn get_skill_nodes_by_ids(&self, ids: &[String]) -> Result<Vec<SkillNode>> {
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let conn = self.connection();
+        let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "SELECT id, kind, label, parent_id, aliases_json, pdf_groups_json, framework_refs_json
+             FROM skill_nodes WHERE id IN ({placeholders})"
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let params: Vec<&dyn rusqlite::ToSql> = ids.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+        let rows = stmt.query_map(params.as_slice(), map_skill_node)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn skill_nodes_for_posting_hints(
+        &self,
+        posting_text: &str,
+        composition: &Composition,
+        cap: usize,
+    ) -> Result<Vec<SkillNode>> {
+        use std::collections::BTreeMap;
+
+        use domain::posting_search_tokens;
+
+        let cap = cap.clamp(50, 2000);
+        let mut by_id: BTreeMap<String, SkillNode> = BTreeMap::new();
+
+        for token in posting_search_tokens(posting_text) {
+            for node in self.search_skill_nodes(&token, None, 40)? {
+                by_id.insert(node.id.clone(), node);
+                if by_id.len() >= cap {
+                    break;
+                }
+            }
+            if by_id.len() >= cap {
+                break;
+            }
+        }
+
+        let draft_ids: Vec<String> = self.skill_ids_on_composition(composition)?.into_iter().collect();
+        for node in self.get_skill_nodes_by_ids(&draft_ids)? {
+            by_id.insert(node.id.clone(), node);
+        }
+
+        Ok(by_id.into_values().collect())
+    }
+
     /// Remove all asserted evidence links (portfolio tags). Returns rows deleted.
     pub fn clear_asserted_element_skill_links(&self) -> Result<usize> {
         let conn = self.connection();
@@ -182,7 +355,8 @@ impl Store {
         posting_text: &str,
         composition: &Composition,
     ) -> Result<Vec<PostingHintRow>> {
-        let nodes = self.list_skill_nodes(None)?;
+        const CANDIDATE_CAP: usize = 500;
+        let nodes = self.skill_nodes_for_posting_hints(posting_text, composition, CANDIDATE_CAP)?;
         let on_draft = self.skill_ids_on_composition(composition)?;
         Ok(build_posting_hints(&nodes, posting_text, &on_draft))
     }
@@ -517,11 +691,9 @@ fn map_skill_node(row: &rusqlite::Row<'_>) -> rusqlite::Result<SkillNode> {
 }
 
 pub fn seed_skill_nodes_if_empty(conn: &Connection) -> Result<()> {
-    let count: i64 = conn.query_row("SELECT COUNT(*) FROM skill_nodes", [], |r| r.get(0))?;
-    if count > 0 {
-        return Ok(());
-    }
-    upsert_catalog_seed(conn)
+    let _ = conn;
+    // v14+: catalog comes from `jobdesk skills import-catalog`, not bundled seed.
+    Ok(())
 }
 
 /// Merge bundled catalog nodes (insert or update by id). Used on fresh DB and migration v12+.

@@ -115,8 +115,11 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if version < 13 {
         migrate_posting_text_and_framework_refs_v13(conn)?;
     }
+    if version < 14 {
+        migrate_catalog_v14_no_auto_seed(conn)?;
+    }
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '13')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '14')",
         [],
     )?;
     Ok(())
@@ -124,12 +127,17 @@ pub fn migrate(conn: &Connection) -> Result<()> {
 
 fn migrate_catalog_seed_v12(conn: &Connection) -> Result<()> {
     crate::skills::upsert_catalog_seed(conn)?;
+    crate::skills::seed_tool_competency_edges(conn)?;
     Ok(())
 }
 
 fn migrate_posting_text_and_framework_refs_v13(conn: &Connection) -> Result<()> {
     add_column_if_missing(conn, "applications", "posting_text", "TEXT NOT NULL DEFAULT ''")?;
     crate::skills::apply_framework_refs_seed(conn)?;
+    Ok(())
+}
+
+fn migrate_catalog_v14_no_auto_seed(_conn: &Connection) -> Result<()> {
     Ok(())
 }
 
@@ -290,8 +298,6 @@ fn migrate_competency_graph_v10(conn: &Connection) -> Result<()> {
     )?;
 
     add_column_if_missing(conn, "elements", "parent_element_id", "TEXT REFERENCES elements(id)")?;
-
-    crate::skills::seed_tool_competency_edges(conn)?;
     Ok(())
 }
 

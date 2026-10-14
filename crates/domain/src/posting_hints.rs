@@ -52,7 +52,7 @@ fn collect_json_strings(value: &serde_json::Value, out: &mut BTreeSet<String>) {
     }
 }
 
-fn normalize_posting(text: &str) -> String {
+pub fn normalize_posting(text: &str) -> String {
     text.to_lowercase()
         .chars()
         .map(|c| if c.is_alphanumeric() { c } else { ' ' })
@@ -70,6 +70,25 @@ fn normalize_term(term: &str) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// Significant tokens from posting text for catalog search (min length 3).
+pub fn posting_search_tokens(posting_text: &str) -> Vec<String> {
+    let norm = normalize_posting(posting_text);
+    if norm.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    let mut seen = BTreeSet::new();
+    for token in norm.split_whitespace() {
+        if token.len() < 3 {
+            continue;
+        }
+        if seen.insert(token.to_string()) {
+            out.push(token.to_string());
+        }
+    }
+    out
 }
 
 /// Match catalog nodes whose label, alias, or framework text appears in `posting_text`.

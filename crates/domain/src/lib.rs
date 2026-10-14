@@ -27,7 +27,8 @@ pub use framework_refs::{
     merge_framework_refs, merge_framework_refs_into, FrameworkRefsImportRow,
 };
 pub use posting_hints::{
-    build_posting_hints, match_skills_in_posting, PostingHintRow, SkillPostingMatch,
+    build_posting_hints, match_skills_in_posting, posting_search_tokens, PostingHintRow,
+    SkillPostingMatch,
 };
 pub use skills::{
     validate_element_links, validate_pdf_group, validate_skill_id, validate_skill_node,
