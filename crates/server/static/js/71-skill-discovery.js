@@ -37,28 +37,22 @@
       return [...new Set(tokens)];
     }
 
-    function findToolIdsForTokens(tokens) {
+    async function findToolIdsForTokens(tokens) {
       const ids = new Set();
       for (const token of tokens) {
-        for (const node of skillNodesCache.tool || []) {
-          if (toolNodeMatchesToken(node, token)) {
-            ids.add(node.id);
-          }
+        const nodes = await searchSkillNodes("tool", token, 8);
+        for (const node of nodes) {
+          if (toolNodeMatchesToken(node, token)) ids.add(node.id);
         }
       }
       return ids;
     }
 
-    function unmatchedTokens(tokens) {
+    async function unmatchedTokens(tokens) {
       const out = [];
       for (const token of tokens) {
-        let matched = false;
-        for (const node of skillNodesCache.tool || []) {
-          if (toolNodeMatchesToken(node, token)) {
-            matched = true;
-            break;
-          }
-        }
+        const nodes = await searchSkillNodes("tool", token, 4);
+        const matched = nodes.some((node) => toolNodeMatchesToken(node, token));
         if (!matched) out.push(token);
       }
       return out;
@@ -189,7 +183,7 @@
       box.appendChild(row);
     }
 
-    function applyToolsFromPayload() {
+    async function applyToolsFromPayload() {
       const tokens = collectPayloadEvidenceTokens();
       if (!tokens.length) {
         catalogStatus.textContent =
@@ -197,8 +191,8 @@
         syncUnmatchedUi([]);
         return;
       }
-      const ids = findToolIdsForTokens(tokens);
-      const unmatched = unmatchedTokens(tokens);
+      const ids = await findToolIdsForTokens(tokens);
+      const unmatched = await unmatchedTokens(tokens);
       syncUnmatchedUi(unmatched);
       showToolSuggestPreview(ids);
       if (ids.size && unmatched.length) {
@@ -246,9 +240,10 @@
           catalogStatus.classList.add("error");
           return;
         }
+        cacheSkillNodes([data]);
         created.push(id);
       }
-      await loadSkillNodes();
+      await loadSkillCatalogMeta();
       addEvidenceSkillIds("tag", created);
       syncUnmatchedUi([]);
       refreshCompetencySuggestions();
@@ -256,10 +251,11 @@
       catalogStatus.classList.remove("error");
     }
 
-    function findNodeByPickValue(kind, value) {
+    function pickNodeFromCache(kind, value) {
       const v = normalizeSkillToken(value);
       if (!v) return null;
-      for (const node of skillNodesCache[kind] || []) {
+      for (const node of skillNodesById.values()) {
+        if (kind && node.kind !== kind) continue;
         if (normalizeSkillToken(node.label) === v || normalizeSkillToken(node.id) === v) {
           return node;
         }
@@ -267,19 +263,15 @@
           if (normalizeSkillToken(alias) === v) return node;
         }
       }
-      for (const node of skillNodesCache[kind] || []) {
-        if (
-          normalizeSkillToken(node.label).includes(v) ||
-          v.includes(normalizeSkillToken(node.label))
-        ) {
-          return node;
-        }
-      }
       return null;
     }
 
-    function addPickToEvidence(pickInput, kind) {
-      const node = findNodeByPickValue(kind, pickInput.value);
+    async function addPickToEvidence(pickInput, kind) {
+      let node = pickNodeFromCache(kind, pickInput.value);
+      if (!node) {
+        const nodes = await searchSkillNodes(kind, pickInput.value, 5);
+        node = nodes[0] || null;
+      }
       if (!node) {
         catalogStatus.textContent = `No ${kind} matched “${pickInput.value.trim()}”.`;
         return;
@@ -289,46 +281,6 @@
       if (kind === "tool") refreshCompetencySuggestions();
     }
 
-    function nodesMatchingPickQuery(kind, raw) {
-      const v = normalizeSkillToken(raw);
-      if (!v || v.length < 2) return [];
-      const exact = [];
-      const partial = [];
-      for (const node of skillNodesCache[kind] || []) {
-        const label = normalizeSkillToken(node.label);
-        const id = normalizeSkillToken(node.id);
-        let isExact = label === v || id === v;
-        for (const alias of node.aliases || []) {
-          if (normalizeSkillToken(alias) === v) isExact = true;
-        }
-        if (isExact) {
-          exact.push(node);
-          continue;
-        }
-        let isPartial = label.includes(v) || v.includes(label);
-        if (!isPartial) {
-          for (const alias of node.aliases || []) {
-            const a = normalizeSkillToken(alias);
-            if (a.includes(v) || v.includes(a)) {
-              isPartial = true;
-              break;
-            }
-          }
-        }
-        if (isPartial) partial.push(node);
-      }
-      partial.sort((a, b) => a.label.localeCompare(b.label));
-      const seen = new Set();
-      const out = [];
-      for (const node of [...exact, ...partial]) {
-        if (seen.has(node.id)) continue;
-        seen.add(node.id);
-        out.push(node);
-        if (out.length >= 8) break;
-      }
-      return out;
-    }
-
     function wireFilteredPickTypeahead(input, kind) {
       if (!input) return;
       input.removeAttribute("list");
@@ -336,14 +288,14 @@
       menu.className = "skill-pick-menu hidden";
       menu.setAttribute("role", "listbox");
       input.insertAdjacentElement("afterend", menu);
+      let debounce = null;
 
       function hideMenu() {
         menu.classList.add("hidden");
         menu.innerHTML = "";
       }
 
-      function showMatches() {
-        const nodes = nodesMatchingPickQuery(kind, input.value);
+      function renderMenu(nodes) {
         menu.innerHTML = "";
         if (!nodes.length) {
           hideMenu();
@@ -366,7 +318,17 @@
         }
       }
 
-      input.addEventListener("input", showMatches);
+      input.addEventListener("input", () => {
+        clearTimeout(debounce);
+        debounce = setTimeout(async () => {
+          const q = input.value.trim();
+          if (q.length < 2) {
+            hideMenu();
+            return;
+          }
+          renderMenu(await searchSkillNodes(kind, q, 8));
+        }, 200);
+      });
       input.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;
         e.preventDefault();

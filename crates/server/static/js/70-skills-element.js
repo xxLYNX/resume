@@ -1,32 +1,7 @@
     async function loadSkillNodes() {
-      for (const kind of ["tool", "competency", "tag"]) {
-        const res = await fetch(`/api/skills/nodes?kind=${encodeURIComponent(kind)}`);
-        skillNodesCache[kind] = res.ok ? await res.json() : [];
-      }
-      fillSkillSelect(skillLinksTool, skillNodesCache.tool);
-      fillSkillSelect(skillLinksCompetency, skillNodesCache.competency);
-      if (skillLinksTag) fillSkillSelect(skillLinksTag, skillNodesCache.tag);
+      await loadSkillCatalogMeta();
       syncHiddenSelectsFromEvidence();
       renderAllEvidenceChips();
-      skillNodeList.innerHTML = "";
-      const all = [...skillNodesCache.tool, ...skillNodesCache.competency, ...skillNodesCache.tag];
-      skillCatalogStatus.textContent = `${all.length} catalog node(s)`;
-      for (const node of all.sort((a, b) => a.label.localeCompare(b.label))) {
-        const li = document.createElement("li");
-        li.textContent = `${node.label} (${node.kind}) · ${node.id}`;
-        skillNodeList.appendChild(li);
-      }
-    }
-
-    function fillSkillSelect(select, nodes) {
-      if (!select) return;
-      select.innerHTML = "";
-      for (const node of nodes) {
-        const opt = document.createElement("option");
-        opt.value = node.id;
-        opt.textContent = node.label;
-        select.appendChild(opt);
-      }
     }
 
     function syncSkillLinksPanelVisibility(kind) {
@@ -56,6 +31,8 @@
       );
       const rows = res.ok ? await res.json() : [];
       setEvidenceFromLinkRows(rows);
+      await hydrateSkillNodesFromIds(rows.map((r) => r.skill_id));
+      renderAllEvidenceChips();
       await refreshCompetencySuggestions();
     }
 
@@ -79,6 +56,7 @@
         skillSuggestionsHint.classList.add("hidden");
         return;
       }
+      await hydrateSkillNodesFromIds(suggestions.map((s) => s.competency_id));
       box.classList.remove("hidden");
       skillSuggestionsHint.textContent =
         "Suggested competencies (not saved until you click +):";
@@ -90,6 +68,7 @@
         btn.textContent = `+ ${s.label}`;
         btn.addEventListener("click", () => {
           addEvidenceSkillId("competency", s.competency_id);
+          cacheSkillNodes([{ id: s.competency_id, kind: "competency", label: s.label }]);
           refreshCompetencySuggestions();
         });
         box.appendChild(btn);

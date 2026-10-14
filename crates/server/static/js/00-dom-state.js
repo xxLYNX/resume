@@ -95,7 +95,6 @@
     let elementDetailCache = new Map();
     let selectedCatalogKind = null;
     let selectedElementKind = null;
-    let skillNodesCache = { tool: [], competency: [], tag: [] };
     let lastCompetencySuggestions = [];
     const skillLinksPanel = document.getElementById("skill-links-panel");
     const skillLinksTool = document.getElementById("skill-links-tool");

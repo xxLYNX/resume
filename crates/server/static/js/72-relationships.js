@@ -7,47 +7,28 @@
     const skillRelFilterElementKind = document.getElementById("skill-rel-filter-element-kind");
     const skillRelSkillDatalist = document.getElementById("skill-rel-skill-datalist");
 
-    function populateSkillRelDatalist() {
-      if (!skillRelSkillDatalist) return;
-      skillRelSkillDatalist.innerHTML = "";
-      const all = [
-        ...(skillNodesCache.tool || []),
-        ...(skillNodesCache.competency || []),
-        ...(skillNodesCache.tag || []),
-      ];
-      for (const node of all.sort((a, b) => a.label.localeCompare(b.label))) {
-        const opt = document.createElement("option");
-        opt.value = node.label;
-        opt.label = node.id;
-        skillRelSkillDatalist.appendChild(opt);
-      }
-    }
-
-    function resolveSkillIdFromFilterInput(raw) {
+    async function resolveSkillIdFromFilterInput(raw) {
       const q = raw.trim();
       if (!q) return "";
-      const catalogNodes = [
-        ...(skillNodesCache.tool || []),
-        ...(skillNodesCache.competency || []),
-        ...(skillNodesCache.tag || []),
-      ];
-      for (const node of catalogNodes) {
+      for (const node of skillNodesById.values()) {
         if (node.id === q || node.label === q) return node.id;
       }
       const lower = q.toLowerCase();
-      for (const node of catalogNodes) {
+      for (const node of skillNodesById.values()) {
         if (node.label.toLowerCase() === lower) return node.id;
         for (const alias of node.aliases || []) {
           if (alias.toLowerCase() === lower) return node.id;
         }
       }
+      const nodes = await searchSkillNodes(null, q, 5);
+      if (nodes[0]) return nodes[0].id;
       return q;
     }
 
-    function relationshipsQueryUrl() {
+    async function relationshipsQueryUrl() {
       const params = new URLSearchParams();
       const skillRaw = skillRelFilterSkill?.value.trim();
-      if (skillRaw) params.set("skill_id", resolveSkillIdFromFilterInput(skillRaw));
+      if (skillRaw) params.set("skill_id", await resolveSkillIdFromFilterInput(skillRaw));
       const el = skillRelFilterElement?.value.trim();
       if (el) params.set("element_id", el);
       const sk = skillRelFilterSkillKind?.value;
@@ -63,7 +44,7 @@
       skillRelStatus.textContent = "Loading…";
       skillRelBody.innerHTML = "";
       try {
-        const res = await fetch(relationshipsQueryUrl());
+        const res = await fetch(await relationshipsQueryUrl());
         const rows = await res.json();
         if (!res.ok) {
           skillRelStatus.textContent = rows.error || "Load failed";
@@ -110,10 +91,7 @@
 
     if (skillRelDetails) {
       skillRelDetails.addEventListener("toggle", () => {
-        if (skillRelDetails.open) {
-          populateSkillRelDatalist();
-          loadSkillRelationships();
-        }
+        if (skillRelDetails.open) loadSkillRelationships();
       });
     }
 
@@ -123,8 +101,5 @@
     const _loadSkillNodesForRel = loadSkillNodes;
     loadSkillNodes = async function () {
       await _loadSkillNodesForRel();
-      populateSkillRelDatalist();
-      if (skillRelDetails?.open) {
-        loadSkillRelationships();
-      }
+      if (skillRelDetails?.open) loadSkillRelationships();
     };

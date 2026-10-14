@@ -1,13 +1,5 @@
     const evidenceChipIds = { tool: new Set(), competency: new Set(), tag: new Set() };
 
-    function skillNodeById(skillId) {
-      for (const kind of ["tool", "competency", "tag"]) {
-        for (const node of skillNodesCache[kind] || []) {
-          if (node.id === skillId) return node;
-        }
-      }
-      return null;
-    }
 
     function syncHiddenSelectsFromEvidence() {
       for (const [sel, kind] of [
