@@ -1,0 +1,5 @@
+O*NET-SOC Code	Element ID	Element Name	Scale ID	Data Value	N	Standard Error	Lower CI Bound	Upper CI Bound	Recommend Suppress	Not Relevant	Date	Domain Source
+11-1021.00	2.A.1.a	Programming	IM	3.50	8	0.0000	3.5000	3.5000	N	n/a	08/2024	Analyst
+11-1021.00	2.A.1.a	Programming	LV	3.00	8	0.0000	3.0000	3.0000	N	N	08/2024	Analyst
+15-1212.00	2.A.1.a	Programming	IM	4.00	8	0.0000	4.0000	4.0000	N	n/a	08/2024	Analyst
+15-1212.00	2.B.4.e	Systems Analysis	IM	3.25	8	0.0000	3.2500	3.2500	N	n/a	08/2024	Analyst

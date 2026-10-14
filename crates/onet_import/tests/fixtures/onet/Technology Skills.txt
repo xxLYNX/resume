@@ -1,0 +1,5 @@
+O*NET-SOC Code	Example	Commodity Code	Commodity Title	Hot Technology	In Demand
+11-1021.00	Python	43232306	Data base user interface and query software	Y	Y
+11-1021.00	Python	43232306	Data base user interface and query software	Y	Y
+15-1212.00	Burp Suite	43233204	Transaction security and virus protection software	Y	N
+15-1212.00	Ghidra	43233204	Transaction security and virus protection software	N	N
