@@ -115,3 +115,22 @@ Then hard-refresh the browser and re-apply evidence tags on portfolio entries.
 2. PDF path is **toolbelt-only** for tag projection (classic theme).
 3. Bundled catalog usable without manual seeding; import path documented.
 4. F.3b optional before merge if framework hints are required for your workflow.
+
+---
+
+## Maybe later — NICE KSA enrichment (not in F v1)
+
+**NIST NICE** (Cybersecurity Workforce Framework, e.g. SP 800-181) supplies **work roles** and **KSAs** that complement **O\*NET** (general tools + competencies). Jobdesk today:
+
+- **O\*NET:** bulk `tool` / `competency` import (`jobdesk skills import-catalog`).
+- **Standards-style markers:** curated `tag.*` nodes + optional **`framework_refs`** ([`data/FRAMEWORK_REFS.md`](../data/FRAMEWORK_REFS.md), `jobdesk skills import-frameworks`).
+
+**Possible follow-ups** (pick one depth; no commitment):
+
+| Depth | Idea | Effort |
+|-------|------|--------|
+| **Light** | Curate dozens of NICE KSAs; add as `competency.*` or merge `framework_refs.nice` onto existing nodes via JSON import | Mostly data |
+| **Medium** | `jobdesk skills import-nice --merge` (parse NIST publish bundle, stable ids, refs populated; do **not** replace O\*NET catalog) | Small crate + docs, dedup/overlap policy |
+| **Heavy** | Application work-role picker, NICE↔tool graph, hierarchical UI | Product milestone |
+
+Posting hints already scan `framework_refs` strings; enriching refs or adding NICE-labeled competencies improves cyber JD matching without changing the PDF projection model.

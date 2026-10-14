@@ -1,8 +1,10 @@
 # Next milestone — F (skills catalog, provenance & framework refs)
 
-**Active work:** [`MILESTONE_F_ROLLOUT.md`](MILESTONE_F_ROLLOUT.md) on branch **`dev/milestone-f`** (breaking changes OK; DB reset acceptable).
+**Active work:** merge **`dev/milestone-f`** → `master` when ready ([`MILESTONE_F_ROLLOUT.md`](MILESTONE_F_ROLLOUT.md)).
 
-**Complete on `master`:** E, I, **J** (Portfolio, dates, themes, experience location, …).
+**Complete on `master`:** E, I, **J** (Portfolio, dates, themes, experience location, …). **F** lands with milestone-f merge.
+
+**Maybe later:** NICE KSA catalog / `framework_refs` enrichment — see rollout doc § *Maybe later*.
 
 ```bash
 git checkout master && git pull
