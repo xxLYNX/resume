@@ -129,6 +129,8 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
         .route("/api/catalog/revisions/{id}", get(catalog::get_revision))
         .route("/api/skills/nodes", get(skills::list_skill_nodes))
         .route("/api/skills/nodes", post(skills::upsert_skill_node))
+        .route("/api/skills/search", get(skills::search_skill_nodes))
+        .route("/api/skills/stats", get(skills::skill_catalog_stats))
         .route(
             "/api/skills/suggestions",
             get(skills::competency_suggestions),

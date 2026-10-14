@@ -12,6 +12,14 @@ use crate::AppState;
 #[derive(Debug, Deserialize)]
 pub struct ListSkillNodesQuery {
     pub kind: Option<String>,
+    pub ids: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchSkillNodesQuery {
+    pub q: String,
+    pub kind: Option<String>,
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,10 +40,39 @@ pub async fn list_skill_nodes(
     Query(q): Query<ListSkillNodesQuery>,
 ) -> Result<Json<Vec<SkillNode>>, (StatusCode, Json<serde_json::Value>)> {
     let store = Store::open(&state.db_path).map_err(internal_err)?;
+    if let Some(ids_raw) = q.ids.as_deref().filter(|s| !s.trim().is_empty()) {
+        let ids: Vec<String> = ids_raw
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let nodes = store.get_skill_nodes_by_ids(&ids).map_err(internal_err)?;
+        return Ok(Json(nodes));
+    }
     let nodes = store
         .list_skill_nodes(q.kind.as_deref())
         .map_err(internal_err)?;
     Ok(Json(nodes))
+}
+
+pub async fn search_skill_nodes(
+    State(state): State<std::sync::Arc<AppState>>,
+    Query(q): Query<SearchSkillNodesQuery>,
+) -> Result<Json<Vec<SkillNode>>, (StatusCode, Json<serde_json::Value>)> {
+    let store = Store::open(&state.db_path).map_err(internal_err)?;
+    let limit = q.limit.unwrap_or(25).min(50);
+    let nodes = store
+        .search_skill_nodes(&q.q, q.kind.as_deref(), limit)
+        .map_err(internal_err)?;
+    Ok(Json(nodes))
+}
+
+pub async fn skill_catalog_stats(
+    State(state): State<std::sync::Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let store = Store::open(&state.db_path).map_err(internal_err)?;
+    let stats = store.skill_catalog_stats().map_err(internal_err)?;
+    Ok(Json(serde_json::json!({ "by_kind": stats })))
 }
 
 pub async fn upsert_skill_node(
