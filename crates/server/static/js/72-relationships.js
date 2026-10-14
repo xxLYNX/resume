@@ -1,11 +1,11 @@
     const skillRelDetails = document.getElementById("skill-relationships-details");
     const skillRelStatus = document.getElementById("skill-relationships-status");
     const skillRelBody = document.getElementById("skill-relationships-body");
+    const skillRelQuery = document.getElementById("skill-rel-query");
     const skillRelFilterSkill = document.getElementById("skill-rel-filter-skill");
     const skillRelFilterElement = document.getElementById("skill-rel-filter-element");
     const skillRelFilterSkillKind = document.getElementById("skill-rel-filter-skill-kind");
     const skillRelFilterElementKind = document.getElementById("skill-rel-filter-element-kind");
-    const skillRelSkillDatalist = document.getElementById("skill-rel-skill-datalist");
 
     async function resolveSkillIdFromFilterInput(raw) {
       const q = raw.trim();
@@ -25,26 +25,69 @@
       return q;
     }
 
-    async function relationshipsQueryUrl() {
+    function syncAdvancedFiltersFromQueryTokens(tokens) {
+      if (!skillRelFilterSkillKind || !skillRelFilterElementKind) return;
+      for (const t of tokens) {
+        const m = t.match(/^kind:(tool|competency|tag)$/i);
+        if (m) skillRelFilterSkillKind.value = m[1].toLowerCase();
+        const e = t.match(/^entry:(experience|project|education|course|certification|award)$/i);
+        if (e) skillRelFilterElementKind.value = e[1].toLowerCase();
+      }
+    }
+
+    async function buildRelationshipParamsFromQuery() {
       const params = new URLSearchParams();
-      const skillRaw = skillRelFilterSkill?.value.trim();
-      if (skillRaw) params.set("skill_id", await resolveSkillIdFromFilterInput(skillRaw));
-      const el = skillRelFilterElement?.value.trim();
-      if (el) params.set("element_id", el);
-      const sk = skillRelFilterSkillKind?.value;
-      if (sk) params.set("skill_kind", sk);
-      const ek = skillRelFilterElementKind?.value;
-      if (ek) params.set("element_kind", ek);
+      const raw = skillRelQuery?.value.trim() || "";
+      const tokens = raw
+        .split(/[,;\n]+/)
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      syncAdvancedFiltersFromQueryTokens(tokens);
+
+      const advSkill = skillRelFilterSkill?.value.trim();
+      const advEl = skillRelFilterElement?.value.trim();
+      const advSk = skillRelFilterSkillKind?.value;
+      const advEk = skillRelFilterElementKind?.value;
+
+      if (advSkill) params.set("skill_id", await resolveSkillIdFromFilterInput(advSkill));
+      if (advEl) params.set("element_id", advEl);
+      if (advSk) params.set("skill_kind", advSk);
+      if (advEk) params.set("element_kind", advEk);
+
+      if (params.toString()) return params;
+
+      for (const token of tokens) {
+        if (/^kind:/i.test(token) || /^entry:/i.test(token)) continue;
+        if (/^(experience|project|education|course|certification|award)\./i.test(token)) {
+          params.set("element_id", token);
+          continue;
+        }
+        if (!params.has("skill_id")) {
+          params.set("skill_id", await resolveSkillIdFromFilterInput(token));
+        }
+      }
+      return params;
+    }
+
+    async function relationshipsQueryUrl() {
+      const params = await buildRelationshipParamsFromQuery();
       const qs = params.toString();
-      return qs ? `/api/skills/relationships?${qs}` : "/api/skills/relationships";
+      return qs ? `/api/skills/relationships?${qs}` : null;
     }
 
     async function loadSkillRelationships() {
       if (!skillRelBody || !skillRelStatus) return;
+      const url = await relationshipsQueryUrl();
+      if (!url) {
+        skillRelStatus.textContent = "Enter a query (or advanced filters) and Search.";
+        skillRelBody.innerHTML = "";
+        return;
+      }
       skillRelStatus.textContent = "Loading…";
       skillRelBody.innerHTML = "";
       try {
-        const res = await fetch(await relationshipsQueryUrl());
+        const res = await fetch(url);
         const rows = await res.json();
         if (!res.ok) {
           skillRelStatus.textContent = rows.error || "Load failed";
@@ -82,24 +125,35 @@
     }
 
     function clearSkillRelFilters() {
+      if (skillRelQuery) skillRelQuery.value = "";
       if (skillRelFilterSkill) skillRelFilterSkill.value = "";
       if (skillRelFilterElement) skillRelFilterElement.value = "";
       if (skillRelFilterSkillKind) skillRelFilterSkillKind.value = "";
       if (skillRelFilterElementKind) skillRelFilterElementKind.value = "";
-      loadSkillRelationships();
+      skillRelBody.innerHTML = "";
+      if (skillRelStatus) {
+        skillRelStatus.textContent = "Enter a query and Search.";
+      }
     }
 
     if (skillRelDetails) {
       skillRelDetails.addEventListener("toggle", () => {
-        if (skillRelDetails.open) loadSkillRelationships();
+        if (skillRelDetails.open && skillRelStatus && !skillRelBody.children.length) {
+          skillRelStatus.textContent = "Enter a query and Search.";
+        }
       });
     }
 
-    document.getElementById("skill-rel-reload")?.addEventListener("click", loadSkillRelationships);
+    document.getElementById("skill-rel-search")?.addEventListener("click", loadSkillRelationships);
     document.getElementById("skill-rel-clear")?.addEventListener("click", clearSkillRelFilters);
+    skillRelQuery?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        loadSkillRelationships();
+      }
+    });
 
     const _loadSkillNodesForRel = loadSkillNodes;
     loadSkillNodes = async function () {
       await _loadSkillNodesForRel();
-      if (skillRelDetails?.open) loadSkillRelationships();
     };

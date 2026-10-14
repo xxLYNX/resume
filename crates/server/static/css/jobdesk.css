@@ -4,6 +4,28 @@
       --muted: #888;
       --err: #c44;
       --accent: #48a;
+      --surface: #fff;
+      --text: #1a1a1a;
+      --chip-tool-bg: #d4e8f7;
+      --chip-tool-fg: #0c3d5c;
+      --chip-comp-bg: #dcebd4;
+      --chip-comp-fg: #1e4620;
+      --chip-tag-bg: #f5e6d4;
+      --chip-tag-fg: #5c3a12;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --border: #ffffff33;
+        --muted: #aaa;
+        --surface: #1e1e1e;
+        --text: #eee;
+        --chip-tool-bg: #1a3a52;
+        --chip-tool-fg: #b8dff9;
+        --chip-comp-bg: #243522;
+        --chip-comp-fg: #c8e6c0;
+        --chip-tag-bg: #3d2e1a;
+        --chip-tag-fg: #f0d9b8;
+      }
     }
     * { box-sizing: border-box; }
     body {
@@ -25,12 +47,74 @@
     main {
       flex: 1;
       display: grid;
-      grid-template-columns: minmax(320px, 42%) 1fr;
       min-height: 0;
     }
-    @media (max-width: 900px) {
-      main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    main.layout-catalog {
+      grid-template-columns: 1fr;
     }
+    main.layout-resume {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1fr);
+    }
+    .resume-workspace {
+      display: grid;
+      grid-template-columns: minmax(320px, 42%) 1fr;
+      grid-template-rows: minmax(0, 1fr);
+      min-height: 0;
+      overflow: hidden;
+    }
+    .resume-workspace #panel-resume,
+    .resume-workspace #panel-preview {
+      min-height: 0;
+      overflow: auto;
+    }
+    .resume-workspace #panel-preview {
+      display: flex;
+      flex-direction: column;
+    }
+    main.layout-apps,
+    main.layout-presets {
+      grid-template-columns: 1fr;
+    }
+    @media (max-width: 900px) {
+      .resume-workspace {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 45vh) minmax(0, 1fr);
+      }
+    }
+    main.layout-resume {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    main.layout-resume .resume-workspace {
+      flex: 1;
+      min-height: 0;
+    }
+    .app-resume-preview-block {
+      margin: 0.75rem 0;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.65rem;
+    }
+    .app-resume-preview-caption { margin: 0.25rem 0 0.5rem; color: var(--muted); font-size: 0.78rem; }
+    .app-resume-preview-pane {
+      position: relative;
+      height: min(42vh, 420px);
+      min-height: 200px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .app-resume-preview-pane iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+    .skill-rel-query-label { flex: 1; min-width: 12rem; }
+    .skill-rel-search-row { align-items: flex-end; }
+    .skill-rel-advanced { margin: 0.35rem 0; }
     .panel {
       padding: 0.75rem 1rem;
       overflow: auto;
@@ -278,9 +362,78 @@
     .section-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.35rem; flex-wrap: wrap; }
     .section-head h4 { margin: 0; font-size: 0.85rem; text-transform: capitalize; }
     .section-head label { font-size: 0.85rem; font-weight: 600; }
-    .comp-row { display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.35rem; font-size: 0.8rem; }
+    .comp-row {
+      display: flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 0.35rem;
+      font-size: 0.8rem;
+    }
     .comp-row .element-id { flex: 1; min-width: 8rem; font-family: ui-monospace, monospace; font-size: 0.75rem; }
-    .comp-row select { max-width: 8rem; font-size: 0.8rem; }
+    .comp-row select.comp-revision { max-width: 8rem; font-size: 0.8rem; flex-shrink: 0; }
+    .comp-row-project {
+      display: block;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.35rem 0.45rem;
+    }
+    .comp-row-project.comp-row-highlight {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    .comp-row-head {
+      display: grid;
+      grid-template-columns: auto minmax(5rem, 1fr) minmax(6rem, 1.2fr) 8rem auto auto auto;
+      gap: 0.35rem;
+      align-items: center;
+    }
+    .comp-row-head label { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; white-space: nowrap; }
+    .comp-row-project .comp-display-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .comp-row-project .element-id { font-family: ui-monospace, monospace; font-size: 0.72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+    .comp-pdf-line-summary { font-size: 0.78rem; margin: 0.35rem 0; color: var(--muted); }
+    .comp-pdf-line-summary strong { color: inherit; font-weight: 600; }
+    #edit-title-line-highlights { margin: 0.35rem 0; }
+    .comp-title-tag-count { font-size: 0.72rem; white-space: nowrap; }
+    .comp-project-subheading {
+      margin-top: 0.45rem;
+      padding-top: 0.45rem;
+      border-top: 1px dashed var(--border);
+    }
+    .comp-project-subheading.subheading-off {
+      opacity: 0.55;
+    }
+    .comp-project-subheading.subheading-off .comp-resume-tags-label::after {
+      content: " (include project to apply)";
+      font-weight: normal;
+    }
+    .comp-section-projects-help { font-size: 0.78rem; color: var(--muted); margin: 0.25rem 0 0.5rem; }
+    .comp-row .comp-resume-tags { margin-left: 0.25rem; }
+    .comp-resume-tags-label { display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.2rem; }
+    .comp-resume-tag-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .comp-resume-tag-chip {
+      font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--surface); cursor: pointer;
+      opacity: 0.5;
+      color: var(--muted);
+      border-style: dashed;
+    }
+    .comp-resume-tag-chip.selected {
+      opacity: 1;
+      color: inherit;
+      border-style: solid;
+      border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    }
+    .comp-resume-tag-chip.at-max:not(.selected) {
+      cursor: not-allowed;
+      opacity: 0.35;
+    }
+    .comp-resume-tag-chip[data-kind="competency"].selected {
+      border-color: var(--chip-competency-border, var(--accent));
+    }
+    .comp-resume-tag-chip[data-kind="tag"].selected {
+      border-color: var(--chip-tag-border, var(--accent));
+    }
     #preset-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 4px; max-height: 10rem; overflow: auto; }
     #preset-list li { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.85rem; }
     #preset-list li.active { background: color-mix(in srgb, var(--accent) 25%, transparent); font-weight: 600; }
@@ -308,27 +461,125 @@
     .skill-rel-table tbody tr { cursor: pointer; }
     .skill-rel-table tbody tr:hover { background: #0001; }
     .skill-rel-table .mono { font-family: ui-monospace, monospace; font-size: 0.72rem; }
-    .evidence-section { margin: 0.5rem 0; }
-    .evidence-chip-row {
+    .evidence-tag-field { margin: 0.65rem 0; }
+    .evidence-tag-field-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    .evidence-tag-field-wrap { position: relative; }
+    .evidence-tag-box {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.35rem;
-      min-height: 1.5rem;
-      margin: 0.25rem 0;
       align-items: center;
-    }
-    .evidence-chip-row.empty { color: var(--muted); font-size: 0.85rem; }
-    .evidence-chip {
-      font-size: 0.78rem;
-      padding: 0.15rem 0.45rem;
-      border-radius: 999px;
+      gap: 0.35rem;
+      min-height: 2.5rem;
+      padding: 0.35rem 0.45rem;
       border: 1px solid var(--border);
-      background: #0001;
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: text;
+    }
+    .evidence-tag-field-tool .evidence-tag-box {
+      border-color: color-mix(in srgb, #48a 55%, var(--border));
+      background: color-mix(in srgb, var(--chip-tool-bg) 35%, var(--surface));
+    }
+    .evidence-tag-field-competency .evidence-tag-box {
+      border-color: color-mix(in srgb, #6a4 55%, var(--border));
+      background: color-mix(in srgb, var(--chip-comp-bg) 35%, var(--surface));
+    }
+    .evidence-tag-field-tag .evidence-tag-box {
+      border-color: color-mix(in srgb, #a84 55%, var(--border));
+      background: color-mix(in srgb, var(--chip-tag-bg) 35%, var(--surface));
+    }
+    .evidence-tag-box:focus-within {
+      outline: 2px solid color-mix(in srgb, var(--border) 50%, #48a);
+      outline-offset: 1px;
+    }
+    .evidence-tag-chips {
+      display: contents;
+    }
+    .evidence-tag-input {
+      flex: 1 1 8rem;
+      min-width: 6rem;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-size: 0.9rem;
+      padding: 0.15rem 0.25rem;
+      outline: none;
+    }
+    .evidence-tag-input::placeholder {
+      color: var(--muted);
+    }
+    .evidence-tag-hint {
+      min-height: 1.1rem;
+      margin: 0.2rem 0 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .evidence-tag-menu {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 100%;
+      margin-top: 0.15rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      max-height: 11rem;
+      overflow: auto;
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 4px 12px #0003;
+      z-index: 30;
+    }
+    .evidence-tag-menu.hidden { display: none !important; }
+    .evidence-tag-menu-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 0.45rem 0.55rem;
+      border: none;
+      background: transparent;
+      font-size: 0.85rem;
       cursor: pointer;
     }
-    .evidence-chip-tool { border-color: color-mix(in srgb, #48a 50%, var(--border)); }
-    .evidence-chip-competency { border-color: color-mix(in srgb, #6a4 50%, var(--border)); }
-    .evidence-chip-tag { border-color: color-mix(in srgb, #a84 50%, var(--border)); }
+    .evidence-tag-menu-item:hover,
+    .evidence-tag-menu-item.is-active {
+      background: #0001;
+    }
+    .evidence-tag-menu-status {
+      padding: 0.45rem 0.55rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .evidence-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 0.12rem 0.15rem 0.12rem 0.45rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+    .evidence-chip-tool {
+      background: var(--chip-tool-bg);
+      color: var(--chip-tool-fg);
+      border-color: color-mix(in srgb, #48a 65%, var(--border));
+    }
+    .evidence-chip-competency {
+      background: var(--chip-comp-bg);
+      color: var(--chip-comp-fg);
+      border-color: color-mix(in srgb, #6a4 65%, var(--border));
+    }
+    .evidence-chip-tag {
+      background: var(--chip-tag-bg);
+      color: var(--chip-tag-fg);
+      border-color: color-mix(in srgb, #a84 65%, var(--border));
+    }
     .evidence-preview, .evidence-suggestions {
       border: 1px solid var(--border);
       border-radius: 4px;
@@ -337,31 +588,24 @@
       font-size: 0.85rem;
     }
     .portfolio-evidence-line { font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
-    .skill-pick-menu {
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      margin-top: 0.15rem;
-      max-height: 9rem;
-      overflow: auto;
-      background: var(--panel, #fff);
-    }
-    .skill-pick-menu.hidden { display: none !important; }
-    .skill-pick-menu-item {
-      display: block;
-      width: 100%;
-      text-align: left;
-      padding: 0.35rem 0.5rem;
+    .evidence-chip-remove {
       border: none;
       background: transparent;
-      font-size: 0.85rem;
       cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0 0.25rem;
+      color: inherit;
+      opacity: 0.75;
+      border-radius: 4px;
     }
-    .skill-pick-menu-item:hover { background: #0001; }
+    .evidence-chip-remove:hover { opacity: 1; background: #0002; }
     .evidence-suggestion-chip {
       font-size: 0.78rem;
       padding: 0.15rem 0.45rem;
       border-radius: 999px;
       border: 1px dashed var(--border);
-      background: transparent;
+      background: var(--surface);
+      color: var(--text);
       cursor: pointer;
     }

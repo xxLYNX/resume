@@ -130,8 +130,8 @@
       skillViewRelBtn.addEventListener("click", () => {
         if (!selectedElementId) return;
         const details = document.getElementById("skill-relationships-details");
-        const filterEl = document.getElementById("skill-rel-filter-element");
-        if (filterEl) filterEl.value = selectedElementId;
+        const queryEl = document.getElementById("skill-rel-query");
+        if (queryEl) queryEl.value = selectedElementId;
         if (details) details.open = true;
         if (typeof loadSkillRelationships === "function") loadSkillRelationships();
         catalogListBody.classList.remove("hidden");
@@ -184,6 +184,7 @@
         syncCatalogEditorVisibility();
         await loadElementSkillLinks(selectedElementId);
       }
+      refreshPortfolioElementResumeHint(selectedElementId, detail.kind);
     }
 
     function setEditorPayload(payload) {

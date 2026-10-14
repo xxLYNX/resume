@@ -15,10 +15,21 @@
 | **Evidence** | Each anchor links **tools**, **competencies**, and **other tags** via `element_skill_links` (three separate pickers in UI). |
 | **Catalog** | `skill_nodes`: `tool` \| `competency` \| `tag` (`tag` = standards / niche labels — not tools or competencies). |
 | **Graph** | `tool_competency_edges` + suggestions API (tools only → competencies). |
-| **PDF** | **Projection**, not a second content model. **`toolbelt`** section: theme-configurable **title** + flat **`tags: string[]`** (deduped labels from pinned evidence). |
-| **Deprecated** | Multi-bucket `skills.{languages, securityTools, …}` template path; composable `skills` sections and `skills.main` elements removed. |
+| **PDF** | **Projection**, not a second content model. **`toolbelt`**: theme **title** + deduped labels from all pinned evidence. **Project lines**: optional **`resume_tags`** from `CompositionItem.resume_tag_skill_ids` (subset of asserted links; chosen on **Resume** tab). |
+| **Deprecated** | Payload `technologies` on projects; multi-bucket `skills.{languages, securityTools, …}`; composable `skills` / `skills.main`. O*NET fills catalog/suggestions only—not project subtitles. |
 
 ATS/keywords: prefer narratives + linked tags on anchors, not a separate keyword blob.
+
+### UI tabs (serve)
+
+| Tab | Role |
+|-----|------|
+| **Portfolio** | Entry CRUD, evidence tags, skill relationship search; usage + link to Resume for project subheading tags. |
+| **Resume** | Composition target (catalog default / preset / application), section picker, project PDF line tags, live PDF preview. |
+| **Applications** | Posting tracker, hints, Save/Submit (resume draft read from Resume editor). |
+| **Presets** | Named composition snapshots. |
+
+**Manual check:** add evidence on a project → Resume tab → select application → toggle PDF line tags → preview shows `$|$ \emph{…}`; toolbelt still lists all pinned evidence.
 
 ---
 
@@ -89,7 +100,7 @@ Then hard-refresh the browser and re-apply evidence tags on portfolio entries.
 
 ## Operations
 
-- **DB:** v13 adds `posting_text` + framework ref seed merge; v12 catalog upsert; v11 dropped legacy skills elements. No wipe required.
+- **DB:** v15 strips legacy `technologies` from project revision payloads; v14 O*NET empty-catalog policy; v13 posting/framework refs; v12 catalog upsert.
 - **Import:** `jobdesk import` seeds header/objective/education/experience/projects from `content/` — not `skills.yaml`.
 - **Build config:** `settings/jobdesk.yaml` lists **section templates only**; content always from DB resolve.
 - **Serve:** `cargo run -p jobdesk -- serve` (DB typically `workspace/jobdesk.db`).

@@ -2,8 +2,8 @@
 
 {% macro project_block(row) -%}
       \resumeProjectHeading
-          {%- if row.technologies -%}
-          {\textbf{ {{- row.name | latex_escape -}} } $|$ \emph{ {{- row.technologies | latex_escape -}} }}{ {{- row.date_range | format_date_range -}} }
+          {%- if row.resume_tags -%}
+          {\textbf{ {{- row.name | latex_escape -}} } $|$ \emph{ {{- row.resume_tags | latex_escape -}} }}{ {{- row.date_range | format_date_range -}} }
           {%- else -%}
           {\textbf{ {{- row.name | latex_escape -}} }}{ {{- row.date_range | format_date_range -}} }
           {%- endif -%}

@@ -4,7 +4,8 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use resolve::{default_composition, resolve_composition};
+use resolve::{default_composition, resolve_composition_with_config, ResolveConfig};
+use theme::load_theme_info;
 use server::{AppState, run as run_server};
 use store::{
     default_ledger_download_path, export_catalog_to_content, import_legacy_content,
@@ -470,7 +471,11 @@ async fn main() -> Result<()> {
                     let app = store
                         .get_application(&id)?
                         .with_context(|| format!("unknown application `{id}`"))?;
-                    let resolved_map = resolve_composition(&store, &app.draft_composition)?;
+                    let config = load_theme_info(&root, DEFAULT_THEME_ID)
+                        .map(|t| ResolveConfig::from_theme(&t))
+                        .unwrap_or_default();
+                    let resolved_map =
+                        resolve_composition_with_config(&store, &app.draft_composition, &config)?;
                     let mut resolved = BTreeMap::new();
                     for (k, v) in resolved_map {
                         resolved.insert(k, v);

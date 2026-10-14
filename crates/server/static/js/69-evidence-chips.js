@@ -1,6 +1,5 @@
     const evidenceChipIds = { tool: new Set(), competency: new Set(), tag: new Set() };
 
-
     function syncHiddenSelectsFromEvidence() {
       for (const [sel, kind] of [
         [skillLinksTool, "tool"],
@@ -14,6 +13,25 @@
       }
     }
 
+    function removeEvidenceSkillId(kind, skillId) {
+      if (!evidenceChipIds[kind] || !skillId) return;
+      evidenceChipIds[kind].delete(skillId);
+      syncHiddenSelectsFromEvidence();
+      renderAllEvidenceChips();
+      if (kind === "tool") refreshCompetencySuggestions();
+    }
+
+    function removeLastEvidenceChip(kind) {
+      const ids = [...evidenceChipIds[kind]];
+      if (!ids.length) return;
+      const sorted = ids.sort((a, b) => {
+        const la = skillNodeById(a)?.label || a;
+        const lb = skillNodeById(b)?.label || b;
+        return la.localeCompare(lb);
+      });
+      removeEvidenceSkillId(kind, sorted[sorted.length - 1]);
+    }
+
     function renderEvidenceChipRow(kind, container) {
       if (!container) return;
       container.innerHTML = "";
@@ -22,25 +40,25 @@
         const lb = skillNodeById(b)?.label || b;
         return la.localeCompare(lb);
       });
-      if (!ids.length) {
-        container.textContent = "None saved on this entry";
-        container.classList.add("empty");
-        return;
-      }
-      container.classList.remove("empty");
       for (const id of ids) {
         const node = skillNodeById(id);
-        const chip = document.createElement("button");
-        chip.type = "button";
+        const chip = document.createElement("span");
         chip.className = `evidence-chip evidence-chip-${kind}`;
         chip.title = id;
-        chip.textContent = (node?.label || id) + " ×";
-        chip.addEventListener("click", () => {
-          evidenceChipIds[kind].delete(id);
-          syncHiddenSelectsFromEvidence();
-          renderAllEvidenceChips();
-          if (kind === "tool") refreshCompetencySuggestions();
+        const label = document.createElement("span");
+        label.textContent = node?.label || id;
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "evidence-chip-remove";
+        removeBtn.setAttribute("aria-label", `Remove ${node?.label || id}`);
+        removeBtn.textContent = "×";
+        removeBtn.addEventListener("mousedown", (e) => e.preventDefault());
+        removeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          removeEvidenceSkillId(kind, id);
         });
+        chip.appendChild(label);
+        chip.appendChild(removeBtn);
         container.appendChild(chip);
       }
     }
@@ -55,7 +73,9 @@
           evidenceChipIds.tool.size +
           evidenceChipIds.competency.size +
           evidenceChipIds.tag.size;
-        meta.textContent = n ? `${n} evidence tag(s) on this entry` : "No evidence tags yet";
+        meta.textContent = n
+          ? `${n} evidence tag(s) on this entry (unsaved until you click Save evidence tags)`
+          : "No evidence tags on this entry yet";
       }
     }
 

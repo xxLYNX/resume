@@ -58,10 +58,18 @@
       return out;
     }
 
-    function readTechnologiesFromPayloadForm() {
-      const el = payloadForm.querySelector('[data-field-key="technologies"]');
-      if (el) return el.value || "";
-      return readPayloadField("technologies");
+    function readDetailsFromPayloadForm() {
+      const lines = [];
+      for (const input of payloadForm.querySelectorAll(
+        '.string-list-row[data-field-key="details"] input',
+      )) {
+        const v = input.value?.trim();
+        if (v) lines.push(v);
+      }
+      if (lines.length) return lines.join("\n");
+      const fromJson = readPayloadField("details");
+      if (Array.isArray(fromJson)) return fromJson.join("\n");
+      return "";
     }
 
     function readHighlightsFromPayloadForm() {
@@ -90,9 +98,9 @@
     }
 
     function collectPayloadEvidenceTokens() {
-      const tech = tokenizeEvidenceText(readTechnologiesFromPayloadForm());
+      const details = tokenizeEvidenceText(readDetailsFromPayloadForm());
       const hi = tokenizeEvidenceText(readHighlightsFromPayloadForm());
-      return uniqueTokens([...tech, ...hi]);
+      return uniqueTokens([...details, ...hi]);
     }
 
     function filterSkillSelect(select, query) {
@@ -187,7 +195,7 @@
       const tokens = collectPayloadEvidenceTokens();
       if (!tokens.length) {
         catalogStatus.textContent =
-          "No technologies or highlights text to scan on this entry.";
+          "No details or highlights text to scan on this entry.";
         syncUnmatchedUi([]);
         return;
       }
@@ -251,107 +259,8 @@
       catalogStatus.classList.remove("error");
     }
 
-    function pickNodeFromCache(kind, value) {
-      const v = normalizeSkillToken(value);
-      if (!v) return null;
-      for (const node of skillNodesById.values()) {
-        if (kind && node.kind !== kind) continue;
-        if (normalizeSkillToken(node.label) === v || normalizeSkillToken(node.id) === v) {
-          return node;
-        }
-        for (const alias of node.aliases || []) {
-          if (normalizeSkillToken(alias) === v) return node;
-        }
-      }
-      return null;
-    }
-
-    async function addPickToEvidence(pickInput, kind) {
-      let node = pickNodeFromCache(kind, pickInput.value);
-      if (!node) {
-        const nodes = await searchSkillNodes(kind, pickInput.value, 5);
-        node = nodes[0] || null;
-      }
-      if (!node) {
-        catalogStatus.textContent = `No ${kind} matched “${pickInput.value.trim()}”.`;
-        return;
-      }
-      addEvidenceSkillId(kind, node.id);
-      pickInput.value = "";
-      if (kind === "tool") refreshCompetencySuggestions();
-    }
-
-    function wireFilteredPickTypeahead(input, kind) {
-      if (!input) return;
-      input.removeAttribute("list");
-      const menu = document.createElement("div");
-      menu.className = "skill-pick-menu hidden";
-      menu.setAttribute("role", "listbox");
-      input.insertAdjacentElement("afterend", menu);
-      let debounce = null;
-
-      function hideMenu() {
-        menu.classList.add("hidden");
-        menu.innerHTML = "";
-      }
-
-      function renderMenu(nodes) {
-        menu.innerHTML = "";
-        if (!nodes.length) {
-          hideMenu();
-          return;
-        }
-        menu.classList.remove("hidden");
-        for (const node of nodes) {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "skill-pick-menu-item";
-          btn.textContent = node.label;
-          btn.addEventListener("mousedown", (e) => e.preventDefault());
-          btn.addEventListener("click", () => {
-            addEvidenceSkillId(kind, node.id);
-            input.value = "";
-            hideMenu();
-            if (kind === "tool") refreshCompetencySuggestions();
-          });
-          menu.appendChild(btn);
-        }
-      }
-
-      input.addEventListener("input", () => {
-        clearTimeout(debounce);
-        debounce = setTimeout(async () => {
-          const q = input.value.trim();
-          if (q.length < 2) {
-            hideMenu();
-            return;
-          }
-          renderMenu(await searchSkillNodes(kind, q, 8));
-        }, 200);
-      });
-      input.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter") return;
-        e.preventDefault();
-        const first = menu.querySelector(".skill-pick-menu-item");
-        if (first && !menu.classList.contains("hidden")) {
-          first.click();
-          return;
-        }
-        addPickToEvidence(input, kind);
-        hideMenu();
-      });
-      input.addEventListener("blur", () => setTimeout(hideMenu, 150));
-    }
-
     const skillSuggestFromPayload = document.getElementById("skill-suggest-from-payload");
     const skillCreateUnmatched = document.getElementById("skill-create-unmatched");
-    const skillToolPick = document.getElementById("skill-tool-pick");
-    const skillCompPick = document.getElementById("skill-comp-pick");
-    const skillTagPick = document.getElementById("skill-tag-pick");
-
-    wireFilteredPickTypeahead(skillToolPick, "tool");
-    wireFilteredPickTypeahead(skillCompPick, "competency");
-    wireFilteredPickTypeahead(skillTagPick, "tag");
     if (skillSuggestFromPayload) {
       skillSuggestFromPayload.addEventListener("click", applyToolsFromPayload);
     }

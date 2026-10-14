@@ -57,7 +57,6 @@
         case "project":
           return {
             name: "",
-            technologies: "",
             date_range: { start: { year: 2024, month: 1 }, end: { kind: "date", date: { year: 2024, month: 6 } } },
             details: [],
           };

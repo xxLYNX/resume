@@ -1,29 +1,45 @@
     function activateTab(which) {
       activeMainTab = which;
       tabCatalog.classList.toggle("active", which === "catalog");
+      tabResume.classList.toggle("active", which === "resume");
       tabApps.classList.toggle("active", which === "apps");
       tabPresets.classList.toggle("active", which === "presets");
       panelCatalog.classList.toggle("hidden", which !== "catalog");
+      if (typeof resumeWorkspace !== "undefined" && resumeWorkspace) {
+        resumeWorkspace.classList.toggle("hidden", which !== "resume");
+      }
       panelApps.classList.toggle("hidden", which !== "apps");
       panelPresets.classList.toggle("hidden", which !== "presets");
+      updateMainLayout();
+      if (which === "catalog" && selectedElementId && selectedElementKind) {
+        refreshPortfolioElementResumeHint(selectedElementId, selectedElementKind);
+      }
     }
 
     tabCatalog.addEventListener("click", () => {
       activateTab("catalog");
-      previewModeWrap.classList.add("hidden");
       if (!selectedElementId && !isElementCreateMode()) {
         closeElementDetail();
       }
       rebuild();
     });
+    tabResume.addEventListener("click", () => {
+      activateTab("resume");
+      refreshResumeTargetOptions()
+        .then(() => loadResumeCompositionForTarget())
+        .then(() => rebuild())
+        .catch((e) => {
+          if (resumeStatus) resumeStatus.textContent = String(e);
+        });
+    });
     tabApps.addEventListener("click", () => {
       activateTab("apps");
+      rebuild();
       loadApplicationStatuses().then(loadApplications);
     });
     tabPresets.addEventListener("click", () => {
       activateTab("presets");
       selectedAppId = null;
-      previewModeWrap.classList.add("hidden");
       loadPresets();
       rebuild();
     });
@@ -162,7 +178,7 @@
           } catch (e) {
             catalogStatus.textContent = `Created ${id}; could not add to application: ${e.message}`;
           }
-        } else if (applicationPreviewActive()) {
+        } else if (resumePreviewActive()) {
           await refreshCatalogByKind();
           await renderCompositionEditor(compositionFromEditorDom());
           notifyCompositionChanged();
@@ -203,4 +219,9 @@
       .then(refreshCatalogByKind)
       .then(loadCatalog)
       .then(loadPresets)
-      .then(rebuild);
+      .then(refreshResumeTargetOptions)
+      .then(() => loadResumeCompositionForTarget())
+      .then(() => {
+        updateMainLayout();
+        rebuild();
+      });

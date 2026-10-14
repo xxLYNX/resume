@@ -459,6 +459,17 @@ impl Store {
         Ok(map.into_values().collect())
     }
 
+    /// Asserted evidence skill node IDs on an element (any kind: tool, competency, tag).
+    pub fn asserted_skill_ids_for_element(&self, element_id: &str) -> Result<std::collections::HashSet<String>> {
+        use std::collections::HashSet;
+        let links = self.get_element_skill_links(element_id)?;
+        Ok(links
+            .into_iter()
+            .filter(|row| row.source == "asserted")
+            .map(|row| row.skill_id)
+            .collect::<HashSet<_>>())
+    }
+
     pub fn get_element_skill_links(&self, element_id: &str) -> Result<Vec<SkillLinkRow>> {
         let conn = self.connection();
         let mut stmt = conn.prepare(

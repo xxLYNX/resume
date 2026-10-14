@@ -75,7 +75,7 @@ fn normalize_row(item: &Value, array_fields: &[&str]) -> Value {
         }
     }
     // Empty optional scalars are omitted so theme `{% if row.field %}` works.
-    for key in ["technologies", "gpa"] {
+    for key in ["technologies", "resume_tags", "gpa"] {
         if matches!(out.get(key), Some(Value::String(s)) if s.is_empty()) {
             out.remove(key);
         }

@@ -103,6 +103,7 @@ mod tests {
                     .map(|id| CompositionItem {
                         element_id: (*id).into(),
                         revision_id: "rev".into(),
+                        resume_tag_skill_ids: Vec::new(),
                     })
                     .collect(),
             }],

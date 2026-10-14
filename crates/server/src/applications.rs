@@ -10,7 +10,9 @@ use axum::{
 use domain::{
     Composition, APPLICATION_PHASES, DRAFT_WORKFLOW, SUBMITTED_WORKFLOWS,
 };
-use resolve::{default_composition, resolve_composition};
+use resolve::default_composition;
+
+use crate::resolve_checks::resolve_composition_checked;
 use serde::{Deserialize, Serialize};
 use store::{
     default_ledger_download_path, CreateApplicationRequest, ListApplicationsQuery,
@@ -89,9 +91,10 @@ pub async fn update_application(
     Path(app_id): Path<String>,
     Json(body): Json<UpdateApplicationRequest>,
 ) -> impl IntoResponse {
+    let project_root = state.root.clone();
     with_store(state, move |store| {
         if let Some(ref composition) = body.draft_composition {
-            resolve_composition(store, composition)?;
+            resolve_composition_checked(store, &project_root, DEFAULT_THEME_ID, composition)?;
         }
         let app = store.update_application(&app_id, body)?;
         Ok(Json(app).into_response())
@@ -169,6 +172,7 @@ pub async fn posting_hints_preview(
     Path(app_id): Path<String>,
     Json(body): Json<PostingHintsPreviewBody>,
 ) -> impl IntoResponse {
+    let project_root = state.root.clone();
     with_store(state, move |store| {
         let app = store
             .get_application(&app_id)?
@@ -177,7 +181,7 @@ pub async fn posting_hints_preview(
             .draft_composition
             .as_ref()
             .unwrap_or(&app.draft_composition);
-        resolve_composition(store, composition)?;
+        resolve_composition_checked(store, &project_root, DEFAULT_THEME_ID, composition)?;
         let posting_text = body.posting_text.trim();
         let used_posting_text = !posting_text.is_empty();
         let text = if used_posting_text {
@@ -210,12 +214,13 @@ pub async fn quickfill_application(
     Path(app_id): Path<String>,
     Json(body): Json<QuickfillRequest>,
 ) -> impl IntoResponse {
+    let project_root = state.root.clone();
     with_store(state, move |store| {
         if let Some(ref composition) = store
             .get_application(&body.from_application_id)?
             .map(|a| a.draft_composition)
         {
-            resolve_composition(store, &composition)?;
+            resolve_composition_checked(store, &project_root, DEFAULT_THEME_ID, composition)?;
         }
         let app = store.quickfill_from_application(&app_id, &body.from_application_id)?;
         Ok(Json(app).into_response())
@@ -251,7 +256,12 @@ pub async fn submit_application(
         let app = store
             .get_application(&app_id)?
             .ok_or_else(|| anyhow::anyhow!("application not found"))?;
-        let resolved_map = resolve_composition(store, &app.draft_composition)?;
+        let resolved_map = resolve_composition_checked(
+            store,
+            &project_root,
+            DEFAULT_THEME_ID,
+            &app.draft_composition,
+        )?;
         let mut resolved = BTreeMap::new();
         for (k, v) in resolved_map {
             resolved.insert(k, v);

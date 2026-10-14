@@ -1,14 +1,7 @@
 \section{Research \& Technical Projects}
     \resumeSubHeadingListStart
+{%- from "classic_macros" import project_block %}
 {%- for row in projects %}
-      \resumeProjectHeading
-          {\textbf{ {{- row.name | latex_escape -}} } $|$ \emph{ {{- row.technologies | latex_escape -}} }}{ {{- row.date_range | format_date_range -}} }
-{%- if row.details %}
-          \resumeItemListStart
-{%- for line in row.details %}
-            \resumeItem{ {{- line | latex_escape -}} }
-{%- endfor %}
-          \resumeItemListEnd
-{%- endif %}
+{{ project_block(row) }}
 {%- endfor %}
     \resumeSubHeadingListEnd

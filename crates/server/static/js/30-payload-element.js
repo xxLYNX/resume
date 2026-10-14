@@ -504,6 +504,7 @@
       payloadEditor.value = "";
       payloadForm.innerHTML = "";
       clearPortfolioActive();
+      refreshPortfolioElementResumeHint(null, null);
     }
 
     async function openNewElementForm(kind) {
@@ -578,7 +579,7 @@
       });
       const updated = await patch.json();
       if (!patch.ok) throw new Error(updated.error || "Could not add to application");
-      if (selectedAppId === appId && activeMainTab === "apps") {
+      if (selectedAppId === appId && activeMainTab === "resume") {
         draftEditor.value = JSON.stringify(updated.draft_composition, null, 2);
         await renderCompositionEditor(updated.draft_composition);
         notifyCompositionChanged();

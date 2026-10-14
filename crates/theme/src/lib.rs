@@ -36,6 +36,9 @@ pub struct ThemeSectionInfo {
     pub date_parts: Vec<String>,
     /// Catalog element kind for this section (`project` for `projects`).
     pub element_kind: String,
+    /// Max evidence tags selectable for per-row resume subtitles (e.g. projects).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resume_line_tags_max: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -158,6 +161,10 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
                         .collect()
                 })
                 .unwrap_or_else(|| vec!["month".into(), "year".into()]);
+            let resume_line_tags_max = sec
+                .get("resume_line_tags_max")
+                .and_then(|v| v.as_integer())
+                .map(|n| n as usize);
             sections.insert(
                 key.clone(),
                 ThemeSectionInfo {
@@ -166,6 +173,7 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
                     optional_fields,
                     date_parts,
                     element_kind: section_element_kind(key),
+                    resume_line_tags_max,
                 },
             );
         }
@@ -288,7 +296,6 @@ fn base_fields_for_kind(kind: &str) -> Vec<CatalogFieldDef> {
         ],
         "project" => vec![
             field("name", "Name", "string", false),
-            field("technologies", "Technologies", "string", true),
             field("date_range", "Dates", "date_range", true),
             field("details", "Details", "string_list", true),
         ],

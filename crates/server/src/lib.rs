@@ -2,6 +2,7 @@ mod applications;
 mod assets;
 mod catalog;
 mod presets;
+mod resolve_checks;
 mod skills;
 mod themes;
 
@@ -22,7 +23,8 @@ use render_pdf::{write_tex_and_compile, PdfEngine};
 use render_tex::{
     jobdesk_build_aligned, jobdesk_build_composition_to_dir, LegacyBuildResult,
 };
-use resolve::{default_composition, resolve_composition};
+use resolve::default_composition;
+use resolve_checks::resolve_composition_checked;
 use serde::{Deserialize, Serialize};
 use store::Store;
 use store::DEFAULT_THEME_ID;
@@ -474,7 +476,7 @@ fn run_preview_build(
             theme_id,
         ),
         (_, _, Some(composition)) if mode != "submitted" => {
-            resolve_composition(store, composition)?;
+            resolve_composition_checked(store, &state.root, theme_id, composition)?;
             jobdesk_build_composition_to_dir(
                 store,
                 &state.root,
@@ -602,7 +604,8 @@ fn draft_snapshot_hash(
     store: &Store,
     composition: &domain::Composition,
 ) -> Result<String> {
-    let resolved_map = resolve_composition(store, composition)?;
+    let resolved_map =
+        resolve_composition_checked(store, project_root, store::DEFAULT_THEME_ID, composition)?;
     let mut resolved = std::collections::BTreeMap::new();
     for (k, v) in resolved_map {
         resolved.insert(k, v);

@@ -1,4 +1,5 @@
     let skillNodesById = new Map();
+    let skillCatalogTotal = 0;
 
     function cacheSkillNodes(nodes) {
       for (const node of nodes || []) {
@@ -42,6 +43,9 @@
       const comp = byKind.competency || 0;
       const tag = byKind.tag || 0;
       const total = tool + comp + tag;
+      skillCatalogTotal = total;
+      const banner = document.getElementById("evidence-catalog-empty-banner");
+      if (banner) banner.classList.toggle("hidden", total > 0);
       if (!total) {
         skillCatalogStatus.textContent =
           "Catalog empty — run: jobdesk skills import-catalog --onet-dir … --replace --yes";

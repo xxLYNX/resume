@@ -714,6 +714,7 @@ dependencies = [
  "domain",
  "serde_json",
  "store",
+ "theme",
 ]
 
 [[package]]

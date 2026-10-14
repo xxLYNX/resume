@@ -28,6 +28,15 @@
     }
   },
   {
+    "skill_id": "tag.nist-sp-800-210",
+    "framework_refs": {
+      "nist": {
+        "publication": "SP 800-210",
+        "title": "General Access Control Guidance for Cloud Systems"
+      }
+    }
+  },
+  {
     "skill_id": "tag.fedramp",
     "framework_refs": {
       "fedramp": {

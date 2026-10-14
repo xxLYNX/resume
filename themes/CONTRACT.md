@@ -31,7 +31,9 @@ jobdesk may add **versioned** macro libraries and MiniJinja **filters** (e.g. jo
 
 ## Success criterion for classic
 
-The reference **classic** theme must reproduce the historical resume appearance on the golden fixture **with technologies present**, while supporting omitted sections (content picker) and omitted optional fields (e.g. no `technologies`) without broken LaTeX.
+The reference **classic** theme must reproduce the historical resume appearance on the golden fixture when **composition-selected `resume_tags`** are present on project rows (from evidence links, not payload `technologies`), while supporting omitted sections (content picker) and empty resume-line tags without broken LaTeX.
+
+Project list rows may include **`resume_tags`** (comma-separated string, resolve-injected from `CompositionItem.resume_tag_skill_ids`).
 
 ## Bundle layout
 

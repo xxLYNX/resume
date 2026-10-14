@@ -1,6 +1,14 @@
+mod config;
 mod normalize;
+mod resume_tags;
+
+#[cfg(test)]
+mod tests;
 
 use std::collections::HashMap;
+
+pub use config::ResolveConfig;
+pub use resume_tags::validate_composition_resume_tags;
 
 use anyhow::{Context, Result};
 use domain::{Composition, CompositionItem, CompositionSection, ElementKind, SubmissionManifest};
@@ -33,6 +41,7 @@ pub fn default_composition(store: &Store) -> Result<Composition> {
             items.push(CompositionItem {
                 element_id: el.id,
                 revision_id: rev_id,
+                resume_tag_skill_ids: Vec::new(),
             });
         }
         if !items.is_empty() {
@@ -48,6 +57,17 @@ pub fn default_composition(store: &Store) -> Result<Composition> {
 
 /// Resolve pinned revisions into MiniJinja contexts keyed by section name.
 pub fn resolve_composition(store: &Store, composition: &Composition) -> Result<ResolvedSections> {
+    resolve_composition_with_config(store, composition, &ResolveConfig::default())
+}
+
+/// Resolve with theme-driven limits on composition resume-line tag picks.
+pub fn resolve_composition_with_config(
+    store: &Store,
+    composition: &Composition,
+    config: &ResolveConfig,
+) -> Result<ResolvedSections> {
+    resume_tags::validate_composition_resume_tags(store, composition, config)?;
+
     let mut out = ResolvedSections::new();
 
     for section in &composition.sections {
@@ -56,6 +76,13 @@ pub fn resolve_composition(store: &Store, composition: &Composition) -> Result<R
         }
         let ctx = if section.section_key == "education" {
             let payloads = load_education_payloads_with_courses(store, &section.items)?;
+            normalize::normalize_section_value(
+                &section.section_key,
+                section_context(&section.section_key, payloads)?,
+            )
+        } else if section.section_key == "projects" {
+            let mut payloads = load_item_payloads(store, &section.items)?;
+            resume_tags::inject_project_resume_tags(store, &section.items, &mut payloads)?;
             normalize::normalize_section_value(
                 &section.section_key,
                 section_context(&section.section_key, payloads)?,

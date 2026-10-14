@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use domain::{Composition, ElementKind};
+use domain::{parse_legacy_date_range, CalendarDate, Composition, DateRange, DateRangeEnd, ElementKind};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -17,7 +17,7 @@ pub struct ElementSummary {
     pub latest_revision_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_element_id: Option<String>,
-    /// Higher sorts first (present/ongoing at top, then recent end dates).
+    /// Higher sorts first (present/ongoing at top, then most recent start dates).
     #[serde(default)]
     pub timeline_sort_key: i64,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -391,7 +391,7 @@ fn map_element_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<ElementSumma
         .map(|raw| {
             let payload: Value = serde_json::from_str(raw).unwrap_or(Value::Null);
             (
-                timeline_end_sort_key(&payload).unwrap_or(0),
+                timeline_sort_key_from_payload(&payload).unwrap_or(0),
                 display_label_for_payload(&kind, &payload),
             )
         })
@@ -434,22 +434,69 @@ fn display_label_for_payload(kind: &str, payload: &Value) -> String {
     }
 }
 
-/// Sort key for portfolio timeline: ongoing/present first, then most recent end dates.
-fn timeline_end_sort_key(payload: &Value) -> Option<i64> {
-    let range = payload.get("date_range")?;
-    let end = range.get("end")?;
-    match end.get("kind").and_then(|v| v.as_str()) {
-        Some("present") => Some(999_999_99),
-        Some("date") => calendar_sort_key(end.get("date")?),
-        _ => None,
+fn payload_date_range(payload: &Value) -> Option<DateRange> {
+    if let Some(v) = payload.get("date_range") {
+        if let Ok(range) = serde_json::from_value(v.clone()) {
+            return Some(range);
+        }
     }
+    if let Some(s) = payload.get("date").and_then(|v| v.as_str()) {
+        let t = s.trim();
+        if !t.is_empty() {
+            return parse_legacy_date_range(t).ok();
+        }
+    }
+    None
 }
 
-fn calendar_sort_key(date: &Value) -> Option<i64> {
-    let year = date.get("year")?.as_i64()?;
-    let month = date.get("month").and_then(|v| v.as_i64()).unwrap_or(12);
-    let day = date.get("day").and_then(|v| v.as_i64()).unwrap_or(28);
-    Some(year * 10_000 + month * 100 + day)
+/// Portfolio / composition ordering: ongoing (present end) first, then by start date descending.
+fn timeline_sort_key_from_payload(payload: &Value) -> Option<i64> {
+    let range = payload_date_range(payload)?;
+    if matches!(range.end, DateRangeEnd::Present) {
+        return Some(999_999_99);
+    }
+    Some(calendar_sort_key_from_date(&range.start))
+}
+
+fn calendar_sort_key_from_date(date: &CalendarDate) -> i64 {
+    let day = date.day.unwrap_or(28) as i64;
+    date.year as i64 * 10_000 + date.month as i64 * 100 + day
+}
+
+#[cfg(test)]
+mod timeline_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn masters_sorts_above_bachelors_from_legacy_date_field() {
+        let bs = json!({
+            "degree": "Bachelor of Applied Science",
+            "date": "Aug. 2021 -- Aug. 2024"
+        });
+        let ms = json!({
+            "degree": "Masters of Applied IT",
+            "date": "Aug. 2024 -- Dec. 2025"
+        });
+        let bs_key = timeline_sort_key_from_payload(&bs).unwrap();
+        let ms_key = timeline_sort_key_from_payload(&ms).unwrap();
+        assert!(ms_key > bs_key, "ms {ms_key} should sort above bs {bs_key}");
+    }
+
+    #[test]
+    fn present_end_sorts_first() {
+        let ongoing = json!({
+            "position": "Engineer",
+            "date_range": {
+                "start": { "year": 2020, "month": 1 },
+                "end": { "kind": "present" }
+            }
+        });
+        assert_eq!(
+            timeline_sort_key_from_payload(&ongoing),
+            Some(999_999_99)
+        );
+    }
 }
 
 trait OptionalExt<T> {

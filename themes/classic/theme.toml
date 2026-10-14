@@ -25,8 +25,9 @@ date_parts = ["month", "year"]
 
 [sections.projects]
 template = "sections/projects.jinja.tex"
-optional_fields = ["technologies", "details"]
+optional_fields = ["details"]
 date_parts = ["month", "year"]
+resume_line_tags_max = 5
 
 [sections.certifications]
 template = "sections/certifications.jinja.tex"

@@ -1,4 +1,48 @@
 
+    let appPreviewRequestFor = null;
+
+    async function refreshAppStoredDraftPreview(appId) {
+      const iframe = document.getElementById("app-resume-preview");
+      const statusEl = document.getElementById("app-resume-preview-status");
+      if (!iframe || !statusEl) return;
+      if (!appId) {
+        appPreviewRequestFor = null;
+        iframe.removeAttribute("src");
+        statusEl.textContent = "";
+        return;
+      }
+      appPreviewRequestFor = appId;
+      statusEl.textContent = "Building…";
+      try {
+        const res = await fetch("/api/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            theme_id: previewThemeId,
+            application_id: appId,
+            mode: "draft",
+          }),
+        });
+        const data = await res.json();
+        if (appPreviewRequestFor !== appId) return;
+        if (!data.ok) {
+          statusEl.textContent = data.error || data.info || "Preview failed";
+          iframe.removeAttribute("src");
+          return;
+        }
+        if (data.pdf_url) {
+          iframe.src = data.pdf_url + "?t=" + Date.now();
+          const hash = data.content_hash ? `${data.content_hash.slice(0, 10)}…` : "";
+          statusEl.textContent = hash ? `Saved draft · ${hash}` : "Saved draft";
+        } else if (data.info) {
+          statusEl.textContent = data.info;
+          iframe.removeAttribute("src");
+        }
+      } catch (e) {
+        if (appPreviewRequestFor === appId) statusEl.textContent = String(e);
+      }
+    }
+
     function appsQueryUrl() {
       const params = new URLSearchParams();
       const q = appSearch.value.trim();
@@ -232,8 +276,8 @@
       appDetail.classList.add("hidden");
       appCreateCloneRow.classList.add("hidden");
       setAppsListVisible(true);
-      previewModeWrap.classList.add("hidden");
       for (const li of appList.querySelectorAll("li")) li.classList.remove("active");
+      refreshAppStoredDraftPreview(null);
       rebuild();
     }
 
@@ -268,8 +312,7 @@
       setAppsListVisible(false);
       appDetail.classList.remove("hidden");
       appCreateCloneRow.classList.remove("hidden");
-      previewModeWrap.classList.add("hidden");
-      appMeta.textContent = "New application — posting details and resume content below";
+      appMeta.textContent = "New application — tracker fields below; resume content on the Resume tab";
       appCompany.value = "";
       appTitle.value = "";
       appPostingUrl.value = "";
@@ -287,11 +330,7 @@
       deleteAppBtn.classList.add("hidden");
       submitAppBtn.classList.add("hidden");
       draftWarn.classList.add("hidden");
-      const composition = await fetchDefaultComposition();
-      draftEditor.value = JSON.stringify(composition, null, 2);
-      await refreshCatalogByKind();
-      await renderCompositionEditor(composition);
-      await rebuild();
+      await applyCreateCloneSource();
     }
 
     async function selectApplication(id) {
@@ -301,7 +340,6 @@
       appCreateCloneRow.classList.add("hidden");
       deleteAppBtn.classList.remove("hidden");
       submitAppBtn.classList.remove("hidden");
-      previewModeWrap.classList.remove("hidden");
       for (const li of appList.querySelectorAll("li")) {
         li.classList.toggle("active", li.dataset.id === id);
       }
@@ -324,12 +362,11 @@
       syncPreviewModeForApp(app);
       appWorkflowSelect.value = app.status;
       appTagsInput.value = (app.tags || []).join(", ");
-      draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
-      await refreshCatalogByKind();
-      await renderCompositionEditor(app.draft_composition);
+      await syncResumeTargetForApplication(id, { reload: activeMainTab === "resume" });
       await loadSimilar(id);
       await loadPostingHints(id);
-      await rebuild();
+      await refreshAppStoredDraftPreview(id);
+      if (activeMainTab === "resume") await rebuild();
     }
 
     function renderAppMeta(app) {
@@ -350,14 +387,6 @@
 
     document.getElementById("save-app").addEventListener("click", async () => {
       if (!selectedAppId && appDetail.classList.contains("hidden")) return;
-      notifyCompositionChanged();
-      let draft_composition;
-      try {
-        draft_composition = compositionFromEditorDom();
-      } catch (e) {
-        appsStatus.textContent = "Invalid composition: " + e.message;
-        return;
-      }
       const tags = appTagsInput.value
         .split(",")
         .map((t) => t.trim())
@@ -396,21 +425,32 @@
         selectedAppId = appId;
       }
 
+      const patchBody = {
+        company,
+        title,
+        phase: appPhaseSelect.value,
+        status: appWorkflowSelect.value,
+        tags,
+        posting_url: url ? url : null,
+        posting_text: appPostingText ? appPostingText.value : "",
+        source: source ? source : null,
+        ...applicationMetaPayload(),
+      };
+      const resumeMatchesApp =
+        resumeTarget.type === "application" && resumeTarget.applicationId === appId;
+      if (resumeMatchesApp) {
+        try {
+          patchBody.draft_composition = compositionFromEditorDom();
+        } catch (e) {
+          appsStatus.textContent = "Invalid composition: " + e.message;
+          return;
+        }
+      }
+
       const res = await fetch(`/api/applications/${encodeURIComponent(appId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          company,
-          title,
-          phase: appPhaseSelect.value,
-          status: appWorkflowSelect.value,
-          tags,
-          posting_url: url ? url : null,
-          posting_text: appPostingText ? appPostingText.value : "",
-          source: source ? source : null,
-          ...applicationMetaPayload(),
-          draft_composition,
-        }),
+        body: JSON.stringify(patchBody),
       });
       const app = await res.json();
       if (!res.ok) {
@@ -421,7 +461,6 @@
       appCreateCloneRow.classList.add("hidden");
       deleteAppBtn.classList.remove("hidden");
       submitAppBtn.classList.remove("hidden");
-      previewModeWrap.classList.remove("hidden");
       syncPreviewModeForApp(app);
       renderAppMeta(app);
       appCompany.value = app.company || "";
@@ -431,15 +470,15 @@
       clearPostingHintsUi();
       appSource.value = app.source || "";
       fillApplicationMetaFields(app);
-      draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
-      await renderCompositionEditor(app.draft_composition);
+      await syncResumeTargetForApplication(appId, { reload: activeMainTab === "resume" });
+      if (resumeMatchesApp) await refreshAppStoredDraftPreview(appId);
       await loadApplications();
       for (const li of appList.querySelectorAll("li")) {
         li.classList.toggle("active", li.dataset.id === appId);
       }
       await loadSimilar(appId);
       await loadPostingHints(appId);
-      await rebuild();
+      if (activeMainTab === "resume") await rebuild();
     });
 
     if (appRefreshPostingHints) {
@@ -479,6 +518,10 @@
       closeApplicationDetail();
     });
 
+    document.getElementById("app-refresh-resume-preview")?.addEventListener("click", () => {
+      if (selectedAppId) refreshAppStoredDraftPreview(selectedAppId);
+    });
+
     cloneFromApp.addEventListener("change", () => {
       cloneFromPreset.value = "";
       applyCreateCloneSource();
@@ -494,7 +537,7 @@
         cloneFromPreset.value = "";
         await applyCreateCloneSource();
         appsStatus.textContent = "Content reset to portfolio default";
-        await rebuild();
+        if (activeMainTab === "resume") await rebuild();
         return;
       }
       if (!selectedAppId) return;
@@ -507,10 +550,13 @@
         appsStatus.textContent = app.error || "Reset failed";
         return;
       }
-      draftEditor.value = JSON.stringify(app.draft_composition, null, 2);
-      await renderCompositionEditor(app.draft_composition);
+      await syncResumeTargetForApplication(selectedAppId, { reload: activeMainTab === "resume" });
+      if (activeMainTab === "resume") {
+        await loadResumeCompositionForTarget();
+      }
       appsStatus.textContent = "Draft reset to portfolio default";
-      await rebuild();
+      await refreshAppStoredDraftPreview(selectedAppId);
+      if (activeMainTab === "resume") await rebuild();
     });
 
     async function fetchDefaultComposition() {
@@ -597,7 +643,7 @@
       appsStatus.textContent = `Submitted · ${sub.content_hash.slice(0, 20)}…`;
       await selectApplication(selectedAppId);
       previewMode.value = "submitted";
-      await rebuild();
+      if (activeMainTab === "resume") await rebuild();
     });
 
     appPhaseSelect.addEventListener("change", () => {

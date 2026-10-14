@@ -15,6 +15,9 @@ pub struct CompositionSection {
 pub struct CompositionItem {
     pub element_id: String,
     pub revision_id: String,
+    /// Skill node IDs (from asserted evidence on this element) to show on the PDF line for this theme.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resume_tag_skill_ids: Vec<String>,
 }
 
 impl Composition {

@@ -11,6 +11,7 @@
     <h1>jobdesk</h1>
     <div class="tabs" role="tablist">
       <button type="button" id="tab-catalog" class="active" role="tab">Portfolio</button>
+      <button type="button" id="tab-resume" role="tab">Resume</button>
       <button type="button" id="tab-apps" role="tab">Applications</button>
       <button type="button" id="tab-presets" role="tab">Presets</button>
     </div>
@@ -29,7 +30,7 @@
     <button type="button" id="rebuild">Rebuild preview</button>
     <span id="status" class="meta"></span>
   </header>
-  <main>
+  <main id="main-layout" class="layout-catalog">
     <section class="panel" id="panel-catalog" aria-label="Portfolio">
       <div class="row">
         <button type="button" id="reload-catalog">Reload</button>
@@ -55,38 +56,46 @@
       </details>
       <details id="skill-relationships-details" style="margin:0.5rem 0">
         <summary class="meta">Skill relationships</summary>
-        <p class="help">Evidence links between portfolio entries and catalog skills (same data as PDF aggregation).</p>
-        <div class="row skill-rel-filters">
-          <label class="meta">Skill
-            <input type="search" id="skill-rel-filter-skill" list="skill-rel-skill-datalist" placeholder="id or label" autocomplete="off" style="min-width:10rem" />
-            <datalist id="skill-rel-skill-datalist"></datalist>
+        <p class="help">Search evidence links (portfolio entry ↔ catalog skill). Same data as PDF toolbelt aggregation.</p>
+        <div class="row skill-rel-search-row">
+          <label class="meta skill-rel-query-label">Query
+            <input type="search" id="skill-rel-query" placeholder="Ghidra, project.ghost…, kind:tool, entry:project" autocomplete="off" style="width:100%;min-width:14rem;margin-top:0.25rem" />
           </label>
-          <label class="meta">Element id
-            <input type="search" id="skill-rel-filter-element" placeholder="experience.…" autocomplete="off" style="min-width:10rem" />
-          </label>
-          <label class="meta">Skill kind
-            <select id="skill-rel-filter-skill-kind">
-              <option value="">All</option>
-              <option value="tool">tool</option>
-              <option value="competency">competency</option>
-              <option value="tag">tag (other)</option>
-            </select>
-          </label>
-          <label class="meta">Element kind
-            <select id="skill-rel-filter-element-kind">
-              <option value="">All</option>
-              <option value="experience">experience</option>
-              <option value="project">project</option>
-              <option value="education">education</option>
-              <option value="course">course</option>
-              <option value="certification">certification</option>
-              <option value="award">award</option>
-            </select>
-          </label>
-          <button type="button" id="skill-rel-reload">Apply</button>
+          <button type="button" id="skill-rel-search">Search</button>
           <button type="button" id="skill-rel-clear">Clear</button>
         </div>
-        <p class="meta" id="skill-relationships-status">Open to load…</p>
+        <details class="skill-rel-advanced">
+          <summary class="meta">Advanced filters</summary>
+          <div class="row skill-rel-filters">
+            <label class="meta">Skill
+              <input type="search" id="skill-rel-filter-skill" list="skill-rel-skill-datalist" placeholder="id or label" autocomplete="off" style="min-width:10rem" />
+              <datalist id="skill-rel-skill-datalist"></datalist>
+            </label>
+            <label class="meta">Element id
+              <input type="search" id="skill-rel-filter-element" placeholder="experience.…" autocomplete="off" style="min-width:10rem" />
+            </label>
+            <label class="meta">Skill kind
+              <select id="skill-rel-filter-skill-kind">
+                <option value="">All</option>
+                <option value="tool">tool</option>
+                <option value="competency">competency</option>
+                <option value="tag">tag (other)</option>
+              </select>
+            </label>
+            <label class="meta">Element kind
+              <select id="skill-rel-filter-element-kind">
+                <option value="">All</option>
+                <option value="experience">experience</option>
+                <option value="project">project</option>
+                <option value="education">education</option>
+                <option value="course">course</option>
+                <option value="certification">certification</option>
+                <option value="award">award</option>
+              </select>
+            </label>
+          </div>
+        </details>
+        <p class="meta" id="skill-relationships-status">Enter a query and Search.</p>
         <div class="skill-rel-table-wrap">
           <table class="skill-rel-table" id="skill-relationships-table">
             <thead>
@@ -125,7 +134,11 @@
         </div>
         <div id="payload-form" hidden></div>
         <div id="skill-links-panel" class="hidden">
-          <p class="help">Evidence tags on this entry (tools, competencies, custom markers). <strong>Only chips in the rows below are saved</strong> (after “Save evidence tags”). Search boxes match the catalog; they are not applied tags until you add a chip. PDF toolbelt uses pinned entries only.</p>
+          <p class="warn hidden" id="evidence-catalog-empty-banner">Skill catalog is empty. Run <code>jobdesk skills import-catalog --onet-dir … --replace --yes</code> (see docs).</p>
+          <p class="help">Evidence tags on this entry (tools, competencies, custom markers). Tags inside each box are draft until you click <strong>Save evidence tags</strong>. They do <strong>not</strong> automatically appear on project PDF lines — choose up to five per project on the <strong>Resume</strong> tab. Toolbelt uses all pinned evidence.</p>
+          <p class="meta hidden" id="evidence-portfolio-usage"></p>
+          <p class="meta hidden" id="evidence-resume-hint"></p>
+          <button type="button" id="edit-title-line-highlights" class="hidden">Edit title-line highlights in Resume</button>
           <p class="meta" id="evidence-chips-meta"></p>
           <div class="row">
             <button type="button" id="save-evidence-tags">Save evidence tags</button>
@@ -138,20 +151,38 @@
           <p class="meta hidden" id="skill-unmatched-hint"></p>
           <div id="skill-suggest-preview" class="hidden evidence-preview"></div>
           <div id="skill-comp-suggestions" class="hidden evidence-suggestions"></div>
-          <div class="evidence-section">
-            <span class="meta">Tools</span>
-            <div id="evidence-chips-tool" class="evidence-chip-row"></div>
-            <input type="search" id="skill-tool-pick" placeholder="Type 2+ letters to search catalog… Enter to add" style="width:100%;margin-top:0.25rem" autocomplete="off" />
+          <div class="evidence-tag-field evidence-tag-field-tool" data-kind="tool">
+            <label class="evidence-tag-field-label" for="skill-tool-pick">Tools</label>
+            <div class="evidence-tag-field-wrap">
+              <div class="evidence-tag-box" id="evidence-tag-box-tool">
+                <div class="evidence-tag-chips" id="evidence-chips-tool"></div>
+                <input type="text" class="evidence-tag-input" id="skill-tool-pick" placeholder="Add tool…" autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="evidence-tag-menu hidden" id="evidence-tag-menu-tool" role="listbox"></div>
+            </div>
+            <p class="meta evidence-tag-hint" id="evidence-tag-hint-tool"></p>
           </div>
-          <div class="evidence-section">
-            <span class="meta">Competencies</span>
-            <div id="evidence-chips-competency" class="evidence-chip-row"></div>
-            <input type="search" id="skill-comp-pick" placeholder="Type 2+ letters to search catalog… Enter to add" style="width:100%;margin-top:0.25rem" autocomplete="off" />
+          <div class="evidence-tag-field evidence-tag-field-competency" data-kind="competency">
+            <label class="evidence-tag-field-label" for="skill-comp-pick">Competencies</label>
+            <div class="evidence-tag-field-wrap">
+              <div class="evidence-tag-box" id="evidence-tag-box-competency">
+                <div class="evidence-tag-chips" id="evidence-chips-competency"></div>
+                <input type="text" class="evidence-tag-input" id="skill-comp-pick" placeholder="Add competency…" autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="evidence-tag-menu hidden" id="evidence-tag-menu-competency" role="listbox"></div>
+            </div>
+            <p class="meta evidence-tag-hint" id="evidence-tag-hint-competency"></p>
           </div>
-          <div class="evidence-section">
-            <span class="meta">Custom markers</span>
-            <div id="evidence-chips-marker" class="evidence-chip-row"></div>
-            <input type="search" id="skill-tag-pick" placeholder="Type 2+ letters (RMF, FIPS…) Enter to add" style="width:100%;margin-top:0.25rem" autocomplete="off" />
+          <div class="evidence-tag-field evidence-tag-field-tag" data-kind="tag">
+            <label class="evidence-tag-field-label" for="skill-tag-pick">Custom markers</label>
+            <div class="evidence-tag-field-wrap">
+              <div class="evidence-tag-box" id="evidence-tag-box-marker">
+                <div class="evidence-tag-chips" id="evidence-chips-marker"></div>
+                <input type="text" class="evidence-tag-input" id="skill-tag-pick" placeholder="RMF, FIPS…" autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="evidence-tag-menu hidden" id="evidence-tag-menu-tag" role="listbox"></div>
+            </div>
+            <p class="meta evidence-tag-hint" id="evidence-tag-hint-tag"></p>
           </div>
           <select id="skill-links-tool" multiple class="hidden" aria-hidden="true"></select>
           <select id="skill-links-competency" multiple class="hidden" aria-hidden="true"></select>
@@ -172,10 +203,10 @@
         <p class="help hidden" id="catalog-create-hint">Fill in the fields above, then click <strong>Save new entry</strong>.</p>
         <label class="meta hidden" id="include-in-app-wrap">
           <input type="checkbox" id="include-in-open-app" checked />
-          Include in open application draft (Applications tab)
+          Include in open application draft (Resume tab)
         </label>
       </div>
-      <p class="meta">Preview builds from SQLite (resolve pipeline). Export YAML to <code>workspace/staging/content/</code> via CLI; repo <code>content/</code> is import seed only.</p>
+      <p class="meta">PDF preview is on the <strong>Resume</strong> tab. Export YAML to <code>workspace/staging/content/</code> via CLI; repo <code>content/</code> is import seed only.</p>
       <details>
         <summary>Last build</summary>
         <p class="meta" id="engine"></p>
@@ -294,20 +325,50 @@
         </div>
         <p class="meta hidden" id="similar-hint"></p>
         <ul id="similar-list" class="meta"></ul>
-        <p class="help"><strong>Save</strong> stores tracker fields and resume content below. <strong>Submit</strong> freezes a manifest (what you sent); it does not replace Save. Phase <em>submitted</em> is set only by Submit, not by the phase dropdown.</p>
+        <p class="help">Each application keeps its own <strong>saved resume draft</strong> (composition + project subheading tags). Tune on <strong>Resume</strong> with this row selected as target → <strong>Save draft</strong>. <strong>Save</strong> here updates tracker fields only (and the resume too if Resume target matches this application). <strong>Submit</strong> freezes what you sent.</p>
         <div class="row">
-          <button type="button" id="reset-draft">Reset to portfolio default</button>
+          <button type="button" id="app-edit-resume">Edit resume →</button>
+          <button type="button" id="reset-draft">Reset resume to portfolio default</button>
           <button type="button" id="submit-app">Submit (freeze manifest)</button>
         </div>
+        <div class="app-resume-preview-block">
+          <div class="row">
+            <strong class="meta">Saved draft preview</strong>
+            <span class="meta" id="app-resume-preview-status"></span>
+            <button type="button" id="app-refresh-resume-preview">Refresh</button>
+          </div>
+          <p class="meta app-resume-preview-caption">Shows the last saved draft for <em>this</em> application (not unsaved Resume-tab edits).</p>
+          <div class="app-resume-preview-pane">
+            <iframe id="app-resume-preview" title="Application resume draft PDF"></iframe>
+          </div>
+        </div>
         <p class="warn hidden" id="draft-warn">Draft differs from last submission.</p>
-        <p class="help">Content for this posting only (theme is separate): turn sections on/off, then include portfolio entries you want in the compiled resume.</p>
-        <div id="composition-editor" class="meta">Select an application to edit content.</div>
-        <details>
-          <summary class="meta">Draft composition (JSON)</summary>
-          <textarea id="draft-composition" spellcheck="false"></textarea>
-        </details>
       </div>
     </section>
+    <div id="resume-workspace" class="resume-workspace hidden">
+    <section class="panel" id="panel-resume" aria-label="Resume">
+      <p class="help">Under <strong>projects</strong>, each entry shows <strong>PDF subheading</strong> tags (the emphasized list on the project title line — same as your old <code>technologies</code> field). Toggle tags per project, preview on <strong>Current draft</strong>, then <strong>Save draft</strong> for an application.</p>
+      <div class="row">
+        <label class="meta">Resume target (which application’s draft you edit)
+          <select id="resume-target-select" style="min-width:14rem;margin-left:0.35rem"></select>
+        </label>
+        <button type="button" id="resume-save-draft">Save draft</button>
+        <span class="meta" id="resume-status"></span>
+      </div>
+      <p class="meta" id="resume-preview-hint"></p>
+      <div id="composition-editor" class="meta">Loading…</div>
+      <details>
+        <summary class="meta">Draft composition (JSON)</summary>
+        <textarea id="draft-composition" spellcheck="false"></textarea>
+      </details>
+    </section>
+    <section class="panel preview" id="panel-preview" aria-label="PDF preview">
+      <div class="preview-pane">
+        <iframe id="pdf" title="Resume PDF preview"></iframe>
+        <div class="placeholder" id="placeholder">Building preview…</div>
+      </div>
+    </section>
+    </div>
     <section class="panel hidden" id="panel-presets" aria-label="Presets">
       <p class="meta">Saved compositions (no posting row). Clone into a new application from the Applications tab.</p>
       <div class="row">
@@ -322,12 +383,6 @@
         <button type="button" id="update-preset-composition">Update preset from portfolio default</button>
       </div>
     </section>
-    <section class="panel preview" aria-label="PDF preview">
-      <div class="preview-pane">
-        <iframe id="pdf" title="Resume PDF preview"></iframe>
-        <div class="placeholder" id="placeholder">Building preview…</div>
-      </div>
-    </section>
   </main>
   <script src="/static/js/00-dom-state.js"></script>
   <script src="/static/js/10-preview-themes.js"></script>
@@ -338,10 +393,12 @@
   <script src="/static/js/60-workday-catalog.js"></script>
   <script src="/static/js/68-skill-catalog-api.js"></script>
   <script src="/static/js/69-evidence-chips.js"></script>
+  <script src="/static/js/73-evidence-tag-field.js"></script>
   <script src="/static/js/70-skills-element.js"></script>
   <script src="/static/js/71-skill-discovery.js"></script>
   <script src="/static/js/72-relationships.js"></script>
   <script src="/static/js/90-applications.js"></script>
+  <script src="/static/js/45-resume.js"></script>
   <script src="/static/js/95-bootstrap.js"></script>
 </body>
 </html>

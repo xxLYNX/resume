@@ -209,6 +209,12 @@
     "aliases": ["irex"]
   },
   {
+    "id": "tag.nist-sp-800-210",
+    "kind": "tag",
+    "label": "NIST SP 800-210",
+    "aliases": ["sp 800-210", "800-210", "nist 800-210"]
+  },
+  {
     "id": "tag.fedramp",
     "kind": "tag",
     "label": "FedRAMP",

@@ -118,10 +118,38 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if version < 14 {
         migrate_catalog_v14_no_auto_seed(conn)?;
     }
+    if version < 15 {
+        migrate_strip_project_technologies_v15(conn)?;
+    }
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '14')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '15')",
         [],
     )?;
+    Ok(())
+}
+
+fn migrate_strip_project_technologies_v15(conn: &Connection) -> Result<()> {
+    let mut stmt = conn.prepare(
+        "SELECT er.id, er.payload_json
+         FROM element_revisions er
+         JOIN elements e ON e.id = er.element_id
+         WHERE e.kind = 'project'",
+    )?;
+    let rows: Vec<(String, String)> = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<Result<Vec<_>, _>>()?;
+    for (rev_id, payload_json) in rows {
+        let mut payload: Value =
+            serde_json::from_str(&payload_json).unwrap_or(Value::Object(Default::default()));
+        if let Some(obj) = payload.as_object_mut() {
+            if obj.remove("technologies").is_some() {
+                conn.execute(
+                    "UPDATE element_revisions SET payload_json = ?1 WHERE id = ?2",
+                    params![serde_json::to_string(&payload)?, rev_id],
+                )?;
+            }
+        }
+    }
     Ok(())
 }
 

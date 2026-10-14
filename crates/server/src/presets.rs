@@ -6,9 +6,9 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use resolve::resolve_composition;
-use store::{CreatePresetRequest, Store, UpdatePresetRequest};
+use store::{CreatePresetRequest, Store, UpdatePresetRequest, DEFAULT_THEME_ID};
 
+use crate::resolve_checks::resolve_composition_checked;
 use crate::AppState;
 
 pub async fn list_presets(State(state): State<Arc<AppState>>) -> impl IntoResponse {
@@ -19,8 +19,9 @@ pub async fn create_preset(
     State(state): State<Arc<AppState>>,
     Json(body): Json<CreatePresetRequest>,
 ) -> impl IntoResponse {
+    let project_root = state.root.clone();
     with_store(state, move |store| {
-        resolve_composition(store, &body.composition)?;
+        resolve_composition_checked(store, &project_root, DEFAULT_THEME_ID, &body.composition)?;
         let preset = store.create_preset(body)?;
         Ok((StatusCode::CREATED, Json(preset)).into_response())
     })
@@ -49,9 +50,10 @@ pub async fn update_preset(
     Path(id): Path<String>,
     Json(body): Json<UpdatePresetRequest>,
 ) -> impl IntoResponse {
+    let project_root = state.root.clone();
     with_store(state, move |store| {
         if let Some(ref composition) = body.composition {
-            resolve_composition(store, composition)?;
+            resolve_composition_checked(store, &project_root, DEFAULT_THEME_ID, composition)?;
         }
         let preset = store.update_preset(&id, body)?;
         Ok(Json(preset).into_response())

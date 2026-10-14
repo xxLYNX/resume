@@ -146,20 +146,20 @@
     }
 
     function applicationPreviewActive() {
-      return activeMainTab === "apps" && (selectedAppId || isCreateMode());
+      return resumePreviewActive();
     }
 
     function previewBody() {
       const body = { theme_id: previewThemeId };
-      const useDraftComposition =
-        previewMode.value === "draft" && applicationPreviewActive();
-      if (applicationPreviewActive() && selectedAppId) {
-        body.application_id = selectedAppId;
+      if (!resumePreviewActive()) return body;
+      if (resumeTarget.type === "application" && resumeTarget.applicationId) {
+        body.application_id = resumeTarget.applicationId;
         body.mode = previewMode.value;
-      } else if (applicationPreviewActive() && isCreateMode()) {
+        if (previewMode.value === "draft") {
+          body.draft_composition = compositionFromEditorDom();
+        }
+      } else {
         body.mode = "draft";
-      }
-      if (useDraftComposition) {
         body.draft_composition = compositionFromEditorDom();
       }
       return body;
@@ -222,7 +222,7 @@
     function notifyCompositionChanged() {
       draftEditor.value = JSON.stringify(compositionFromEditorDom(), null, 2);
       if (previewMode.value !== "draft") return;
-      if (!applicationPreviewActive()) return;
+      if (!resumePreviewActive()) return;
       clearTimeout(previewDebounce);
       previewDebounce = setTimeout(() => rebuild(), 450);
     }
@@ -232,7 +232,16 @@
         previewRebuildQueued = true;
         return;
       }
-      if (applicationPreviewActive() && selectedAppId) {
+      if (!resumePreviewActive()) {
+        statusEl.textContent = "";
+        hashEl.textContent = "";
+        engineEl.textContent = "";
+        iframe.removeAttribute("src");
+        lastPreviewContentHash = null;
+        setPreviewPlaceholder("Open the Resume tab to preview PDF.", true);
+        return;
+      }
+      if (resumeTarget.type === "application" && resumeTarget.applicationId) {
         ensurePreviewModeAllowed();
       }
       building = true;
