@@ -120,6 +120,17 @@ enum SkillsCommands {
         #[arg(long, action = clap::ArgAction::SetTrue)]
         yes: bool,
     },
+    /// Import O*NET text database (Technology/Software Skills + Skills.txt)
+    ImportCatalog {
+        #[arg(long)]
+        onet_dir: PathBuf,
+        #[arg(long, action = clap::ArgAction::SetTrue)]
+        replace: bool,
+        #[arg(long, action = clap::ArgAction::SetTrue)]
+        yes: bool,
+    },
+    /// Count skill_nodes by kind
+    CatalogStats,
 }
 
 #[derive(Subcommand)]
@@ -280,6 +291,45 @@ async fn main() -> Result<()> {
                     }
                     let n = store.clear_asserted_element_skill_links()?;
                     println!("Deleted {n} asserted element skill link(s)");
+                }
+                SkillsCommands::ImportCatalog {
+                    onet_dir,
+                    replace,
+                    yes,
+                } => {
+                    if replace && !yes {
+                        anyhow::bail!("pass --yes with --replace to wipe the catalog before import");
+                    }
+                    let dir = resolve_path(&root, &onet_dir);
+                    let started = std::time::Instant::now();
+                    if replace {
+                        store.reset_skill_catalog()?;
+                        println!("Cleared skill catalog and all evidence links");
+                    }
+                    let result = onet_import::import_from_onet_dir(&dir)?;
+                    let tool_n = store.import_skill_nodes_batch(&result.tools)?;
+                    let comp_n = store.import_skill_nodes_batch(&result.competencies)?;
+                    let edge_pairs: Vec<(String, String)> = result
+                        .edges
+                        .iter()
+                        .map(|e| (e.tool_id.clone(), e.competency_id.clone()))
+                        .collect();
+                    let edge_n = store.replace_tool_competency_edges(&edge_pairs)?;
+                    let elapsed = started.elapsed();
+                    println!(
+                        "Imported {tool_n} tools, {comp_n} competencies, {edge_n} tool→competency edges in {:.1}s",
+                        elapsed.as_secs_f64()
+                    );
+                }
+                SkillsCommands::CatalogStats => {
+                    let stats = store.skill_catalog_stats()?;
+                    if stats.is_empty() {
+                        println!("Catalog empty — run `jobdesk skills import-catalog --onet-dir …`");
+                    } else {
+                        for (kind, n) in stats {
+                            println!("{kind}: {n}");
+                        }
+                    }
                 }
             }
         }

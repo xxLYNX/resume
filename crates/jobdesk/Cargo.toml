@@ -11,6 +11,7 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 clap = { workspace = true }
 domain = { workspace = true }
+onet_import = { workspace = true }
 render_pdf = { workspace = true }
 render_tex = { workspace = true }
 resolve = { workspace = true }
