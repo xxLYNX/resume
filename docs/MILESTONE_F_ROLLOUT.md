@@ -34,6 +34,26 @@ ATS/keywords: prefer narratives + linked tags on anchors, not a separate keyword
 | **F.2d** | Done | Cert/award PDF sections; courses under education |
 | **F.3a** | Done | `tag` kind, three pickers, **toolbelt** PDF, **`data/catalog_seed.json`** + v12 upsert |
 | **F.3b** | Done | Framework refs merge, posting hints + preview |
+| **F.4** | Done | O*NET catalog import, server search, scale-ready UI |
+
+---
+
+## F.4 — O*NET catalog (Phase 2)
+
+- [x] `crates/onet_import`: Technology/Software Skills → tools; Skills.txt → competencies; SOC co-occurrence edges.
+- [x] `jobdesk skills import-catalog --onet-dir … --replace --yes` (wipes catalog + evidence links when replacing).
+- [x] `GET /api/skills/search`, `GET /api/skills/stats`, batch `GET /api/skills/nodes?ids=…`.
+- [x] UI: search-driven evidence pickers (no full-catalog load).
+- [x] DB **v14**: no auto-seed on empty catalog (`seed_skill_nodes_if_empty` no-op); v12 still upserts demo once on migrate for dev/tests.
+- [x] Docs: [`data/ONET_IMPORT.md`](../data/ONET_IMPORT.md).
+
+**Rollout on an existing workspace:**
+
+```bash
+cargo run -p jobdesk -- skills import-catalog --onet-dir /path/to/onet_text --replace --yes
+```
+
+Then hard-refresh the browser and re-apply evidence tags on portfolio entries.
 
 ---
 
@@ -74,6 +94,7 @@ ATS/keywords: prefer narratives + linked tags on anchors, not a separate keyword
 - **Build config:** `settings/jobdesk.yaml` lists **section templates only**; content always from DB resolve.
 - **Serve:** `cargo run -p jobdesk -- serve` (DB typically `workspace/jobdesk.db`).
 - **Reset evidence links:** `jobdesk skills clear-links --yes` (removes all asserted portfolio tags).
+- **O*NET catalog:** `jobdesk skills import-catalog --onet-dir … --replace --yes` (see [`data/ONET_IMPORT.md`](../data/ONET_IMPORT.md)).
 
 ---
 

@@ -8,6 +8,9 @@ output/resume.tex
 /target/
 /workspace/
 
+# O*NET Database downloads (CC BY 4.0; fetch via scripts/fetch-onet.sh)
+/data/onet/
+
 # Go
 resume-builder
 *.exe
