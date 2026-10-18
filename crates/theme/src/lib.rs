@@ -18,6 +18,8 @@ pub struct ThemeInfo {
     /// `abbrev` (e.g. Dec.) or `numeric` (e.g. 12) — jobdesk-owned month tokens, theme picks style.
     pub month_display: String,
     pub files_hash: String,
+    /// Section keys in PDF / theme.toml order (not alphabetical).
+    pub section_order: Vec<String>,
     pub sections: BTreeMap<String, ThemeSectionInfo>,
     /// MiniJinja template name → path relative to theme root (`macros/...`).
     pub macros: BTreeMap<String, String>,
@@ -128,9 +130,11 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
         }
     }
 
+    let mut section_order = Vec::new();
     let mut sections = BTreeMap::new();
     if let Some(sec_table) = doc.get("sections").and_then(|v| v.as_table()) {
         for (key, value) in sec_table {
+            section_order.push(key.clone());
             let Some(sec) = value.as_table() else {
                 continue;
             };
@@ -188,6 +192,7 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
         contract_version,
         month_display,
         files_hash,
+        section_order,
         sections,
         macros,
     })

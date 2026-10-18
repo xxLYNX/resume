@@ -29,10 +29,12 @@ pub fn default_composition(store: &Store) -> Result<Composition> {
         ("certifications", ElementKind::Certification),
         ("awards", ElementKind::Award),
     ];
+    // Order matches settings/jobdesk.yaml / classic theme (toolbelt is resolve-injected, not composable).
 
     let mut sections = Vec::new();
     for (section_key, kind) in mapping {
-        let elements = store.list_elements(Some(kind.as_str()))?;
+        let mut elements = store.list_elements(Some(kind.as_str()))?;
+        elements.sort_by(|a, b| b.timeline_sort_key.cmp(&a.timeline_sort_key));
         let mut items = Vec::new();
         for el in elements {
             let Some(rev_id) = el.latest_revision_id else {

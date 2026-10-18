@@ -28,6 +28,7 @@
       <select id="preview-theme" title="Resume theme bundle (layout + date display)"></select>
     </label>
     <button type="button" id="rebuild">Rebuild preview</button>
+    <button type="button" id="download-pdf-preview" class="hidden" title="Save the current preview PDF">Download PDF</button>
     <span id="status" class="meta"></span>
   </header>
   <main id="main-layout" class="layout-catalog">
@@ -347,7 +348,7 @@
     </section>
     <div id="resume-workspace" class="resume-workspace hidden">
     <section class="panel" id="panel-resume" aria-label="Resume">
-      <p class="help">Under <strong>projects</strong>, each entry shows <strong>PDF subheading</strong> tags (the emphasized list on the project title line — same as your old <code>technologies</code> field). Toggle tags per project, preview on <strong>Current draft</strong>, then <strong>Save draft</strong> for an application.</p>
+      <p class="help">Section order here matches the PDF (drag <strong>⋮⋮</strong> on a section). Under <strong>projects</strong>, toggle <strong>PDF subheading</strong> tags. The <strong>toolbelt</strong> block at the end of the PDF comes from Portfolio evidence tags, not this editor.</p>
       <div class="row">
         <label class="meta">Resume target (which application’s draft you edit)
           <select id="resume-target-select" style="min-width:14rem;margin-left:0.35rem"></select>
@@ -364,7 +365,9 @@
     </section>
     <section class="panel preview" id="panel-preview" aria-label="PDF preview">
       <div class="preview-pane">
-        <iframe id="pdf" title="Resume PDF preview"></iframe>
+        <div class="preview-pdf-wrap">
+          <iframe id="pdf" title="Resume PDF preview"></iframe>
+        </div>
         <div class="placeholder" id="placeholder">Building preview…</div>
       </div>
     </section>

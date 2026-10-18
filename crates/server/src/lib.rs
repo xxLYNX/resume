@@ -315,6 +315,9 @@ async fn get_preview_pdf(State(state): State<Arc<AppState>>) -> Response {
         header::CACHE_CONTROL,
         HeaderValue::from_static("no-store, no-cache, must-revalidate"),
     );
+    if let Ok(disposition) = HeaderValue::from_str("inline; filename=\"resume.pdf\"") {
+        headers.insert(header::CONTENT_DISPOSITION, disposition);
+    }
 
     (StatusCode::OK, headers, bytes).into_response()
 }

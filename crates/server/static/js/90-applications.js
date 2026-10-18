@@ -31,7 +31,7 @@
           return;
         }
         if (data.pdf_url) {
-          iframe.src = data.pdf_url + "?t=" + Date.now();
+          iframe.src = pdfIframeSrc(data.pdf_url);
           const hash = data.content_hash ? `${data.content_hash.slice(0, 10)}…` : "";
           statusEl.textContent = hash ? `Saved draft · ${hash}` : "Saved draft";
         } else if (data.info) {

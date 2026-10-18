@@ -47,6 +47,11 @@ pub fn jobdesk_build_composition_to_dir(
     theme_id: &str,
 ) -> Result<LegacyBuildResult> {
     let resolved = resolve::resolve_composition(store, composition)?;
+    let order: Vec<String> = composition
+        .sections
+        .iter()
+        .map(|s| s.section_key.clone())
+        .collect();
     write_build_to_dir(
         project_root,
         config_path,
@@ -54,6 +59,7 @@ pub fn jobdesk_build_composition_to_dir(
         &resolved,
         compile_pdf,
         theme_id,
+        Some(&order),
     )
 }
 
@@ -72,6 +78,7 @@ pub fn jobdesk_build_resolved_to_dir(
         resolved,
         compile_pdf,
         theme_id,
+        None,
     )
 }
 
@@ -144,9 +151,16 @@ pub fn write_build_to_dir(
     resolved: &ResolvedSections,
     compile_pdf: bool,
     theme_id: &str,
+    composition_section_order: Option<&[String]>,
 ) -> Result<LegacyBuildResult> {
     let (config, month_display) = load_themed_build_config(project_root, config_path, theme_id)?;
-    let tex = build_resume_tex(project_root, &config, resolved, month_display)?;
+    let tex = build_resume_tex(
+        project_root,
+        &config,
+        resolved,
+        month_display,
+        composition_section_order,
+    )?;
     let content_hash = hash_tex(&tex);
 
     fs::create_dir_all(output_dir)?;

@@ -70,13 +70,17 @@ pub fn build_resume_tex(
     config: &LegacyConfig,
     resolved: &ResolvedSections,
     month_display: MonthDisplay,
+    composition_section_order: Option<&[String]>,
 ) -> Result<String> {
     let mut body = String::new();
     let mut env = Environment::new();
     filters::register_resume_filters(&mut env, month_display);
     register_theme_macros(&mut env, project_root, &config.preamble)?;
 
-    for section in &config.sections {
+    for section_name in section_render_order(config, composition_section_order) {
+        let Some(section) = config.sections.iter().find(|s| s.name == section_name) else {
+            continue;
+        };
         if !section.enabled {
             continue;
         }
@@ -119,6 +123,35 @@ pub fn build_resume_tex(
     Ok(format!(
         "{preamble}\n\n\\begin{{document}}\n\n{body}\\end{{document}}\n"
     ))
+}
+
+/// Composable sections follow draft order; config-only sections (e.g. toolbelt) keep YAML placement.
+fn section_render_order(config: &LegacyConfig, composition_order: Option<&[String]>) -> Vec<String> {
+    use std::collections::HashSet;
+
+    let config_names: Vec<String> = config
+        .sections
+        .iter()
+        .filter(|s| s.enabled)
+        .map(|s| s.name.clone())
+        .collect();
+    let Some(comp) = composition_order else {
+        return config_names;
+    };
+    let config_set: HashSet<String> = config_names.iter().cloned().collect();
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    for key in comp {
+        if config_set.contains(key) && seen.insert(key.clone()) {
+            out.push(key.clone());
+        }
+    }
+    for name in config_names {
+        if seen.insert(name.clone()) {
+            out.push(name);
+        }
+    }
+    out
 }
 
 /// Normalized document for golden tests (whitespace inside `{…}` and blank lines).

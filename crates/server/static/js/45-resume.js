@@ -10,12 +10,29 @@
     const resumeStatus = document.getElementById("resume-status");
     const resumePreviewHint = document.getElementById("resume-preview-hint");
     const resumeSaveDraftBtn = document.getElementById("resume-save-draft");
+    const downloadPdfBtn = document.getElementById("download-pdf-preview");
     const editTitleLineHighlightsBtn = document.getElementById("edit-title-line-highlights");
     const evidencePortfolioUsage = document.getElementById("evidence-portfolio-usage");
     const evidenceResumeHint = document.getElementById("evidence-resume-hint");
 
     function resumePreviewActive() {
       return activeMainTab === "resume";
+    }
+
+    function resumePreviewTargetKey() {
+      if (resumeTarget.type === "application" && resumeTarget.applicationId) {
+        return `application:${resumeTarget.applicationId}:${previewMode.value}`;
+      }
+      if (resumeTarget.type === "preset" && resumeTarget.presetId) {
+        return `preset:${resumeTarget.presetId}`;
+      }
+      return "catalog_default";
+    }
+
+    function resetPreviewClientCache() {
+      lastPreviewContentHash = null;
+      lastPreviewTargetKey = null;
+      clearTimeout(previewDebounce);
     }
 
     function updateResumePreviewHint() {
@@ -69,6 +86,9 @@
         previewThemeSelect.closest("label").classList.toggle("hidden", !resumePreviewActive());
       }
       if (rebuildBtn) rebuildBtn.classList.toggle("hidden", !resumePreviewActive());
+      if (downloadPdfBtn) {
+        downloadPdfBtn.classList.toggle("hidden", !resumePreviewActive());
+      }
       if (resumeSaveDraftBtn) {
         resumeSaveDraftBtn.disabled =
           resumeTarget.type === "catalog_default" ||
@@ -181,6 +201,7 @@
 
     async function setResumeTargetFromValue(value, { reload = true } = {}) {
       resumeTarget = parseResumeTargetValue(value);
+      resetPreviewClientCache();
       updateMainLayout();
       if (reload) {
         try {
@@ -355,6 +376,49 @@
       }
     }
 
+    function resumeDownloadFilename() {
+      if (resumeTargetSelect?.selectedOptions?.[0]?.textContent) {
+        const label = resumeTargetSelect.selectedOptions[0].textContent.trim();
+        if (label && label !== "Catalog default (preview only)") {
+          const safe = label
+            .replace(/[^\w\s.-]+/g, "")
+            .replace(/\s+/g, "-")
+            .slice(0, 80);
+          if (safe) return `${safe}.pdf`;
+        }
+      }
+      return "resume.pdf";
+    }
+
+    downloadPdfBtn?.addEventListener("click", async () => {
+      if (!resumePreviewActive()) return;
+      try {
+        const res = await fetch(`/api/preview/resume.pdf?t=${Date.now()}`);
+        if (!res.ok) {
+          if (statusEl) {
+            statusEl.textContent = "No PDF yet — rebuild preview first.";
+            statusEl.classList.remove("error");
+          }
+          return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = resumeDownloadFilename();
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        if (statusEl) statusEl.textContent = "PDF downloaded.";
+      } catch (e) {
+        if (statusEl) {
+          statusEl.textContent = "Download failed: " + e;
+          statusEl.classList.add("error");
+        }
+      }
+    });
+
     if (resumeTargetSelect) {
       resumeTargetSelect.addEventListener("change", () => {
         setResumeTargetFromValue(resumeTargetSelect.value, { reload: true });
@@ -364,7 +428,11 @@
     editTitleLineHighlightsBtn?.addEventListener("click", () => {
       if (selectedElementId) openResumeForProject(selectedElementId);
     });
-    previewMode?.addEventListener("change", () => updateResumePreviewHint());
+    previewMode?.addEventListener("change", () => {
+      updateResumePreviewHint();
+      resetPreviewClientCache();
+      if (resumePreviewActive()) rebuild();
+    });
 
     document.getElementById("app-edit-resume")?.addEventListener("click", () => {
       if (selectedAppId) openResumeForApplication(selectedAppId);

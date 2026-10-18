@@ -5,6 +5,12 @@
     const logEl = document.getElementById("log");
     const iframe = document.getElementById("pdf");
     const placeholder = document.getElementById("placeholder");
+
+    /** Chrome PDF viewer: fit page width to reduce side margins; keep toolbar. */
+    function pdfIframeSrc(pdfUrl) {
+      const base = pdfUrl.split("#")[0];
+      return `${base}#view=FitH&navpanes=0&toolbar=1&t=${Date.now()}`;
+    }
     const rebuildBtn = document.getElementById("rebuild");
     const portfolioGroups = document.getElementById("portfolio-groups");
     const catalogCreateParentRow = document.getElementById("catalog-create-parent-row");
@@ -168,6 +174,7 @@
     let previewDebounce = null;
     let previewRebuildQueued = false;
     let lastPreviewContentHash = null;
+    let lastPreviewTargetKey = null;
 
     function readCompensationFromDom() {
       const unit = appPayUnit.value || null;
@@ -299,14 +306,23 @@
         engineEl.textContent = data.pdf_engine ? "PDF engine: " + data.pdf_engine : "";
 
         const hash = data.content_hash || "";
-        if (data.unchanged && hash && hash === lastPreviewContentHash) {
+        const targetKey =
+          typeof resumePreviewTargetKey === "function" ? resumePreviewTargetKey() : "";
+        if (
+          data.unchanged &&
+          hash &&
+          hash === lastPreviewContentHash &&
+          targetKey &&
+          targetKey === lastPreviewTargetKey
+        ) {
           statusEl.textContent = "Preview up to date" + src;
           return;
         }
         statusEl.textContent = data.unchanged ? "Preview refreshed" + src : "Preview updated" + src;
         lastPreviewContentHash = hash;
+        lastPreviewTargetKey = targetKey;
         if (data.pdf_url) {
-          iframe.src = data.pdf_url + "?t=" + Date.now();
+          iframe.src = pdfIframeSrc(data.pdf_url);
         }
       } catch (e) {
         statusEl.textContent = "Request failed: " + e;

@@ -1,12 +1,82 @@
-    function sectionOrder() {
+    function canonicalSectionOrder() {
       let keys;
-      if (!themeInfo || !themeInfo.sections) {
-        keys = ["header", "objective", "education", "experience", "projects"];
-      } else {
+      if (themeInfo?.section_order?.length) {
+        keys = themeInfo.section_order;
+      } else if (themeInfo?.sections) {
         keys = Object.keys(themeInfo.sections);
+      } else {
+        keys = [
+          "header",
+          "objective",
+          "education",
+          "experience",
+          "projects",
+          "certifications",
+          "awards",
+        ];
       }
-      // PDF skills come from evidence links on pinned entries, not a composable section.
-      return keys.filter((k) => k !== "skills");
+      return keys.filter((k) => k !== "skills" && k !== "toolbelt");
+    }
+
+    function sectionOrder() {
+      return canonicalSectionOrder();
+    }
+
+    /** Draft section order first, then any theme sections not yet in the draft. */
+    function editorSectionOrder(composition) {
+      const canon = canonicalSectionOrder();
+      const fromComp = (composition?.sections || []).map((s) => s.section_key);
+      const seen = new Set();
+      const out = [];
+      for (const k of fromComp) {
+        if (canon.includes(k) && !seen.has(k)) {
+          out.push(k);
+          seen.add(k);
+        }
+      }
+      for (const k of canon) {
+        if (!seen.has(k)) out.push(k);
+      }
+      return out;
+    }
+
+    function attachCompositionSectionDragDrop() {
+      let dragSection = null;
+      for (const block of compositionEditor.querySelectorAll(".composition-section")) {
+        const handle = block.querySelector(".section-drag-handle");
+        if (!handle) continue;
+        handle.addEventListener("dragstart", (e) => {
+          dragSection = block;
+          block.classList.add("composition-section-dragging");
+          e.dataTransfer.effectAllowed = "move";
+        });
+        handle.addEventListener("dragend", () => {
+          dragSection?.classList.remove("composition-section-dragging");
+          dragSection = null;
+          for (const b of compositionEditor.querySelectorAll(".composition-section")) {
+            b.classList.remove("composition-section-drop-target");
+          }
+        });
+        block.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          if (dragSection && block !== dragSection) {
+            block.classList.add("composition-section-drop-target");
+          }
+        });
+        block.addEventListener("dragleave", () => {
+          block.classList.remove("composition-section-drop-target");
+        });
+        block.addEventListener("drop", (e) => {
+          e.preventDefault();
+          block.classList.remove("composition-section-drop-target");
+          if (!dragSection || block === dragSection) return;
+          const rect = block.getBoundingClientRect();
+          const before = e.clientY < rect.top + rect.height / 2;
+          if (before) compositionEditor.insertBefore(dragSection, block);
+          else compositionEditor.insertBefore(dragSection, block.nextElementSibling);
+          notifyCompositionChanged();
+        });
+      }
     }
 
     function kindForSection(sectionKey) {
@@ -230,9 +300,9 @@
 
     function compositionFromEditorDom() {
       const sections = [];
-      for (const sectionKey of sectionOrder()) {
-        const block = compositionEditor.querySelector(`[data-section="${sectionKey}"]`);
-        if (!block) continue;
+      for (const block of compositionEditor.querySelectorAll(".composition-section")) {
+        const sectionKey = block.dataset.section;
+        if (!sectionKey) continue;
         const sectionOn = block.querySelector(".section-include")?.checked;
         if (!sectionOn) continue;
         const items = [];
@@ -279,13 +349,18 @@
     async function renderCompositionEditor(composition) {
       compositionEditor.innerHTML = "";
       const compSections = new Map((composition?.sections || []).map((s) => [s.section_key, s.items || []]));
-      for (const sectionKey of sectionOrder()) {
+      for (const sectionKey of editorSectionOrder(composition)) {
         const wrap = document.createElement("div");
         wrap.className = "composition-section";
         wrap.dataset.section = sectionKey;
 
         const head = document.createElement("div");
         head.className = "section-head";
+        const dragHandle = document.createElement("span");
+        dragHandle.className = "section-drag-handle";
+        dragHandle.title = "Drag to reorder sections (PDF order)";
+        dragHandle.textContent = "⋮⋮";
+        dragHandle.setAttribute("draggable", "true");
         const sectionInclude = document.createElement("input");
         sectionInclude.type = "checkbox";
         sectionInclude.className = "section-include";
@@ -293,7 +368,7 @@
         sectionLabel.append(sectionInclude, document.createTextNode(" Include section"));
         const h = document.createElement("h4");
         h.textContent = sectionKey.replace(/_/g, " ");
-        head.append(sectionLabel, h);
+        head.append(dragHandle, sectionLabel, h);
         wrap.appendChild(head);
 
         const pinnedItems = new Map(
@@ -435,6 +510,13 @@
 
         compositionEditor.appendChild(wrap);
       }
+      const tbTitle =
+        themeInfo?.sections?.toolbelt?.title || "Technical skills & standards";
+      const tbNote = document.createElement("p");
+      tbNote.className = "comp-toolbelt-note meta";
+      tbNote.textContent = `PDF “${tbTitle}” section: built automatically from saved evidence tags on included entries (tools, competencies, other tags). Add tags in Portfolio — it does not appear in this list.`;
+      compositionEditor.appendChild(tbNote);
+      attachCompositionSectionDragDrop();
       notifyCompositionChanged();
     }
 
