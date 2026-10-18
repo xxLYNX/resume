@@ -86,9 +86,6 @@
         previewThemeSelect.closest("label").classList.toggle("hidden", !resumePreviewActive());
       }
       if (rebuildBtn) rebuildBtn.classList.toggle("hidden", !resumePreviewActive());
-      if (downloadPdfBtn) {
-        downloadPdfBtn.classList.toggle("hidden", !resumePreviewActive());
-      }
       if (resumeSaveDraftBtn) {
         resumeSaveDraftBtn.disabled =
           resumeTarget.type === "catalog_default" ||

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>jobdesk</title>
-  <link rel="stylesheet" href="/static/css/jobdesk.css" />
+  <link rel="stylesheet" href="/static/css/jobdesk.css?v=2" />
 </head>
 <body>
   <header>
@@ -28,7 +28,6 @@
       <select id="preview-theme" title="Resume theme bundle (layout + date display)"></select>
     </label>
     <button type="button" id="rebuild">Rebuild preview</button>
-    <button type="button" id="download-pdf-preview" class="hidden" title="Save the current preview PDF">Download PDF</button>
     <span id="status" class="meta"></span>
   </header>
   <main id="main-layout" class="layout-catalog">
@@ -364,6 +363,10 @@
       </details>
     </section>
     <section class="panel preview" id="panel-preview" aria-label="PDF preview">
+      <div class="preview-toolbar">
+        <span class="meta">PDF preview</span>
+        <button type="button" id="download-pdf-preview">Download PDF</button>
+      </div>
       <div class="preview-pane">
         <div class="preview-pdf-wrap">
           <iframe id="pdf" title="Resume PDF preview"></iframe>
@@ -387,7 +390,7 @@
       </div>
     </section>
   </main>
-  <script src="/static/js/00-dom-state.js"></script>
+  <script src="/static/js/00-dom-state.js?v=2"></script>
   <script src="/static/js/10-preview-themes.js"></script>
   <script src="/static/js/20-portfolio-list.js"></script>
   <script src="/static/js/30-payload-element.js"></script>
@@ -401,7 +404,7 @@
   <script src="/static/js/71-skill-discovery.js"></script>
   <script src="/static/js/72-relationships.js"></script>
   <script src="/static/js/90-applications.js"></script>
-  <script src="/static/js/45-resume.js"></script>
-  <script src="/static/js/95-bootstrap.js"></script>
+  <script src="/static/js/45-resume.js?v=2"></script>
+  <script src="/static/js/95-bootstrap.js?v=2"></script>
 </body>
 </html>

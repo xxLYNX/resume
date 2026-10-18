@@ -211,7 +211,7 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
     Ok(())
 }
 
-async fn index() -> Result<Html<String>, (StatusCode, String)> {
+async fn index() -> Result<Response, (StatusCode, String)> {
     let path = assets::static_root().join("index.html");
     let html = tokio::fs::read_to_string(&path).await.map_err(|e| {
         (
@@ -219,7 +219,12 @@ async fn index() -> Result<Html<String>, (StatusCode, String)> {
             format!("read {}: {e}", path.display()),
         )
     })?;
-    Ok(Html(html))
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store, must-revalidate"),
+    );
+    Ok((headers, Html(html)).into_response())
 }
 
 async fn health() -> &'static str {
