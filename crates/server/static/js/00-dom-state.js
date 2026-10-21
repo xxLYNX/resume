@@ -6,20 +6,28 @@
     const iframe = document.getElementById("pdf");
     const placeholder = document.getElementById("placeholder");
 
-    /** Query param busts iframe cache; fragment only affects PDF viewer chrome. */
-    function pdfIframeSrc(pdfUrl) {
-      const withoutHash = pdfUrl.split("#")[0];
-      const base = withoutHash.split("?")[0];
-      const view = "view=FitH&navpanes=0&toolbar=1";
-      return `${base}?v=${Date.now()}#${view}`;
+    function contentHashBust(contentHash) {
+      if (!contentHash) return String(Date.now());
+      return contentHash.replace(/^sha256:/, "").slice(0, 16);
     }
 
-    function loadPreviewPdfIframe(pdfUrl) {
-      const next = pdfIframeSrc(pdfUrl);
-      if (iframe.getAttribute("src") === next) {
-        iframe.removeAttribute("src");
-      }
-      iframe.src = next;
+    /** Content-addressed PDF URL + bust query for embedded PDF viewers. */
+    function pdfIframeSrc(pdfUrl, contentHash) {
+      const withoutHash = pdfUrl.split("#")[0];
+      const base = withoutHash.split("?")[0];
+      const bust = contentHashBust(contentHash);
+      const view = "view=FitH&navpanes=0&toolbar=1";
+      return `${base}?v=${bust}#${view}`;
+    }
+
+    function loadPreviewInto(iframeEl, pdfUrl, contentHash) {
+      if (!iframeEl || !pdfUrl) return;
+      iframeEl.removeAttribute("src");
+      iframeEl.src = pdfIframeSrc(pdfUrl, contentHash);
+    }
+
+    function loadPreviewPdfIframe(pdfUrl, contentHash) {
+      loadPreviewInto(iframe, pdfUrl, contentHash);
     }
     const rebuildBtn = document.getElementById("rebuild");
     const portfolioGroups = document.getElementById("portfolio-groups");
@@ -165,15 +173,16 @@
       return resumePreviewActive();
     }
 
+    function selectedPreviewThemeId() {
+      return previewThemeSelect?.value || previewThemeId || "classic";
+    }
+
     function syncPreviewThemeFromSelect() {
-      if (previewThemeSelect?.value) {
-        previewThemeId = previewThemeSelect.value;
-      }
+      previewThemeId = selectedPreviewThemeId();
     }
 
     function previewBody() {
-      syncPreviewThemeFromSelect();
-      const body = { theme_id: previewThemeId };
+      const body = { theme_id: selectedPreviewThemeId() };
       if (!resumePreviewActive()) return body;
       if (resumeTarget.type === "application" && resumeTarget.applicationId) {
         body.application_id = resumeTarget.applicationId;
@@ -190,10 +199,42 @@
 
     let previewDebounce = null;
     let previewRebuildQueued = false;
+    let previewRequestId = 0;
     let lastPreviewContentHash = null;
-    let lastPreviewTargetKey = null;
-    let lastPreviewThemeLoaded = null;
     let lastPreviewDownloadFilename = null;
+    let lastPreviewPdfUrl = null;
+
+    function invalidatePreviewClientState() {
+      previewRequestId += 1;
+      lastPreviewContentHash = null;
+      lastPreviewDownloadFilename = null;
+      lastPreviewPdfUrl = null;
+    }
+
+    function applyPreviewSuccess(data, requestId) {
+      if (requestId !== previewRequestId) return;
+      const themeApplied = data.theme_id || selectedPreviewThemeId();
+      const hash = data.content_hash || "";
+      const hashShort = hash.replace(/^sha256:/, "").slice(0, 12);
+      const src = data.preview_source ? ` (${data.preview_source})` : "";
+      statusEl.classList.remove("error");
+      statusEl.textContent = data.unchanged
+        ? `Preview (${themeApplied}) · ${hashShort}${src}`
+        : `Preview rebuilt (${themeApplied}) · ${hashShort}${src}`;
+      hashEl.textContent = hash;
+      engineEl.textContent = data.pdf_engine ? "PDF engine: " + data.pdf_engine : "";
+      if (data.draft_differs_from_submission) {
+        draftWarn.classList.remove("hidden");
+      } else {
+        draftWarn.classList.add("hidden");
+      }
+      if (data.pdf_url) {
+        lastPreviewPdfUrl = data.pdf_url;
+        loadPreviewPdfIframe(data.pdf_url, hash);
+      }
+      lastPreviewContentHash = hash;
+      lastPreviewDownloadFilename = data.download_filename || null;
+    }
 
     function readCompensationFromDom() {
       const unit = appPayUnit.value || null;
@@ -264,13 +305,14 @@
         hashEl.textContent = "";
         engineEl.textContent = "";
         iframe.removeAttribute("src");
-        lastPreviewContentHash = null;
+        invalidatePreviewClientState();
         setPreviewPlaceholder("Open the Resume tab to preview PDF.", true);
         return;
       }
       if (resumeTarget.type === "application" && resumeTarget.applicationId) {
         ensurePreviewModeAllowed();
       }
+      const requestId = ++previewRequestId;
       building = true;
       statusEl.classList.remove("error");
       logEl.hidden = true;
@@ -284,6 +326,7 @@
           body: JSON.stringify(previewBody()),
         });
         const data = await res.json();
+        if (requestId !== previewRequestId) return;
         if (!data.ok) {
           statusEl.classList.add("error");
           hashEl.textContent = "";
@@ -312,45 +355,14 @@
           logEl.hidden = true;
           iframe.removeAttribute("src");
           lastPreviewContentHash = null;
+          lastPreviewPdfUrl = null;
           setPreviewPlaceholder(data.info, true);
           return;
         }
         setPreviewPlaceholder("", false);
-        const src = data.preview_source ? ` (${data.preview_source})` : "";
-        if (data.draft_differs_from_submission) {
-          draftWarn.classList.remove("hidden");
-        } else {
-          draftWarn.classList.add("hidden");
-        }
-        hashEl.textContent = data.content_hash || "";
-        engineEl.textContent = data.pdf_engine ? "PDF engine: " + data.pdf_engine : "";
-
-        const hash = data.content_hash || "";
-        const themeApplied = data.theme_id || previewThemeId || "classic";
-        const targetKey =
-          typeof resumePreviewTargetKey === "function" ? resumePreviewTargetKey() : "";
-        const pdfUnchanged =
-          data.unchanged &&
-          hash &&
-          hash === lastPreviewContentHash &&
-          targetKey &&
-          targetKey === lastPreviewTargetKey &&
-          themeApplied === lastPreviewThemeLoaded;
-        if (pdfUnchanged) {
-          statusEl.textContent = `Preview up to date (${themeApplied})${src}`;
-          return;
-        }
-        statusEl.textContent = data.unchanged
-          ? `Preview refreshed (${themeApplied})${src}`
-          : `Preview updated (${themeApplied})${src}`;
-        lastPreviewContentHash = hash;
-        lastPreviewTargetKey = targetKey;
-        lastPreviewThemeLoaded = themeApplied;
-        lastPreviewDownloadFilename = data.download_filename || null;
-        if (data.pdf_url) {
-          loadPreviewPdfIframe(data.pdf_url);
-        }
+        applyPreviewSuccess(data, requestId);
       } catch (e) {
+        if (requestId !== previewRequestId) return;
         statusEl.textContent = "Request failed: " + e;
         statusEl.classList.add("error");
         setPreviewPlaceholder("Preview unavailable", true);

@@ -330,7 +330,7 @@
       currentFieldSchema = [];
       payloadForm.innerHTML = "";
       const res = await fetch(
-        `/api/catalog/field-schema?kind=${encodeURIComponent(kind)}&theme=${encodeURIComponent(previewThemeId)}`,
+        `/api/catalog/field-schema?kind=${encodeURIComponent(kind)}&theme=${encodeURIComponent(selectedPreviewThemeId())}`,
       );
       if (!res.ok) return;
       currentFieldSchema = await res.json();

@@ -19,22 +19,8 @@
       return activeMainTab === "resume";
     }
 
-    function resumePreviewTargetKey() {
-      const theme = previewThemeSelect?.value || previewThemeId || "classic";
-      if (resumeTarget.type === "application" && resumeTarget.applicationId) {
-        return `application:${resumeTarget.applicationId}:${previewMode.value}:theme=${theme}`;
-      }
-      if (resumeTarget.type === "preset" && resumeTarget.presetId) {
-        return `preset:${resumeTarget.presetId}:theme=${theme}`;
-      }
-      return `catalog_default:theme=${theme}`;
-    }
-
     function resetPreviewClientCache() {
-      lastPreviewContentHash = null;
-      lastPreviewTargetKey = null;
-      lastPreviewThemeLoaded = null;
-      lastPreviewDownloadFilename = null;
+      invalidatePreviewClientState();
       clearTimeout(previewDebounce);
     }
 
@@ -383,7 +369,8 @@
     downloadPdfBtn?.addEventListener("click", async () => {
       if (!resumePreviewActive()) return;
       try {
-        const res = await fetch(`/api/preview/resume.pdf?t=${Date.now()}`);
+        const pdfUrl = lastPreviewPdfUrl || "/api/preview/resume.pdf";
+        const res = await fetch(pdfUrl);
         if (!res.ok) {
           if (statusEl) {
             statusEl.textContent = "No PDF yet — rebuild preview first.";

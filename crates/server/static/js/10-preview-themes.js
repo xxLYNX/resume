@@ -18,22 +18,23 @@
     }
 
     async function loadThemeInfo() {
-      const res = await fetch(`/api/themes/${encodeURIComponent(previewThemeId)}`);
+      const themeId = selectedPreviewThemeId();
+      const res = await fetch(`/api/themes/${encodeURIComponent(themeId)}`);
       if (res.ok) themeInfo = await res.json();
     }
 
     async function onPreviewThemeChanged() {
-      previewThemeId = previewThemeSelect.value || "classic";
-      lastPreviewContentHash = null;
-      lastPreviewThemeLoaded = null;
-      lastPreviewDownloadFilename = null;
-      await loadThemeInfo();
+      const theme = selectedPreviewThemeId();
+      previewThemeId = theme;
+      invalidatePreviewClientState();
+      statusEl.textContent = `Building preview (${theme})…`;
+      statusEl.classList.remove("error");
+      await rebuild();
+      loadThemeInfo().catch(() => {});
       if (selectedElementId && !catalogJsonMode.checked) {
         const detail = await getElementDetail(selectedElementId);
         if (detail?.latest?.payload) {
           await renderPayloadForm(detail.kind, detail.latest.payload);
         }
       }
-      await rebuild();
     }
-

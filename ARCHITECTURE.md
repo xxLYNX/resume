@@ -85,6 +85,15 @@ workspace/
 - [x] `render_pdf`: Tectonic / pdflatex detect + compile (concrete enum, not a trait yet)
 - [x] Same pipeline for preview, CLI `build`, and manifest reconstruction via `jobdesk_build_aligned`
 
+### Preview identity (browser + `POST /api/preview`)
+
+- **`theme_id`**: requested theme bundle; echoed in the API response.
+- **`snapshot_hash`**: same canonical shape as submit (`theme_id` + theme files hash + composition + resolved payloads). Used for draft-vs-submission diff and logical draft identity.
+- **`content_hash`**: SHA-256 of the full generated `.tex` (includes theme templates). Drives PDF storage and `pdf_url`.
+- **`pdf_url`**: `/api/preview/pdf/{sha256-hex}` — the only URL the UI should load in the iframe or download (not a shared `resume.pdf` path).
+- Server always regenerates `.tex` per request; skips `pdflatex` only when `workspace/preview/{hex}.pdf` already exists.
+- Client ignores stale preview responses via a monotonic request id; iframe URLs include a `?v=` bust derived from `content_hash`.
+
 **Crate layout** (target):
 
 | Crate | Responsibility | Status |

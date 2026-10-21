@@ -18,7 +18,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            theme_id: previewThemeId,
+            theme_id: selectedPreviewThemeId(),
             application_id: appId,
             mode: "draft",
           }),
@@ -31,7 +31,7 @@
           return;
         }
         if (data.pdf_url) {
-          loadPreviewPdfIframe(data.pdf_url);
+          loadPreviewInto(iframe, data.pdf_url, data.content_hash);
           const hash = data.content_hash ? `${data.content_hash.slice(0, 10)}…` : "";
           statusEl.textContent = hash ? `Saved draft · ${hash}` : "Saved draft";
         } else if (data.info) {

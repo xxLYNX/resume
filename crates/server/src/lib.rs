@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use axum::{
-    extract::State,
+    extract::{Path as AxumPath, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::{delete, get, patch, post},
@@ -34,9 +34,9 @@ use theme::load_theme_info;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 
+/// Last successful preview (legacy GET `/api/preview/resume.pdf` fallback only).
 #[derive(Default)]
 struct PreviewCache {
-    cache_key: Option<String>,
     content_hash: Option<String>,
     pdf_engine: Option<String>,
     download_filename: Option<String>,
@@ -103,6 +103,8 @@ struct PreviewResponse {
     /// Theme bundle used for this preview build (echo of request, default `classic`).
     theme_id: Option<String>,
     download_filename: Option<String>,
+    /// Draft/submit snapshot identity (theme + composition + resolved); omitted for some sources.
+    snapshot_hash: Option<String>,
 }
 
 enum PreviewOutcome {
@@ -120,7 +122,8 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
         .route("/", get(index))
         .nest_service("/static", ServeDir::new(static_dir))
         .route("/api/preview", post(run_preview))
-        .route("/api/preview/resume.pdf", get(get_preview_pdf))
+        .route("/api/preview/pdf/{hash}", get(get_preview_pdf_by_hash))
+        .route("/api/preview/resume.pdf", get(get_preview_pdf_legacy))
         .route("/api/health", get(health))
         .route("/api/catalog/elements", get(catalog::list_elements))
         .route("/api/catalog/elements", post(catalog::create_element))
@@ -262,13 +265,18 @@ async fn run_preview(
     body: Option<Json<PreviewRequest>>,
 ) -> Json<PreviewResponse> {
     let req = body.map(|j| j.0).unwrap_or_default();
-    match build_preview(&state, &req) {
+    let state = Arc::clone(&state);
+    let preview_dir = state.preview_dir.clone();
+    let outcome = tokio::task::spawn_blocking(move || build_preview(&state, &req))
+        .await
+        .unwrap_or_else(|e| Err(anyhow::anyhow!("preview task panicked: {e}")));
+    match outcome {
         Ok(PreviewOutcome::Built(result)) => Json(PreviewResponse {
             ok: true,
             unchanged: result.unchanged,
             content_hash: Some(result.build.content_hash),
             pdf_engine: result.build.pdf_engine,
-            pdf_url: Some("/api/preview/resume.pdf".into()),
+            pdf_url: Some(result.pdf_url),
             tex_path: Some(result.build.tex_path.display().to_string()),
             error: None,
             log_tail: None,
@@ -278,6 +286,7 @@ async fn run_preview(
             draft_differs_from_submission: result.draft_differs_from_submission,
             theme_id: Some(result.theme_id),
             download_filename: Some(result.download_filename),
+            snapshot_hash: result.snapshot_hash,
         }),
         Ok(PreviewOutcome::Unavailable {
             message,
@@ -297,9 +306,10 @@ async fn run_preview(
             draft_differs_from_submission: None,
             theme_id: None,
             download_filename: None,
+            snapshot_hash: None,
         }),
         Err(err) => {
-            let log_tail = read_preview_diagnostics(&state.preview_dir);
+            let log_tail = read_preview_diagnostics(&preview_dir);
             Json(PreviewResponse {
                 ok: false,
                 unchanged: false,
@@ -315,35 +325,45 @@ async fn run_preview(
                 draft_differs_from_submission: None,
                 theme_id: None,
                 download_filename: None,
+                snapshot_hash: None,
             })
         }
     }
 }
 
-async fn get_preview_pdf(State(state): State<Arc<AppState>>) -> Response {
-    let pdf_path = state.preview_dir.join("resume.pdf");
-    let Ok(bytes) = std::fs::read(&pdf_path) else {
-        return (StatusCode::NOT_FOUND, "PDF not built yet; POST /api/preview").into_response();
-    };
-
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/pdf"));
-    headers.insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("no-store, no-cache, must-revalidate"),
-    );
+async fn get_preview_pdf_by_hash(
+    State(state): State<Arc<AppState>>,
+    AxumPath(hex): AxumPath<String>,
+) -> Response {
+    if hex.len() != 64 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return (StatusCode::BAD_REQUEST, "invalid preview pdf id").into_response();
+    }
+    let path = state.preview_dir.join(format!("{hex}.pdf"));
     let filename = state
         .preview_cache
         .lock()
         .ok()
         .and_then(|c| c.download_filename.clone())
         .unwrap_or_else(|| "resume.pdf".into());
-    let disposition = format!("inline; filename=\"{filename}\"");
-    if let Ok(value) = HeaderValue::from_str(&disposition) {
-        headers.insert(header::CONTENT_DISPOSITION, value);
-    }
+    serve_preview_pdf_file(&path, &filename)
+}
 
-    (StatusCode::OK, headers, bytes).into_response()
+/// Latest preview from cache (download fallback); prefer `pdf_url` from POST /api/preview.
+async fn get_preview_pdf_legacy(State(state): State<Arc<AppState>>) -> Response {
+    let (content_hash, filename) = match state.preview_cache.lock() {
+        Ok(c) => (
+            c.content_hash.clone(),
+            c.download_filename.clone().unwrap_or_else(|| "resume.pdf".into()),
+        ),
+        _ => (None, "resume.pdf".into()),
+    };
+    let Some(hash) = content_hash else {
+        return (StatusCode::NOT_FOUND, "PDF not built yet; POST /api/preview").into_response();
+    };
+    let Some(path) = preview_pdf_path(&state.preview_dir, &hash) else {
+        return (StatusCode::NOT_FOUND, "invalid preview hash").into_response();
+    };
+    serve_preview_pdf_file(&path, &filename)
 }
 
 struct PreviewBuildMeta {
@@ -354,6 +374,47 @@ struct PreviewBuildMeta {
     unchanged: bool,
     theme_id: String,
     download_filename: String,
+    /// Content-addressed URL (`/api/preview/pdf/{sha256-hex}`).
+    pdf_url: String,
+    snapshot_hash: Option<String>,
+}
+
+/// Hex digest from `sha256:…` content hash (full `.tex` document).
+fn tex_hash_hex(content_hash: &str) -> Option<&str> {
+    let hex = content_hash.strip_prefix("sha256:")?;
+    if hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        Some(hex)
+    } else {
+        None
+    }
+}
+
+fn preview_pdf_path(preview_dir: &Path, content_hash: &str) -> Option<PathBuf> {
+    Some(preview_dir.join(format!("{}.pdf", tex_hash_hex(content_hash)?)))
+}
+
+fn preview_pdf_url(content_hash: &str) -> Option<String> {
+    Some(format!(
+        "/api/preview/pdf/{}",
+        tex_hash_hex(content_hash)?
+    ))
+}
+
+fn serve_preview_pdf_file(path: &Path, download_filename: &str) -> Response {
+    let Ok(bytes) = std::fs::read(path) else {
+        return (StatusCode::NOT_FOUND, "PDF not found").into_response();
+    };
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/pdf"));
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store, no-cache, must-revalidate"),
+    );
+    let disposition = format!("inline; filename=\"{download_filename}\"");
+    if let Ok(value) = HeaderValue::from_str(&disposition) {
+        headers.insert(header::CONTENT_DISPOSITION, value);
+    }
+    (StatusCode::OK, headers, bytes).into_response()
 }
 
 fn header_name_from_resolved(resolved: &HashMap<String, Value>) -> Option<String> {
@@ -417,7 +478,7 @@ fn effective_preview_theme(req: &PreviewRequest) -> String {
         .to_string()
 }
 
-fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcome> {
+pub(crate) fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcome> {
     if !state.db_path.exists() {
         anyhow::bail!(
             "catalog database missing at {}; run: cargo run -p jobdesk -- import",
@@ -461,94 +522,51 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
         mode,
         &theme_id,
     )?;
-    let cache_key = preview_cache_key(state, &store, req)?;
-    let pdf_path = state.preview_dir.join("resume.pdf");
-    if pdf_path.is_file() {
-        if let Ok(cache) = state.preview_cache.lock() {
-            if cache.cache_key.as_deref() == Some(cache_key.as_str()) {
-                if let (Some(content_hash), pdf_engine) =
-                    (cache.content_hash.clone(), cache.pdf_engine.clone())
-                {
-                    let (preview_source, draft_differs) =
-                        preview_meta(&store, state, req, application_id, mode, &submission_snapshot)?;
-                    if let Ok(mut cache) = state.preview_cache.lock() {
-                        cache.download_filename = Some(download_filename.clone());
-                    }
-                    return Ok(PreviewOutcome::Built(PreviewBuildMeta {
-                        build: render_tex::LegacyBuildResult {
-                            tex: String::new(),
-                            tex_path: state.preview_dir.join("resume.tex"),
-                            pdf_path: Some(pdf_path),
-                            content_hash,
-                            pdf_engine,
-                        },
-                        preview_source,
-                        submission_content_hash: submission_snapshot,
-                        draft_differs_from_submission: draft_differs,
-                        unchanged: true,
-                        theme_id: theme_id.clone(),
-                        download_filename: download_filename.clone(),
-                    }));
-                }
-            }
-        }
-    }
+    let snapshot_hash =
+        preview_snapshot_hash(&store, state, req, application_id, mode, &theme_id)?;
 
     let mut build = run_preview_build(state, &store, req, application_id, mode, false)?;
 
     let (preview_source, draft_differs) =
         preview_meta(&store, state, req, application_id, mode, &submission_snapshot)?;
 
-    let reuse_pdf = if pdf_path.is_file() {
-        match state.preview_cache.lock() {
-            Ok(cache)
-                if cache.cache_key.as_deref() == Some(cache_key.as_str())
-                    && cache.content_hash.as_deref() == Some(build.content_hash.as_str()) =>
-            {
-                cache.pdf_engine.clone()
-            }
-            _ => None,
-        }
+    let content_hash = build.content_hash.clone();
+    let pdf_url = preview_pdf_url(&content_hash)
+        .context("preview content_hash is not sha256 hex")?;
+    let hash_pdf = preview_pdf_path(&state.preview_dir, &content_hash)
+        .context("preview content_hash is not sha256 hex")?;
+
+    let (unchanged, pdf_engine) = if hash_pdf.is_file() {
+        (
+            true,
+            state
+                .preview_cache
+                .lock()
+                .ok()
+                .and_then(|c| c.pdf_engine.clone())
+                .or_else(|| PdfEngine::detect().map(|e| e.name().to_string())),
+        )
     } else {
-        None
+        let tex_name = build
+            .tex_path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("resume.tex");
+        let compiled = write_tex_and_compile(&build.tex, &state.preview_dir, tex_name)
+            .context("PDF compilation failed")?;
+        std::fs::copy(&compiled, &hash_pdf)
+            .with_context(|| format!("copy preview PDF to {}", hash_pdf.display()))?;
+        build.pdf_path = Some(hash_pdf.clone());
+        let engine = PdfEngine::detect().map(|e| e.name().to_string());
+        (false, engine)
     };
 
-    if let Some(pdf_engine) = reuse_pdf {
-        if let Ok(mut cache) = state.preview_cache.lock() {
-            cache.cache_key = Some(cache_key);
-            cache.download_filename = Some(download_filename.clone());
-        }
-        return Ok(PreviewOutcome::Built(PreviewBuildMeta {
-            build: LegacyBuildResult {
-                tex: String::new(),
-                tex_path: build.tex_path,
-                pdf_path: Some(pdf_path),
-                content_hash: build.content_hash,
-                pdf_engine: Some(pdf_engine),
-            },
-            preview_source,
-            submission_content_hash: submission_snapshot,
-            draft_differs_from_submission: draft_differs,
-            unchanged: true,
-            theme_id: theme_id.clone(),
-            download_filename: download_filename.clone(),
-        }));
-    }
-
-    let tex_name = build
-        .tex_path
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("resume.tex");
-    let compiled = write_tex_and_compile(&build.tex, &state.preview_dir, tex_name)
-        .context("PDF compilation failed")?;
-    build.pdf_path = Some(compiled);
-    build.pdf_engine = PdfEngine::detect().map(|e| e.name().to_string());
+    build.pdf_path = Some(hash_pdf);
+    build.pdf_engine = pdf_engine.clone();
 
     if let Ok(mut cache) = state.preview_cache.lock() {
-        cache.cache_key = Some(cache_key);
-        cache.content_hash = Some(build.content_hash.clone());
-        cache.pdf_engine = build.pdf_engine.clone();
+        cache.content_hash = Some(content_hash);
+        cache.pdf_engine = pdf_engine;
         cache.download_filename = Some(download_filename.clone());
     }
 
@@ -557,9 +575,11 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
         preview_source,
         submission_content_hash: submission_snapshot,
         draft_differs_from_submission: draft_differs,
-        unchanged: false,
+        unchanged,
         theme_id,
         download_filename,
+        pdf_url,
+        snapshot_hash,
     }))
 }
 
@@ -628,7 +648,9 @@ fn preview_meta(
                 .draft_composition
                 .as_ref()
                 .unwrap_or(&app.draft_composition);
-            let draft_snapshot = draft_snapshot_hash(&state.root, store, draft_for_hash)?;
+            let theme_id = effective_preview_theme(req);
+            let draft_snapshot =
+                draft_snapshot_hash(&state.root, store, draft_for_hash, &theme_id)?;
             let differs = submission_snapshot
                 .as_ref()
                 .map(|h| h != &draft_snapshot)
@@ -650,37 +672,33 @@ fn preview_meta(
     })
 }
 
-fn preview_cache_key(
-    state: &AppState,
+fn preview_snapshot_hash(
     store: &Store,
+    state: &AppState,
     req: &PreviewRequest,
-) -> Result<String> {
-    let application_id = req.application_id.as_deref();
-    let mode = req.mode.as_deref().unwrap_or("draft");
-    let preview_theme = effective_preview_theme(req);
-    let key = match (application_id, mode) {
+    application_id: Option<&str>,
+    mode: &str,
+    theme_id: &str,
+) -> Result<Option<String>> {
+    match (application_id, mode) {
         (None, _) => {
-            if let Some(composition) = &req.draft_composition {
-                format!(
-                    "new_app:{}",
-                    draft_snapshot_hash(&state.root, store, composition)?
-                )
+            let composition = if let Some(c) = &req.draft_composition {
+                c.clone()
             } else {
-                let composition = default_composition(store)?;
-                format!(
-                    "catalog:{}",
-                    draft_snapshot_hash(&state.root, store, &composition)?
-                )
-            }
+                default_composition(store)?
+            };
+            Ok(Some(draft_snapshot_hash(
+                &state.root,
+                store,
+                &composition,
+                theme_id,
+            )?))
         }
         (Some(app_id), "submitted") => {
             let sub = store
                 .get_canonical_submission_with_root(&state.workspace_dir, app_id)?
                 .with_context(|| format!("no canonical submission for application `{app_id}`"))?;
-            format!(
-                "submitted:{}:{}:theme={}",
-                app_id, sub.manifest.snapshot_hash, sub.manifest.theme_id
-            )
+            Ok(Some(sub.manifest.snapshot_hash.clone()))
         }
         (Some(app_id), _) => {
             let composition = if let Some(c) = &req.draft_composition {
@@ -691,36 +709,34 @@ fn preview_cache_key(
                     .ok_or_else(|| anyhow::anyhow!("application not found"))?
                     .draft_composition
             };
-            format!(
-                "draft:{}:{}",
-                app_id,
-                draft_snapshot_hash(&state.root, store, &composition)?
-            )
+            Ok(Some(draft_snapshot_hash(
+                &state.root,
+                store,
+                &composition,
+                theme_id,
+            )?))
         }
-    };
-    if mode == "submitted" {
-        Ok(key)
-    } else {
-        Ok(format!("{key}:theme={preview_theme}"))
     }
 }
 
+/// Same shape as submit `snapshot_hash`: theme + composition + resolved payloads.
 fn draft_snapshot_hash(
-    project_root: &std::path::Path,
+    project_root: &Path,
     store: &Store,
     composition: &domain::Composition,
+    theme_id: &str,
 ) -> Result<String> {
     let resolved_map =
-        resolve_composition_checked(store, project_root, store::DEFAULT_THEME_ID, composition)?;
+        resolve_composition_checked(store, project_root, theme_id, composition)?;
     let mut resolved = std::collections::BTreeMap::new();
     for (k, v) in resolved_map {
         resolved.insert(k, v);
     }
-    let theme_hash = load_theme_info(project_root, store::DEFAULT_THEME_ID)
+    let theme_hash = load_theme_info(project_root, theme_id)
         .ok()
         .map(|t| t.files_hash);
     Ok(compute_snapshot_hash(
-        store::DEFAULT_THEME_ID,
+        theme_id,
         theme_hash.as_deref(),
         composition,
         &resolved,
@@ -748,4 +764,66 @@ fn read_log_tail(path: &std::path::Path) -> Option<String> {
     let lines: Vec<&str> = text.lines().collect();
     let start = lines.len().saturating_sub(40);
     Some(lines[start..].join("\n"))
+}
+
+#[cfg(test)]
+mod preview_tests {
+    use super::*;
+    use std::path::PathBuf;
+    use store::{import_legacy_content, ImportOptions, Store};
+
+    fn test_app_state() -> AppState {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let workspace = root.join("target/test-preview-workspace");
+        let preview_dir = workspace.join("preview");
+        let db_path = workspace.join("jobdesk.db");
+        let _ = std::fs::create_dir_all(&preview_dir);
+        if !db_path.exists() {
+            let store = Store::open(&db_path).unwrap();
+            import_legacy_content(&root, &store, ImportOptions::default()).unwrap();
+        }
+        AppState::new(
+            root.clone(),
+            root.join("settings/jobdesk.yaml"),
+            preview_dir,
+            db_path,
+            workspace,
+        )
+    }
+
+    #[test]
+    fn preview_theme_changes_content_hash_and_tex() {
+        let state = test_app_state();
+        let store = Store::open(&state.db_path).unwrap();
+        let composition = default_composition(&store).unwrap();
+
+        let req_classic = PreviewRequest {
+            draft_composition: Some(composition.clone()),
+            theme_id: Some("classic".into()),
+            ..Default::default()
+        };
+        let req_ats = PreviewRequest {
+            draft_composition: Some(composition),
+            theme_id: Some("ats-classic".into()),
+            ..Default::default()
+        };
+
+        let classic = build_preview(&state, &req_classic).expect("classic preview");
+        let ats = build_preview(&state, &req_ats).expect("ats-classic preview");
+
+        let (PreviewOutcome::Built(c_meta), PreviewOutcome::Built(a_meta)) = (classic, ats)
+        else {
+            panic!("expected built previews");
+        };
+
+        assert_ne!(c_meta.build.content_hash, a_meta.build.content_hash);
+        assert!(c_meta.build.tex.contains("\\underline{Email}"));
+        assert!(
+            a_meta.build.tex.contains("\\contactLink")
+                || a_meta.build.tex.contains("mailto:")
+                    && !a_meta.build.tex.contains("\\underline{Email}")
+        );
+        assert_eq!(c_meta.theme_id, "classic");
+        assert_eq!(a_meta.theme_id, "ats-classic");
+    }
 }
