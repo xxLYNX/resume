@@ -34,6 +34,7 @@
       lastPreviewContentHash = null;
       lastPreviewTargetKey = null;
       lastPreviewThemeLoaded = null;
+      lastPreviewDownloadFilename = null;
       clearTimeout(previewDebounce);
     }
 
@@ -376,17 +377,7 @@
     }
 
     function resumeDownloadFilename() {
-      if (resumeTargetSelect?.selectedOptions?.[0]?.textContent) {
-        const label = resumeTargetSelect.selectedOptions[0].textContent.trim();
-        if (label && label !== "Catalog default (preview only)") {
-          const safe = label
-            .replace(/[^\w\s.-]+/g, "")
-            .replace(/\s+/g, "-")
-            .slice(0, 80);
-          if (safe) return `${safe}.pdf`;
-        }
-      }
-      return "resume.pdf";
+      return lastPreviewDownloadFilename || "resume.pdf";
     }
 
     downloadPdfBtn?.addEventListener("click", async () => {

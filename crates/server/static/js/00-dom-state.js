@@ -193,6 +193,7 @@
     let lastPreviewContentHash = null;
     let lastPreviewTargetKey = null;
     let lastPreviewThemeLoaded = null;
+    let lastPreviewDownloadFilename = null;
 
     function readCompensationFromDom() {
       const unit = appPayUnit.value || null;
@@ -345,6 +346,7 @@
         lastPreviewContentHash = hash;
         lastPreviewTargetKey = targetKey;
         lastPreviewThemeLoaded = themeApplied;
+        lastPreviewDownloadFilename = data.download_filename || null;
         if (data.pdf_url) {
           loadPreviewPdfIframe(data.pdf_url);
         }

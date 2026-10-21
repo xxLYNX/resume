@@ -8,6 +8,7 @@ mod skills;
 mod ledger;
 mod composition;
 mod manifest;
+mod resume_filename;
 mod validation;
 
 use serde::{Deserialize, Serialize};
@@ -43,6 +44,7 @@ pub use ledger::{render_ledger_tex, ApplicationLedgerRow};
 pub use manifest::{
     compute_content_hash, compute_snapshot_hash, SubmissionManifest, MANIFEST_SCHEMA_VERSION,
 };
+pub use resume_filename::resume_download_filename;
 pub use validation::{validate_payload, ValidationError};
 
 /// Build config: section order + templates. Content comes from catalog resolve (jobdesk).

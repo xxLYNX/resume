@@ -26,6 +26,7 @@
       previewThemeId = previewThemeSelect.value || "classic";
       lastPreviewContentHash = null;
       lastPreviewThemeLoaded = null;
+      lastPreviewDownloadFilename = null;
       await loadThemeInfo();
       if (selectedElementId && !catalogJsonMode.checked) {
         const detail = await getElementDetail(selectedElementId);

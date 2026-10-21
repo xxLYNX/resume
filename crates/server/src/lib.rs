@@ -6,8 +6,9 @@ mod resolve_checks;
 mod skills;
 mod themes;
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
@@ -18,12 +19,13 @@ use axum::{
     routing::{delete, get, patch, post},
     Json, Router,
 };
-use domain::compute_snapshot_hash;
+use domain::{resume_download_filename, Composition, compute_snapshot_hash};
 use render_pdf::{write_tex_and_compile, PdfEngine};
 use render_tex::{
     jobdesk_build_aligned, jobdesk_build_composition_to_dir, LegacyBuildResult,
 };
-use resolve::default_composition;
+use resolve::{default_composition, resolve_from_manifest};
+use serde_json::Value;
 use resolve_checks::resolve_composition_checked;
 use serde::{Deserialize, Serialize};
 use store::Store;
@@ -37,6 +39,7 @@ struct PreviewCache {
     cache_key: Option<String>,
     content_hash: Option<String>,
     pdf_engine: Option<String>,
+    download_filename: Option<String>,
 }
 
 #[derive(Clone)]
@@ -99,6 +102,7 @@ struct PreviewResponse {
     draft_differs_from_submission: Option<bool>,
     /// Theme bundle used for this preview build (echo of request, default `classic`).
     theme_id: Option<String>,
+    download_filename: Option<String>,
 }
 
 enum PreviewOutcome {
@@ -273,6 +277,7 @@ async fn run_preview(
             submission_content_hash: result.submission_content_hash,
             draft_differs_from_submission: result.draft_differs_from_submission,
             theme_id: Some(result.theme_id),
+            download_filename: Some(result.download_filename),
         }),
         Ok(PreviewOutcome::Unavailable {
             message,
@@ -291,6 +296,7 @@ async fn run_preview(
             submission_content_hash: None,
             draft_differs_from_submission: None,
             theme_id: None,
+            download_filename: None,
         }),
         Err(err) => {
             let log_tail = read_preview_diagnostics(&state.preview_dir);
@@ -308,6 +314,7 @@ async fn run_preview(
                 submission_content_hash: None,
                 draft_differs_from_submission: None,
                 theme_id: None,
+                download_filename: None,
             })
         }
     }
@@ -325,8 +332,15 @@ async fn get_preview_pdf(State(state): State<Arc<AppState>>) -> Response {
         header::CACHE_CONTROL,
         HeaderValue::from_static("no-store, no-cache, must-revalidate"),
     );
-    if let Ok(disposition) = HeaderValue::from_str("inline; filename=\"resume.pdf\"") {
-        headers.insert(header::CONTENT_DISPOSITION, disposition);
+    let filename = state
+        .preview_cache
+        .lock()
+        .ok()
+        .and_then(|c| c.download_filename.clone())
+        .unwrap_or_else(|| "resume.pdf".into());
+    let disposition = format!("inline; filename=\"{filename}\"");
+    if let Ok(value) = HeaderValue::from_str(&disposition) {
+        headers.insert(header::CONTENT_DISPOSITION, value);
     }
 
     (StatusCode::OK, headers, bytes).into_response()
@@ -339,6 +353,60 @@ struct PreviewBuildMeta {
     draft_differs_from_submission: Option<bool>,
     unchanged: bool,
     theme_id: String,
+    download_filename: String,
+}
+
+fn header_name_from_resolved(resolved: &HashMap<String, Value>) -> Option<String> {
+    resolved
+        .get("header")
+        .and_then(|h| h.get("name"))
+        .and_then(|n| n.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+}
+
+fn preview_draft_composition(
+    store: &Store,
+    req: &PreviewRequest,
+    application_id: Option<&str>,
+) -> Result<Composition> {
+    if let Some(c) = &req.draft_composition {
+        return Ok(c.clone());
+    }
+    if let Some(app_id) = application_id {
+        let app = store
+            .get_application(app_id)?
+            .with_context(|| format!("application not found `{app_id}`"))?;
+        return Ok(app.draft_composition);
+    }
+    default_composition(store)
+}
+
+fn preview_download_filename(
+    store: &Store,
+    project_root: &Path,
+    workspace: &Path,
+    req: &PreviewRequest,
+    application_id: Option<&str>,
+    mode: &str,
+    theme_id: &str,
+) -> Result<String> {
+    let name = if mode == "submitted" {
+        let app_id = application_id.context("submitted preview requires application_id")?;
+        let sub = store
+            .get_canonical_submission_with_root(workspace, app_id)?
+            .with_context(|| format!("no canonical submission for application `{app_id}`"))?;
+        let resolved = resolve_from_manifest(&sub.manifest)?;
+        header_name_from_resolved(&resolved)
+    } else {
+        let composition = preview_draft_composition(store, req, application_id)?;
+        let resolved = resolve_composition_checked(store, project_root, theme_id, &composition)?;
+        header_name_from_resolved(&resolved)
+    };
+    Ok(name
+        .map(|n| resume_download_filename(&n))
+        .unwrap_or_else(|| "resume.pdf".into()))
 }
 
 fn effective_preview_theme(req: &PreviewRequest) -> String {
@@ -384,6 +452,15 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
     };
 
     let theme_id = effective_preview_theme(req);
+    let download_filename = preview_download_filename(
+        &store,
+        &state.root,
+        &state.workspace_dir,
+        req,
+        application_id,
+        mode,
+        &theme_id,
+    )?;
     let cache_key = preview_cache_key(state, &store, req)?;
     let pdf_path = state.preview_dir.join("resume.pdf");
     if pdf_path.is_file() {
@@ -394,6 +471,9 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
                 {
                     let (preview_source, draft_differs) =
                         preview_meta(&store, state, req, application_id, mode, &submission_snapshot)?;
+                    if let Ok(mut cache) = state.preview_cache.lock() {
+                        cache.download_filename = Some(download_filename.clone());
+                    }
                     return Ok(PreviewOutcome::Built(PreviewBuildMeta {
                         build: render_tex::LegacyBuildResult {
                             tex: String::new(),
@@ -407,6 +487,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
                         draft_differs_from_submission: draft_differs,
                         unchanged: true,
                         theme_id: theme_id.clone(),
+                        download_filename: download_filename.clone(),
                     }));
                 }
             }
@@ -435,6 +516,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
     if let Some(pdf_engine) = reuse_pdf {
         if let Ok(mut cache) = state.preview_cache.lock() {
             cache.cache_key = Some(cache_key);
+            cache.download_filename = Some(download_filename.clone());
         }
         return Ok(PreviewOutcome::Built(PreviewBuildMeta {
             build: LegacyBuildResult {
@@ -449,6 +531,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
             draft_differs_from_submission: draft_differs,
             unchanged: true,
             theme_id: theme_id.clone(),
+            download_filename: download_filename.clone(),
         }));
     }
 
@@ -466,6 +549,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
         cache.cache_key = Some(cache_key);
         cache.content_hash = Some(build.content_hash.clone());
         cache.pdf_engine = build.pdf_engine.clone();
+        cache.download_filename = Some(download_filename.clone());
     }
 
     Ok(PreviewOutcome::Built(PreviewBuildMeta {
@@ -475,6 +559,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
         draft_differs_from_submission: draft_differs,
         unchanged: false,
         theme_id,
+        download_filename,
     }))
 }
 
