@@ -1,5 +1,23 @@
 {# Classic macros — enable in theme.toml when section templates {% import %} this module. #}
 
+{# Visible http(s) label: scheme stripped; full URL stays in \href. #}
+{% macro url_display(u) -%}
+{%- if u -%}
+{%- if u is startingwith("https://") -%}
+{%- set v = u[8:] -%}
+{%- elif u is startingwith("http://") -%}
+{%- set v = u[7:] -%}
+{%- else -%}
+{%- set v = u -%}
+{%- endif -%}
+{%- if v is endingwith("/") -%}
+{{- v[:-1] -}}
+{%- else -%}
+{{- v -}}
+{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+
 {% macro project_block(row) -%}
       \resumeProjectHeading
           {%- if row.resume_tags -%}

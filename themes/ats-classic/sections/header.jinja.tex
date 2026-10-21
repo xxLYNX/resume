@@ -1,4 +1,5 @@
+{%- from "classic_macros" import url_display -%}
 \begin{center}
     \textbf{\Huge \scshape {{ name | latex_escape }}} \\ \vspace{1pt}
-    \small {% if phone %}\contactUnderline{ {{- phone | latex_escape -}} } $|$ {% endif %}{% if email %}\contactLink{mailto:{{- email -}}}{ {{- email | latex_escape -}} } $|$ {% endif %}{% if linkedin %}\contactLink{ {{- linkedin -}} }{ {{- linkedin | url_short | latex_escape -}} } $|$ {% endif %}{% if website %}\contactLink{ {{- website -}} }{ {{- website | url_short | latex_escape -}} } $|$ {% endif %}{% if github %}\contactLink{ {{- github -}} }{ {{- github | url_short | latex_escape -}} }{% endif %}
+    \small {% if phone %}\contactUnderline{ {{- phone | latex_escape -}} } $|$ {% endif %}{% if email %}\contactLink{mailto:{{- email -}}}{ {{- email | latex_escape -}} } $|$ {% endif %}{% if linkedin %}\contactLink{ {{- linkedin -}} }{ {{- url_display(linkedin) | latex_escape -}} } $|$ {% endif %}{% if website %}\contactLink{ {{- website -}} }{ {{- url_display(website) | latex_escape -}} } $|$ {% endif %}{% if github %}\contactLink{ {{- github -}} }{ {{- url_display(github) | latex_escape -}} }{% endif %}
 \end{center}
