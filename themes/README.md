@@ -15,4 +15,8 @@ Full contract (context shapes, macros, guarantees): [`CONTRACT.md`](CONTRACT.md)
 
 [`classic/README.md`](classic/README.md) — golden test, macro file layout.
 
+## ATS variant
+
+[`ats-classic/`](ats-classic/) — same layout as classic with visible contact strings for text-extraction scanners.
+
 Regression: `cargo test -p render_tex` compares normalized `.tex` to `tests/fixtures/golden_resume.tex`.

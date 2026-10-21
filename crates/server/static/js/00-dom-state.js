@@ -6,10 +6,20 @@
     const iframe = document.getElementById("pdf");
     const placeholder = document.getElementById("placeholder");
 
-    /** Chrome PDF viewer: fit page width to reduce side margins; keep toolbar. */
+    /** Query param busts iframe cache; fragment only affects PDF viewer chrome. */
     function pdfIframeSrc(pdfUrl) {
-      const base = pdfUrl.split("#")[0];
-      return `${base}#view=FitH&navpanes=0&toolbar=1&t=${Date.now()}`;
+      const withoutHash = pdfUrl.split("#")[0];
+      const base = withoutHash.split("?")[0];
+      const view = "view=FitH&navpanes=0&toolbar=1";
+      return `${base}?v=${Date.now()}#${view}`;
+    }
+
+    function loadPreviewPdfIframe(pdfUrl) {
+      const next = pdfIframeSrc(pdfUrl);
+      if (iframe.getAttribute("src") === next) {
+        iframe.removeAttribute("src");
+      }
+      iframe.src = next;
     }
     const rebuildBtn = document.getElementById("rebuild");
     const portfolioGroups = document.getElementById("portfolio-groups");
@@ -155,7 +165,14 @@
       return resumePreviewActive();
     }
 
+    function syncPreviewThemeFromSelect() {
+      if (previewThemeSelect?.value) {
+        previewThemeId = previewThemeSelect.value;
+      }
+    }
+
     function previewBody() {
+      syncPreviewThemeFromSelect();
       const body = { theme_id: previewThemeId };
       if (!resumePreviewActive()) return body;
       if (resumeTarget.type === "application" && resumeTarget.applicationId) {
@@ -175,6 +192,7 @@
     let previewRebuildQueued = false;
     let lastPreviewContentHash = null;
     let lastPreviewTargetKey = null;
+    let lastPreviewThemeLoaded = null;
 
     function readCompensationFromDom() {
       const unit = appPayUnit.value || null;
@@ -239,6 +257,7 @@
         previewRebuildQueued = true;
         return;
       }
+      syncPreviewThemeFromSelect();
       if (!resumePreviewActive()) {
         statusEl.textContent = "";
         hashEl.textContent = "";
@@ -306,23 +325,28 @@
         engineEl.textContent = data.pdf_engine ? "PDF engine: " + data.pdf_engine : "";
 
         const hash = data.content_hash || "";
+        const themeApplied = data.theme_id || previewThemeId || "classic";
         const targetKey =
           typeof resumePreviewTargetKey === "function" ? resumePreviewTargetKey() : "";
-        if (
+        const pdfUnchanged =
           data.unchanged &&
           hash &&
           hash === lastPreviewContentHash &&
           targetKey &&
-          targetKey === lastPreviewTargetKey
-        ) {
-          statusEl.textContent = "Preview up to date" + src;
+          targetKey === lastPreviewTargetKey &&
+          themeApplied === lastPreviewThemeLoaded;
+        if (pdfUnchanged) {
+          statusEl.textContent = `Preview up to date (${themeApplied})${src}`;
           return;
         }
-        statusEl.textContent = data.unchanged ? "Preview refreshed" + src : "Preview updated" + src;
+        statusEl.textContent = data.unchanged
+          ? `Preview refreshed (${themeApplied})${src}`
+          : `Preview updated (${themeApplied})${src}`;
         lastPreviewContentHash = hash;
         lastPreviewTargetKey = targetKey;
+        lastPreviewThemeLoaded = themeApplied;
         if (data.pdf_url) {
-          iframe.src = pdfIframeSrc(data.pdf_url);
+          loadPreviewPdfIframe(data.pdf_url);
         }
       } catch (e) {
         statusEl.textContent = "Request failed: " + e;

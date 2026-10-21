@@ -1,0 +1,46 @@
+id = "ats-classic"
+version = 1
+description = "Classic layout with contact fields typeset as visible text for ATS text extraction"
+contract_version = 1
+month_display = "abbrev"
+
+[macros]
+classic_macros = "macros/resume.jinja.tex"
+
+[sections.header]
+template = "sections/header.jinja.tex"
+
+[sections.objective]
+template = "sections/objective.jinja.tex"
+
+[sections.education]
+template = "sections/education.jinja.tex"
+optional_fields = ["highlights", "gpa"]
+date_parts = ["month", "year"]
+
+[sections.experience]
+template = "sections/experience.jinja.tex"
+optional_fields = ["highlights"]
+date_parts = ["month", "year"]
+
+[sections.projects]
+template = "sections/projects.jinja.tex"
+optional_fields = ["details"]
+date_parts = ["month", "year"]
+resume_line_tags_max = 5
+
+[sections.certifications]
+template = "sections/certifications.jinja.tex"
+date_parts = ["month", "year"]
+
+[sections.awards]
+template = "sections/awards.jinja.tex"
+date_parts = ["month", "year"]
+
+[sections.toolbelt]
+template = "sections/toolbelt.jinja.tex"
+title = "Technical skills & standards"
+
+[sections.skills]
+template = "sections/skills.jinja.tex"
+optional_fields = ["certifications", "languages", "securityTools", "other"]

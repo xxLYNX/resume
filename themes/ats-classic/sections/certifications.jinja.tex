@@ -1,0 +1,10 @@
+{%- if certifications %}
+\section{Certifications}
+  \resumeSubHeadingListStart
+{%- for row in certifications %}
+    \resumeSubheading
+      { {{- row.name | latex_escape -}} }{ {{- row.date_range | format_date_range -}} }
+      { {{- row.issuer | latex_escape -}} }{}
+{%- endfor %}
+  \resumeSubHeadingListEnd
+{%- endif %}

@@ -1,0 +1,10 @@
+{%- if awards %}
+\section{Awards \& honors}
+  \resumeSubHeadingListStart
+{%- for row in awards %}
+    \resumeSubheading
+      { {{- row.title | latex_escape -}} }{ {{- row.date_range | format_date_range -}} }
+      { {{- row.issuer | latex_escape -}} }{}
+{%- endfor %}
+  \resumeSubHeadingListEnd
+{%- endif %}

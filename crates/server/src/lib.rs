@@ -97,6 +97,8 @@ struct PreviewResponse {
     preview_source: Option<String>,
     submission_content_hash: Option<String>,
     draft_differs_from_submission: Option<bool>,
+    /// Theme bundle used for this preview build (echo of request, default `classic`).
+    theme_id: Option<String>,
 }
 
 enum PreviewOutcome {
@@ -270,6 +272,7 @@ async fn run_preview(
             preview_source: Some(result.preview_source),
             submission_content_hash: result.submission_content_hash,
             draft_differs_from_submission: result.draft_differs_from_submission,
+            theme_id: Some(result.theme_id),
         }),
         Ok(PreviewOutcome::Unavailable {
             message,
@@ -287,6 +290,7 @@ async fn run_preview(
             preview_source: Some(preview_source),
             submission_content_hash: None,
             draft_differs_from_submission: None,
+            theme_id: None,
         }),
         Err(err) => {
             let log_tail = read_preview_diagnostics(&state.preview_dir);
@@ -303,6 +307,7 @@ async fn run_preview(
                 preview_source: None,
                 submission_content_hash: None,
                 draft_differs_from_submission: None,
+                theme_id: None,
             })
         }
     }
@@ -333,6 +338,15 @@ struct PreviewBuildMeta {
     submission_content_hash: Option<String>,
     draft_differs_from_submission: Option<bool>,
     unchanged: bool,
+    theme_id: String,
+}
+
+fn effective_preview_theme(req: &PreviewRequest) -> String {
+    req.theme_id
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(DEFAULT_THEME_ID)
+        .to_string()
 }
 
 fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcome> {
@@ -369,6 +383,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
         None
     };
 
+    let theme_id = effective_preview_theme(req);
     let cache_key = preview_cache_key(state, &store, req)?;
     let pdf_path = state.preview_dir.join("resume.pdf");
     if pdf_path.is_file() {
@@ -391,6 +406,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
                         submission_content_hash: submission_snapshot,
                         draft_differs_from_submission: draft_differs,
                         unchanged: true,
+                        theme_id: theme_id.clone(),
                     }));
                 }
             }
@@ -405,7 +421,8 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
     let reuse_pdf = if pdf_path.is_file() {
         match state.preview_cache.lock() {
             Ok(cache)
-                if cache.content_hash.as_deref() == Some(build.content_hash.as_str()) =>
+                if cache.cache_key.as_deref() == Some(cache_key.as_str())
+                    && cache.content_hash.as_deref() == Some(build.content_hash.as_str()) =>
             {
                 cache.pdf_engine.clone()
             }
@@ -431,6 +448,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
             submission_content_hash: submission_snapshot,
             draft_differs_from_submission: draft_differs,
             unchanged: true,
+            theme_id: theme_id.clone(),
         }));
     }
 
@@ -456,6 +474,7 @@ fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcom
         submission_content_hash: submission_snapshot,
         draft_differs_from_submission: draft_differs,
         unchanged: false,
+        theme_id,
     }))
 }
 
@@ -467,10 +486,7 @@ fn run_preview_build(
     mode: &str,
     compile_pdf: bool,
 ) -> Result<LegacyBuildResult> {
-    let theme_id = req
-        .theme_id
-        .as_deref()
-        .unwrap_or(DEFAULT_THEME_ID);
+    let theme_id = effective_preview_theme(req);
     match (application_id, mode, req.draft_composition.as_ref()) {
         (Some(_), "submitted", _) => jobdesk_build_aligned(
             store,
@@ -481,10 +497,10 @@ fn run_preview_build(
             compile_pdf,
             application_id,
             mode,
-            theme_id,
+            &theme_id,
         ),
         (_, _, Some(composition)) if mode != "submitted" => {
-            resolve_composition_checked(store, &state.root, theme_id, composition)?;
+            resolve_composition_checked(store, &state.root, &theme_id, composition)?;
             jobdesk_build_composition_to_dir(
                 store,
                 &state.root,
@@ -492,7 +508,7 @@ fn run_preview_build(
                 &state.preview_dir,
                 composition,
                 compile_pdf,
-                theme_id,
+                &theme_id,
             )
         }
         _ => jobdesk_build_aligned(
@@ -504,7 +520,7 @@ fn run_preview_build(
             compile_pdf,
             application_id,
             mode,
-            theme_id,
+            &theme_id,
         ),
     }
 }
@@ -556,10 +572,7 @@ fn preview_cache_key(
 ) -> Result<String> {
     let application_id = req.application_id.as_deref();
     let mode = req.mode.as_deref().unwrap_or("draft");
-    let preview_theme = req
-        .theme_id
-        .as_deref()
-        .unwrap_or(DEFAULT_THEME_ID);
+    let preview_theme = effective_preview_theme(req);
     let key = match (application_id, mode) {
         (None, _) => {
             if let Some(composition) = &req.draft_composition {

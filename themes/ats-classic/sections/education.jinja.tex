@@ -1,0 +1,22 @@
+\section{Education}
+  \resumeSubHeadingListStart
+{%- for row in education %}
+    \resumeSubheading
+      { {{- row.degree | latex_escape -}} }{ {{- row.date_range | format_date_range -}} }
+      { {{- row.school | latex_escape -}} }{}
+{%- if row.courses %}
+      \resumeItemListStart
+{%- for course in row.courses %}
+        \resumeItem{ {%- if course.code -%}{{- course.code | latex_escape -}} — {%- endif -%}{{- course.name | latex_escape -}} }
+{%- endfor %}
+      \resumeItemListEnd
+{%- endif %}
+{%- if row.highlights %}
+      \resumeItemListStart
+{%- for line in row.highlights %}
+        \resumeItem{ {{- line | latex_escape -}} }
+{%- endfor %}
+      \resumeItemListEnd
+{%- endif %}
+{%- endfor %}
+  \resumeSubHeadingListEnd

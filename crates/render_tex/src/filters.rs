@@ -6,6 +6,7 @@ pub fn register_resume_filters(env: &mut Environment<'_>, month_display: MonthDi
         format_date_range_filter(value, month_display)
     });
     env.add_filter("latex_escape", latex_escape_filter);
+    env.add_filter("url_short", url_short_filter);
     env.add_filter("format_work_location", format_work_location_filter);
     env.add_filter("format_experience_company_line", format_experience_company_line_filter);
 }
@@ -111,6 +112,28 @@ pub fn latex_escape(s: &str) -> String {
     out
 }
 
+/// Display form for http(s) links in headers (scheme stripped; full URL stays in `\href`).
+pub fn url_short(s: &str) -> String {
+    let mut t = s.trim();
+    if let Some(rest) = t.strip_prefix("https://") {
+        t = rest;
+    } else if let Some(rest) = t.strip_prefix("http://") {
+        t = rest;
+    }
+    t.trim_end_matches('/').to_string()
+}
+
+fn url_short_filter(value: Value) -> Result<String, Error> {
+    if value.is_none() || value.is_undefined() {
+        return Ok(String::new());
+    }
+    let s: String = value
+        .as_str()
+        .map(String::from)
+        .ok_or_else(|| Error::new(ErrorKind::InvalidOperation, "url_short expects a string"))?;
+    Ok(url_short(&s))
+}
+
 fn latex_escape_filter(value: Value) -> Result<String, Error> {
     if value.is_none() || value.is_undefined() {
         return Ok(String::new());
@@ -120,6 +143,20 @@ fn latex_escape_filter(value: Value) -> Result<String, Error> {
         .map(String::from)
         .ok_or_else(|| Error::new(ErrorKind::InvalidOperation, "latex_escape expects a string"))?;
     Ok(latex_escape(&s))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn url_short_strips_scheme_and_trailing_slash() {
+        assert_eq!(
+            url_short("https://linkedin.com/in/foo/"),
+            "linkedin.com/in/foo"
+        );
+        assert_eq!(url_short("http://example.com"), "example.com");
+    }
 }
 
 fn format_date_range_filter(value: Value, month_display: MonthDisplay) -> Result<String, Error> {

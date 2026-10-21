@@ -1,0 +1,17 @@
+{# Classic macros — enable in theme.toml when section templates {% import %} this module. #}
+
+{% macro project_block(row) -%}
+      \resumeProjectHeading
+          {%- if row.resume_tags -%}
+          {\textbf{ {{- row.name | latex_escape -}} } $|$ \emph{ {{- row.resume_tags | latex_escape -}} }}{ {{- row.date_range | format_date_range -}} }
+          {%- else -%}
+          {\textbf{ {{- row.name | latex_escape -}} }}{ {{- row.date_range | format_date_range -}} }
+          {%- endif -%}
+{%- if row.details %}
+          \resumeItemListStart
+{%- for line in row.details %}
+            \resumeItem{ {{- line | latex_escape -}} }
+{%- endfor %}
+          \resumeItemListEnd
+{%- endif %}
+{%- endmacro %}

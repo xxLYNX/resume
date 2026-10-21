@@ -20,18 +20,20 @@
     }
 
     function resumePreviewTargetKey() {
+      const theme = previewThemeSelect?.value || previewThemeId || "classic";
       if (resumeTarget.type === "application" && resumeTarget.applicationId) {
-        return `application:${resumeTarget.applicationId}:${previewMode.value}`;
+        return `application:${resumeTarget.applicationId}:${previewMode.value}:theme=${theme}`;
       }
       if (resumeTarget.type === "preset" && resumeTarget.presetId) {
-        return `preset:${resumeTarget.presetId}`;
+        return `preset:${resumeTarget.presetId}:theme=${theme}`;
       }
-      return "catalog_default";
+      return `catalog_default:theme=${theme}`;
     }
 
     function resetPreviewClientCache() {
       lastPreviewContentHash = null;
       lastPreviewTargetKey = null;
+      lastPreviewThemeLoaded = null;
       clearTimeout(previewDebounce);
     }
 

@@ -12,7 +12,7 @@
       if (ids.includes(previewThemeId)) {
         previewThemeSelect.value = previewThemeId;
       } else if (ids.length) {
-        previewThemeId = ids[0];
+        previewThemeId = ids.includes("classic") ? "classic" : ids[0];
         previewThemeSelect.value = previewThemeId;
       }
     }
@@ -25,6 +25,7 @@
     async function onPreviewThemeChanged() {
       previewThemeId = previewThemeSelect.value || "classic";
       lastPreviewContentHash = null;
+      lastPreviewThemeLoaded = null;
       await loadThemeInfo();
       if (selectedElementId && !catalogJsonMode.checked) {
         const detail = await getElementDetail(selectedElementId);
