@@ -200,6 +200,8 @@
     let previewDebounce = null;
     let previewRebuildQueued = false;
     let previewRequestId = 0;
+    /** Skip debounced preview while programmatically filling the composition editor. */
+    let compositionEditorSilent = 0;
     let lastPreviewContentHash = null;
     let lastPreviewDownloadFilename = null;
     let lastPreviewPdfUrl = null;
@@ -229,8 +231,12 @@
         draftWarn.classList.add("hidden");
       }
       if (data.pdf_url) {
+        const samePdf =
+          data.pdf_url === lastPreviewPdfUrl && hash === lastPreviewContentHash;
+        if (!samePdf) {
+          loadPreviewPdfIframe(data.pdf_url, hash);
+        }
         lastPreviewPdfUrl = data.pdf_url;
-        loadPreviewPdfIframe(data.pdf_url, hash);
       }
       lastPreviewContentHash = hash;
       lastPreviewDownloadFilename = data.download_filename || null;
@@ -288,6 +294,7 @@
     /** Single path: read editor → JSON textarea → debounced live preview (unsaved draft). */
     function notifyCompositionChanged() {
       draftEditor.value = JSON.stringify(compositionFromEditorDom(), null, 2);
+      if (compositionEditorSilent > 0) return;
       if (previewMode.value !== "draft") return;
       if (!resumePreviewActive()) return;
       clearTimeout(previewDebounce);

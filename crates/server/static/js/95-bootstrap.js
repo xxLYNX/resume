@@ -223,5 +223,5 @@
       .then(() => loadResumeCompositionForTarget())
       .then(() => {
         updateMainLayout();
-        rebuild();
+        if (resumePreviewActive()) rebuild();
       });

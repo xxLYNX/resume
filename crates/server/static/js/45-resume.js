@@ -159,7 +159,9 @@
     }
 
     async function loadResumeCompositionForTarget() {
+      compositionEditorSilent += 1;
       let composition;
+      try {
       if (resumeTarget.type === "application" && resumeTarget.applicationId) {
         const res = await fetch(
           `/api/applications/${encodeURIComponent(resumeTarget.applicationId)}`,
@@ -183,6 +185,9 @@
       await refreshCatalogByKind();
       await renderCompositionEditor(composition);
       updateResumePreviewHint();
+      } finally {
+        compositionEditorSilent -= 1;
+      }
     }
 
     async function setResumeTargetFromValue(value, { reload = true } = {}) {
