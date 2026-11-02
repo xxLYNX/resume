@@ -1,8 +1,8 @@
 # Milestone J — Portfolio, editor & UX fixes
 
-**Branch:** `dev/milestone-j` (from `master`).
+**Status:** complete on `master`. Historical branch was `dev/milestone-j`.
 
-**Priority:** Next active milestone — **before Milestone F (skills)**. F stays specified; do not start F until J is merged unless explicitly parallelizing.
+**Note:** Milestone F (skills) merged after J; both are on `master`.
 
 ---
 

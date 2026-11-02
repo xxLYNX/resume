@@ -1,45 +1,38 @@
-# Next milestone — F (skills catalog, provenance & framework refs)
+# Next milestone — K (application intelligence)
 
-**Active work:** merge **`dev/milestone-f`** → `master` when ready ([`MILESTONE_F_ROLLOUT.md`](MILESTONE_F_ROLLOUT.md)).
+**Complete on `master`:** A–E, D, **F** (skills catalog, posting hints, O*NET), **I** (ledger), **J** (portfolio CRUD, Resume tab, phase guardrails).
 
-**Complete on `master`:** E, I, **J** (Portfolio, dates, themes, experience location, …). **F** lands with milestone-f merge.
+**Active:** **K** — deterministic analyze + MCP tools + Applications UI report. Spec: [`MILESTONE_K_APPLICATION_INTELLIGENCE.md`](MILESTONE_K_APPLICATION_INTELLIGENCE.md).
 
-**Maybe later:** NICE KSA catalog / `framework_refs` enrichment — see rollout doc § *Maybe later*.
+**Queued:** **G** — `show_on_portfolio`, second theme or static HTML export.
 
-```bash
-git checkout master && git pull
-git checkout dev/milestone-f
-# if branch was stale:
-git reset --hard master
-```
+**Backlog:** submission history UI; phase/pipeline J.1; PDF.js / SSE preview; theme DB registry; UniFFI **H**; NICE KSA enrichment (see [`MILESTONE_F_ROLLOUT.md`](MILESTONE_F_ROLLOUT.md) § Maybe later).
 
 ---
 
-## Milestone F — phased plan (v10)
+## Milestone K — phases
 
 | Phase | Deliverable |
 |-------|-------------|
-| **F.0** | Plan + branch aligned to `master` |
-| **F.2a** | Schema v10 (tool/competency, element links, evidence-only PDF); portfolio grouping v1 |
-| **F.2-cleanup** | Modular static UI; retire `skills.main`; schema v11 (smoke UI, then F.2b) |
-| **F.2b** | Skill discovery (typeahead, payload scan, create tools) |
-| **F.2c** | Relationships pane |
-| **F.2d** | Cert/award on PDF; courses under education |
-| **F.3a** | `tag` kind, toolbelt PDF, bundled `catalog_seed.json`, schema v12 |
-| **F.3b** | Framework refs import; posting hints + live preview |
+| **K.0** | Spec + data model |
+| **K.1** | `build_application_analyze` domain + API/CLI |
+| **K.2** | `jobdesk mcp serve` — scoped tools for Cursor/agents |
+| **K.3** | Applications tab structured report |
 
-Full checklists: [`MILESTONE_F_ROLLOUT.md`](MILESTONE_F_ROLLOUT.md).
+---
+
+## Milestone F (complete, merged to master)
+
+Execution history: [`MILESTONE_F_ROLLOUT.md`](MILESTONE_F_ROLLOUT.md). DB schema **v15**; Resume tab; toolbelt evidence model.
 
 ---
 
 ## Milestone J (complete)
 
-Merged via PR #1. Spec: [`MILESTONE_J_RESUME_LIBRARY.md`](MILESTONE_J_RESUME_LIBRARY.md).
+Merged to `master`. Spec: [`MILESTONE_J_RESUME_LIBRARY.md`](MILESTONE_J_RESUME_LIBRARY.md).
 
 ---
 
 ## Milestone E (complete)
 
 Content picker, themes, presets, applications UX — see [`ARCHITECTURE.md`](../ARCHITECTURE.md) Milestone E.
-
-**Backlog:** submission history UI; phase/pipeline J.1; PDF cache; portfolio **G**; UniFFI **H**.

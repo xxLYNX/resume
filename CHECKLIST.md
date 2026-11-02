@@ -11,7 +11,7 @@ Living goals for **jobdesk**. Implementation status and milestones: [`ARCHITECTU
 - [ ] **Portfolio** surfaces (Milestone G)
 - [x] **Local-first** — `jobdesk serve` + CLI; no required cloud
 
-Non-goals: automated job-board apply; LLM cover letters as core product.
+Non-goals: automated job-board apply; LLM cover letters as core product. Optional user-reviewed application Q&A drafts and coaching notes (Milestone K) may be stored locally; generative coaching runs via MCP in your editor, not as a required cloud service.
 
 ## Glossary
 
@@ -23,14 +23,18 @@ Non-goals: automated job-board apply; LLM cover letters as core product.
 | **Application** | A job posting you track + its draft composition |
 | **Submission** | Frozen manifest (and optional PDF) at **Submit** time |
 | **Theme** | LaTeX + MiniJinja bundle; independent of which elements you include |
+| **Evidence** | Tools, competencies, and tags linked to portfolio anchors via `element_skill_links` |
+| **Toolbelt** | PDF section projecting deduped evidence labels from pinned composition items |
 
 ## Collections
 
-**Shipped:** `header`, `objective`, `education`, `experience`, `project`, `skills` (see `ElementKind` and `themes/classic/theme.toml`).
+**Shipped element kinds:** `header`, `objective`, `education`, `experience`, `project`, `course`, `certification`, `award` (see `ElementKind` and theme section maps).
 
-**Milestone E, I & J:** complete on `master`. **Active (branch only):** **F** — skills catalog on `dev/milestone-f` ([`docs/MILESTONE_F_ROLLOUT.md`](docs/MILESTONE_F_ROLLOUT.md)).
+**Skills on PDF:** evidence-linked **toolbelt** + optional project line tags — not a separate composable `skills` blob.
 
-**Planned later:** separate **tools**, **certifications**, **awards** collections.
+**Milestones E, F, I & J:** complete on `master`. **Active:** **K** application intelligence ([`docs/MILESTONE_K_APPLICATION_INTELLIGENCE.md`](docs/MILESTONE_K_APPLICATION_INTELLIGENCE.md)); **G** portfolio export queued.
+
+**Planned later:** separate **tools** collection kind (if split from evidence model); richer public portfolio (G).
 
 ## Where to edit data
 
@@ -40,5 +44,6 @@ Non-goals: automated job-board apply; LLM cover letters as core product.
 | Add new jobs, projects, … | Portfolio **New entry** in `serve`, or `jobdesk catalog add … --payload file.json` |
 | Seed / bulk YAML | `content/*.yaml` then `jobdesk import` |
 | Backup / git-friendly dump | `jobdesk export` → `workspace/staging/content/` |
-| Per-job resume content | Applications tab → content picker |
+| Per-job resume content | **Resume** tab (target application) + Applications tracker |
+| Posting vs catalog analysis | Applications → **Analyze**; CLI `jobdesk application analyze` |
 | Layout / LaTeX | `themes/<id>/` |

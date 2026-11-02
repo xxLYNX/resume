@@ -1,7 +1,8 @@
 # Milestone F — execution roadmap
 
-**Branch:** `dev/milestone-f`  
-**Policy:** Not production. Breaking changes OK. **Single build path:** SQLite catalog → resolve → LaTeX/PDF (no parallel file-based content build).
+**Status:** merged to `master` (schema **v15**). Historical branch was `dev/milestone-f`.
+
+**Policy:** **Single build path:** SQLite catalog → resolve → LaTeX/PDF (no parallel file-based content build).
 
 **Legacy re-link checklist (human):** [`LEGACY_SKILLS_INVENTORY.md`](LEGACY_SKILLS_INVENTORY.md) — reads `content/skills.yaml` + element fields; not source of truth.
 
@@ -109,12 +110,12 @@ Then hard-refresh the browser and re-apply evidence tags on portfolio entries.
 
 ---
 
-## Merge F → master (exit criteria)
+## Merge F → master (exit criteria) — done
 
 1. Portfolio evidence model stable: three tag types, relationships pane, discovery.
-2. PDF path is **toolbelt-only** for tag projection (classic theme).
+2. PDF path is **toolbelt-only** for tag projection (classic + ats-classic themes).
 3. Bundled catalog usable without manual seeding; import path documented.
-4. F.3b optional before merge if framework hints are required for your workflow.
+4. F.3b framework hints shipped before merge.
 
 ---
 
