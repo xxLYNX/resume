@@ -190,7 +190,7 @@ Recommended order (each step is usable on its own):
 
 ## Milestone J — Portfolio, editor & UX fixes
 
-**Current milestone.** Branch: `dev/milestone-j`. Spec: [`docs/MILESTONE_J_RESUME_LIBRARY.md`](docs/MILESTONE_J_RESUME_LIBRARY.md). Track in [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md).
+**Status:** complete on `master`. Spec: [`docs/MILESTONE_J_RESUME_LIBRARY.md`](docs/MILESTONE_J_RESUME_LIBRARY.md).
 
 - [x] Applications preview fixes (new-application draft from composition picker)
 - [x] `create_element` + Portfolio “New entry” UI; `jobdesk catalog add`
@@ -201,9 +201,7 @@ Recommended order (each step is usable on its own):
 
 ## Milestone F — Skills catalog, provenance & framework refs
 
-**In progress on `dev/milestone-f` only** (not on `master` until merge). Spec: [`docs/MILESTONE_F_ROLLOUT.md`](docs/MILESTONE_F_ROLLOUT.md).
-
-Phased (v10–v12): **F.2** done on branch; **F.3a** toolbelt + tag kind; **F.3b** frameworks next.
+**Status:** complete on `master` (merged; schema **v15**). Spec: [`docs/MILESTONE_F_ROLLOUT.md`](docs/MILESTONE_F_ROLLOUT.md).
 
 - [x] F.2a — schema v10, element skill links, evidence-only skills projection
 - [x] F.2-cleanup — modular UI, no `skills.main`, no file-based build, schema v11
@@ -212,6 +210,18 @@ Phased (v10–v12): **F.2** done on branch; **F.3a** toolbelt + tag kind; **F.3b
 - [x] F.2d — cert/award on résumé composition; courses under education
 - [x] F.3a — `tag` kind, toolbelt PDF, `catalog_seed.json`, schema v12
 - [x] F.3b — `framework_refs` import, posting hints + preview
+- [x] F.4 — O*NET catalog import, search-driven evidence pickers
+
+---
+
+## Milestone K — Application intelligence
+
+**Current milestone.** Spec: [`docs/MILESTONE_K_APPLICATION_INTELLIGENCE.md`](docs/MILESTONE_K_APPLICATION_INTELLIGENCE.md). Track in [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md).
+
+- [x] K.0 — spec + analyze report schema
+- [x] K.1 — deterministic `build_application_analyze` + API/CLI
+- [x] K.2 — `jobdesk mcp serve` scoped tools
+- [x] K.3 — Applications tab structured analyze report
 
 ---
 
@@ -263,3 +273,5 @@ Phased (v10–v12): **F.2** done on branch; **F.3a** toolbelt + tag kind; **F.3b
 | 2026-09-17 | Milestone B step 1: `serve`, preview API, embedded UI |
 | 2026-09-26 | Removed legacy Go builder; jobdesk-only docs and product surface |
 | 2026-09-26 | Milestone E complete: content picker, theme contract, unified Save, preview cache, Applications UX |
+| 2026-03-02 | Milestones I, J, F merged to master; Resume tab; toolbelt + posting hints; schema v15 |
+| 2026-03-02 | Milestone K: application analyze, MCP server, Applications analyze UI |

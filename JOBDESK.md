@@ -48,7 +48,19 @@ cargo run -p jobdesk -- application submit <uuid>
 cargo run -p jobdesk -- application delete <uuid>
 cargo run -p jobdesk -- application export-ledger
 cargo run -p jobdesk -- application export-ledger --output /path/to/ledger.pdf
+cargo run -p jobdesk -- application analyze <uuid>
+cargo run -p jobdesk -- application analyze <uuid> --json
 ```
+
+**Analyze** uses saved posting text and draft composition in the DB (Save the application after editing posting text).
+
+**MCP** (Cursor / agents, stdio, local DB only):
+
+```bash
+cargo run -p jobdesk -- mcp
+```
+
+See [`docs/MILESTONE_K_APPLICATION_INTELLIGENCE.md`](docs/MILESTONE_K_APPLICATION_INTELLIGENCE.md).
 
 **Phase vs workflow vs Submit:** [`docs/APPLICATION_LIFECYCLE.md`](docs/APPLICATION_LIFECYCLE.md). Only **Submit** freezes a manifest.
 

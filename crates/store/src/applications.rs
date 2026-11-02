@@ -1,11 +1,12 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use domain::{
-    validate_application_meta, validate_phase_and_workflow, Compensation, Composition,
-    SubmissionManifest, DRAFT_WORKFLOW,
+    build_application_analyze, validate_application_meta, validate_phase_and_workflow,
+    AnalyzeCatalogElement, ApplicationAnalyzeInput, ApplicationAnalyzeReport, Compensation,
+    Composition, SubmissionManifest, DRAFT_WORKFLOW,
 };
 use similarity::{rank_similar, RankInput, RankedMatch};
 use rusqlite::{params, OptionalExtension};
@@ -370,10 +371,7 @@ impl Store {
         }))
     }
 
-    pub fn application_posting_hints(&self, application_id: &str) -> Result<Vec<domain::PostingHintRow>> {
-        let app = self
-            .get_application(application_id)?
-            .with_context(|| format!("unknown application `{application_id}`"))?;
+    pub fn application_posting_text(app: &ApplicationDetail) -> String {
         let mut text = app.posting_text.clone();
         if text.trim().is_empty() {
             text = format!("{} {}", app.title, app.company);
@@ -382,7 +380,78 @@ impl Store {
                 text.push_str(tag);
             }
         }
+        text
+    }
+
+    pub fn application_posting_hints(&self, application_id: &str) -> Result<Vec<domain::PostingHintRow>> {
+        let app = self
+            .get_application(application_id)?
+            .with_context(|| format!("unknown application `{application_id}`"))?;
+        let text = Self::application_posting_text(&app);
         self.posting_skill_hints(&text, &app.draft_composition)
+    }
+
+    pub fn application_analyze(&self, application_id: &str) -> Result<ApplicationAnalyzeReport> {
+        let app = self
+            .get_application(application_id)?
+            .with_context(|| format!("unknown application `{application_id}`"))?;
+        let posting_text = Self::application_posting_text(&app);
+        const CANDIDATE_CAP: usize = 500;
+        let skill_nodes = self.skill_nodes_for_posting_hints(
+            &posting_text,
+            &app.draft_composition,
+            CANDIDATE_CAP,
+        )?;
+        let skill_ids_on_draft = self.skill_ids_on_composition(&app.draft_composition)?;
+        let skill_ids_with_catalog_evidence = self.all_asserted_skill_ids()?;
+
+        let mut pinned_element_ids = BTreeSet::new();
+        for section in &app.draft_composition.sections {
+            for item in &section.items {
+                pinned_element_ids.insert(item.element_id.clone());
+            }
+        }
+
+        let mut catalog_elements = Vec::new();
+        for summary in self.list_elements(None)? {
+            let mut asserted_skill_ids = BTreeSet::new();
+            for link in self.get_element_skill_links(&summary.id)? {
+                if link.source == "asserted" {
+                    asserted_skill_ids.insert(link.skill_id);
+                }
+            }
+            let objective_text = if summary.kind == "objective" {
+                self.get_element(&summary.id)?
+                    .and_then(|d| d.latest)
+                    .and_then(|r| {
+                        r.payload
+                            .get("objective")
+                            .and_then(|v| v.as_str())
+                            .map(String::from)
+                    })
+            } else {
+                None
+            };
+            catalog_elements.push(AnalyzeCatalogElement {
+                id: summary.id,
+                kind: summary.kind,
+                objective_text,
+                asserted_skill_ids,
+            });
+        }
+
+        Ok(build_application_analyze(ApplicationAnalyzeInput {
+            application_id: &app.id,
+            company: &app.company,
+            title: &app.title,
+            posting_text: &posting_text,
+            composition: &app.draft_composition,
+            skill_nodes: &skill_nodes,
+            skill_ids_on_draft: &skill_ids_on_draft,
+            skill_ids_with_catalog_evidence: &skill_ids_with_catalog_evidence,
+            catalog_elements: &catalog_elements,
+            pinned_element_ids: &pinned_element_ids,
+        }))
     }
 
     pub fn create_application(

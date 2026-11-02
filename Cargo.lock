@@ -509,6 +509,7 @@ dependencies = [
  "render_pdf",
  "render_tex",
  "resolve",
+ "serde",
  "serde_json",
  "serde_yaml",
  "server",

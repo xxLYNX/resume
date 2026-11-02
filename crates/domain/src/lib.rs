@@ -3,6 +3,7 @@ mod compensation;
 mod dates;
 mod location;
 mod framework_refs;
+mod application_analyze;
 mod posting_hints;
 mod skills;
 mod ledger;
@@ -26,6 +27,11 @@ pub use composition::{Composition, CompositionItem, CompositionSection};
 pub use location::WorkLocation;
 pub use framework_refs::{
     merge_framework_refs, merge_framework_refs_into, FrameworkRefsImportRow,
+};
+pub use application_analyze::{
+    build_application_analyze, ApplicationAnalyzeInput, ApplicationAnalyzeReport,
+    AnalyzeCatalogElement, CompositionGapRow, ObjectiveAlignment, ObjectiveAlignmentNote,
+    SkillAlignmentStatus, SkillGapRow,
 };
 pub use posting_hints::{
     build_posting_hints, match_skills_in_posting, posting_search_tokens, PostingHintRow,

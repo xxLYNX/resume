@@ -173,6 +173,10 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
             get(applications::list_similar),
         )
         .route(
+            "/api/applications/{id}/analyze",
+            get(applications::application_analyze),
+        )
+        .route(
             "/api/applications/{id}/posting-hints",
             get(applications::posting_hints),
         )

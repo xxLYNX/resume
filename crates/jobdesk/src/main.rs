@@ -15,6 +15,8 @@ use store::{
 
 use render_tex::jobdesk_build_aligned;
 
+mod mcp;
+
 #[derive(Parser)]
 #[command(name = "jobdesk", about = "Local job-search workspace (resume + tracker)")]
 struct Cli {
@@ -74,6 +76,8 @@ enum Commands {
         #[command(subcommand)]
         command: ApplicationCommands,
     },
+    /// Model Context Protocol server (stdio) over workspace DB
+    Mcp,
     /// Local web UI with live PDF preview
     Serve {
         #[arg(long, default_value = "settings/jobdesk.yaml")]
@@ -188,6 +192,13 @@ enum ApplicationCommands {
     ExportLedger {
         #[arg(long)]
         output: Option<PathBuf>,
+    },
+    /// Deterministic posting vs catalog/composition report
+    Analyze {
+        id: String,
+        /// Print JSON (default: human summary)
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -511,7 +522,41 @@ async fn main() -> Result<()> {
                     let path = store.export_application_ledger_pdf(&build_dir, &dest)?;
                     println!("Wrote {}", path.display());
                 }
+                ApplicationCommands::Analyze { id, json } => {
+                    let report = store.application_analyze(&id)?;
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&report)?);
+                    } else {
+                        println!(
+                            "{} — {} @ {}",
+                            report.application_id, report.title, report.company
+                        );
+                        println!(
+                            "Posting tokens: {} · Objective: {:?}",
+                            report.posting_token_count, report.objective_alignment.status
+                        );
+                        if !report.suggestions.is_empty() {
+                            println!("\nSuggestions:");
+                            for s in &report.suggestions {
+                                println!("  • {s}");
+                            }
+                        }
+                        if !report.skill_gaps.is_empty() {
+                            println!("\nSkill gaps ({}):", report.skill_gaps.len());
+                            for g in report.skill_gaps.iter().take(15) {
+                                println!(
+                                    "  • {} ({:?})",
+                                    g.label,
+                                    g.status
+                                );
+                            }
+                        }
+                    }
+                }
             }
+        }
+        Commands::Mcp => {
+            mcp::run_mcp(db_path)?;
         }
         Commands::Serve {
             config,

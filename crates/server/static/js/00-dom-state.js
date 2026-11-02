@@ -76,6 +76,7 @@
     const appPostingText = document.getElementById("app-posting-text");
     const appPostingHintsStatus = document.getElementById("app-posting-hints-status");
     const appPostingHintsList = document.getElementById("app-posting-hints-list");
+    const appAnalyzeReport = document.getElementById("app-analyze-report");
     const appRefreshPostingHints = document.getElementById("app-refresh-posting-hints");
     const appCompany = document.getElementById("app-company");
     const appTitle = document.getElementById("app-title");

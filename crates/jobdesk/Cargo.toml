@@ -15,6 +15,7 @@ onet_import = { workspace = true }
 render_pdf = { workspace = true }
 render_tex = { workspace = true }
 resolve = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 server = { workspace = true }

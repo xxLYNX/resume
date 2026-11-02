@@ -350,6 +350,20 @@ impl Store {
         Ok(ids)
     }
 
+    /// Distinct skill ids with at least one asserted portfolio link.
+    pub fn all_asserted_skill_ids(&self) -> Result<BTreeSet<String>> {
+        let conn = self.connection();
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT skill_id FROM element_skill_links WHERE source = 'asserted'",
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut ids = BTreeSet::new();
+        for id in rows {
+            ids.insert(id?);
+        }
+        Ok(ids)
+    }
+
     pub fn posting_skill_hints(
         &self,
         posting_text: &str,

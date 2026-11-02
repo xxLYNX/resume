@@ -140,6 +140,20 @@ pub struct PostingHintsResponse {
     pub used_posting_text: bool,
 }
 
+pub async fn application_analyze(
+    State(state): State<Arc<AppState>>,
+    Path(app_id): Path<String>,
+) -> impl IntoResponse {
+    with_store(state, move |store| {
+        if store.get_application(&app_id)?.is_none() {
+            return Ok((StatusCode::NOT_FOUND, "application not found").into_response());
+        }
+        let report = store.application_analyze(&app_id)?;
+        Ok(Json(report).into_response())
+    })
+    .await
+}
+
 pub async fn posting_hints(
     State(state): State<Arc<AppState>>,
     Path(app_id): Path<String>,

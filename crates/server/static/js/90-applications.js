@@ -147,6 +147,75 @@
     function clearPostingHintsUi() {
       if (appPostingHintsList) appPostingHintsList.innerHTML = "";
       if (appPostingHintsStatus) appPostingHintsStatus.textContent = "";
+      if (appAnalyzeReport) {
+        appAnalyzeReport.innerHTML = "";
+        appAnalyzeReport.classList.add("hidden");
+      }
+    }
+
+    function renderAnalyzeReport(report) {
+      if (!appAnalyzeReport) return;
+      appAnalyzeReport.innerHTML = "";
+      if (!report) {
+        appAnalyzeReport.classList.add("hidden");
+        return;
+      }
+      appAnalyzeReport.classList.remove("hidden");
+
+      const obj = report.objective_alignment || {};
+      const objP = document.createElement("p");
+      objP.innerHTML = `<strong>Objective alignment:</strong> ${obj.status || "unknown"} — ${obj.detail || ""}`;
+      appAnalyzeReport.appendChild(objP);
+
+      if (report.suggestions && report.suggestions.length) {
+        const h = document.createElement("p");
+        h.innerHTML = "<strong>Suggestions</strong>";
+        appAnalyzeReport.appendChild(h);
+        const ul = document.createElement("ul");
+        for (const s of report.suggestions) {
+          const li = document.createElement("li");
+          li.textContent = s;
+          ul.appendChild(li);
+        }
+        appAnalyzeReport.appendChild(ul);
+      }
+
+      if (report.composition_gaps && report.composition_gaps.length) {
+        const h = document.createElement("p");
+        h.innerHTML = "<strong>Composition gaps</strong> (evidence matches posting but entry not on draft)";
+        appAnalyzeReport.appendChild(h);
+        const ul = document.createElement("ul");
+        for (const g of report.composition_gaps) {
+          const li = document.createElement("li");
+          li.textContent = `${g.element_id} (${g.kind}) — ${g.reason}`;
+          ul.appendChild(li);
+        }
+        appAnalyzeReport.appendChild(ul);
+      }
+
+      if (report.skill_gaps && report.skill_gaps.length) {
+        const h = document.createElement("p");
+        h.innerHTML = "<strong>Skill gaps</strong> (posting keywords vs evidence on draft)";
+        appAnalyzeReport.appendChild(h);
+        const ul = document.createElement("ul");
+        for (const g of report.skill_gaps.slice(0, 20)) {
+          const li = document.createElement("li");
+          li.textContent = `${g.label} (${g.kind}) — ${g.status}`;
+          ul.appendChild(li);
+        }
+        appAnalyzeReport.appendChild(ul);
+      }
+
+      const resumeBtn = document.createElement("button");
+      resumeBtn.type = "button";
+      resumeBtn.textContent = "Open Resume tab for this application";
+      resumeBtn.addEventListener("click", () => {
+        if (typeof selectResumeTargetForApp === "function" && selectedAppId) {
+          selectResumeTargetForApp(selectedAppId);
+        }
+        if (typeof switchMainTab === "function") switchMainTab("resume");
+      });
+      appAnalyzeReport.appendChild(resumeBtn);
     }
 
     function renderPostingHints(data) {
@@ -177,6 +246,25 @@
         }
         appPostingHintsList.appendChild(li);
       }
+    }
+
+    async function loadApplicationAnalyze(appId) {
+      if (!appId) {
+        renderAnalyzeReport(null);
+        return;
+      }
+      const res = await fetch(
+        `/api/applications/${encodeURIComponent(appId)}/analyze`,
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        renderAnalyzeReport(null);
+        if (appPostingHintsStatus) {
+          appPostingHintsStatus.textContent = data.error || "Analyze failed";
+        }
+        return;
+      }
+      renderAnalyzeReport(data);
     }
 
     async function loadPostingHints(appId, { livePreview } = {}) {
@@ -219,6 +307,9 @@
         return;
       }
       renderPostingHints(data);
+      if (!livePreview) {
+        await loadApplicationAnalyze(appId);
+      }
     }
 
     async function loadSimilar(appId) {
@@ -482,14 +573,15 @@
     });
 
     if (appRefreshPostingHints) {
-      appRefreshPostingHints.addEventListener("click", () => {
+      appRefreshPostingHints.addEventListener("click", async () => {
         if (!selectedAppId) {
           if (appPostingHintsStatus) {
             appPostingHintsStatus.textContent = "Save the application first.";
           }
           return;
         }
-        loadPostingHints(selectedAppId, { livePreview: true });
+        await loadPostingHints(selectedAppId, { livePreview: true });
+        await loadApplicationAnalyze(selectedAppId);
       });
     }
 
