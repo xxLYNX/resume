@@ -1,3 +1,4 @@
+use domain::PROJECT_PORTFOLIO_NARRATIVE_KEY;
 use serde_json::{json, Map, Value};
 
 /// Ensure list-section rows have safe defaults before templates run.
@@ -80,5 +81,7 @@ fn normalize_row(item: &Value, array_fields: &[&str]) -> Value {
             out.remove(key);
         }
     }
+    // Portfolio-only authoring; classic résumé templates do not use this field.
+    out.remove(PROJECT_PORTFOLIO_NARRATIVE_KEY);
     Value::Object(out)
 }

@@ -4,6 +4,9 @@ use crate::dates::{validate_date_range, DateRange};
 use crate::location::WorkLocation;
 use crate::ElementKind;
 
+/// Long-form Markdown portfolio history for projects (not rendered on résumés by default).
+pub const PROJECT_PORTFOLIO_NARRATIVE_KEY: &str = "portfolio_narrative";
+
 #[derive(Debug, thiserror::Error)]
 pub enum ValidationError {
     #[error("payload must be a JSON object")]
@@ -54,6 +57,7 @@ pub fn validate_payload(kind: ElementKind, payload: &Value) -> Result<(), Valida
             check_optional_string(obj, "name")?;
             check_optional_date_fields(obj)?;
             check_optional_string_string_array(obj, "details")?;
+            check_optional_string(obj, PROJECT_PORTFOLIO_NARRATIVE_KEY)?;
         }
         ElementKind::Course => {
             check_optional_string(obj, "name")?;
@@ -84,20 +88,16 @@ fn check_optional_work_location(
     if v.is_null() {
         return Ok(());
     }
-    let _: WorkLocation =
-        serde_json::from_value(v.clone()).map_err(|_| ValidationError::ExpectedObject("location"))?;
+    let _: WorkLocation = serde_json::from_value(v.clone())
+        .map_err(|_| ValidationError::ExpectedObject("location"))?;
     Ok(())
 }
 
-fn check_optional_date_fields(
-    obj: &serde_json::Map<String, Value>,
-) -> Result<(), ValidationError> {
+fn check_optional_date_fields(obj: &serde_json::Map<String, Value>) -> Result<(), ValidationError> {
     if let Some(v) = obj.get("date_range") {
         if !v.is_null() {
-            let range: DateRange =
-                serde_json::from_value(v.clone()).map_err(|_| {
-                    ValidationError::ExpectedObject("date_range")
-                })?;
+            let range: DateRange = serde_json::from_value(v.clone())
+                .map_err(|_| ValidationError::ExpectedObject("date_range"))?;
             validate_date_range(&range)?;
         }
     }
@@ -133,4 +133,39 @@ fn check_optional_string_string_array(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn project_payload_without_narrative_valid() {
+        let payload = json!({
+            "name": "Legacy",
+            "details": ["Shipped feature"]
+        });
+        validate_payload(ElementKind::Project, &payload).unwrap();
+    }
+
+    #[test]
+    fn project_portfolio_narrative_must_be_string() {
+        let payload = json!({
+            "name": "Bad",
+            "portfolio_narrative": ["not", "a", "string"]
+        });
+        let err = validate_payload(ElementKind::Project, &payload).unwrap_err();
+        assert!(matches!(err, ValidationError::ExpectedString(_)));
+    }
+
+    #[test]
+    fn project_portfolio_narrative_accepts_long_markdown() {
+        let narrative = "# History\n\n".repeat(200);
+        let payload = json!({
+            "name": "Rich",
+            "portfolio_narrative": narrative
+        });
+        validate_payload(ElementKind::Project, &payload).unwrap();
+    }
 }

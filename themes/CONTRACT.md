@@ -35,6 +35,8 @@ The reference **classic** theme must reproduce the historical resume appearance 
 
 Project list rows may include **`resume_tags`** (comma-separated string, resolve-injected from `CompositionItem.resume_tag_skill_ids`).
 
+Project elements may include **`portfolio_narrative`** (optional Markdown string): portfolio authoring only, defined in jobdesk **base catalog fields** (not résumé `optional_fields`). Resolve strips it before résumé render; classic templates do not emit it. Use **`details`** for résumé bullets.
+
 ## Bundle layout
 
 ```

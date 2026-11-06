@@ -318,6 +318,18 @@ mod tests {
             })
             .unwrap();
 
+        let narrative = "Long-form **Markdown** portfolio history.";
+        store
+            .create_revision(
+                "project.mcp-test",
+                json!({
+                    "name": "MCP Test",
+                    "details": ["alpha", "beta"],
+                    "portfolio_narrative": narrative
+                }),
+            )
+            .unwrap();
+
         let out = call_tool(
             &store,
             "get_catalog_element",
@@ -327,6 +339,7 @@ mod tests {
         let text = out["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("MCP Test"));
         assert!(text.contains("alpha"));
+        assert!(text.contains(narrative));
         assert!(!text.contains("[truncated]"));
     }
 

@@ -126,7 +126,10 @@ pub fn build_resume_tex(
 }
 
 /// Composable sections follow draft order; config-only sections (e.g. toolbelt) keep YAML placement.
-fn section_render_order(config: &LegacyConfig, composition_order: Option<&[String]>) -> Vec<String> {
+fn section_render_order(
+    config: &LegacyConfig,
+    composition_order: Option<&[String]>,
+) -> Vec<String> {
     use std::collections::HashSet;
 
     let config_names: Vec<String> = config
@@ -230,4 +233,62 @@ mod tests {
         );
     }
 
+    #[test]
+    fn portfolio_narrative_not_in_tex_output() {
+        use domain::{Composition, CompositionItem, CompositionSection};
+        use resolve::resolve_composition;
+        use store::CreateElementRequest;
+
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let db_path = root.join("target/test-narrative-tex.db");
+        let _ = std::fs::remove_file(&db_path);
+        let store = Store::open(&db_path).unwrap();
+        let marker = "UNIQUE_PORTFOLIO_NARRATIVE_TEX_MARKER_XYZ";
+        store
+            .create_element(&CreateElementRequest {
+                id: "project.tex-narrative-test".into(),
+                kind: "project".into(),
+                payload: serde_json::json!({
+                    "name": "TeX isolation",
+                    "details": ["Visible bullet"],
+                    "portfolio_narrative": format!("## Secret\n\n{marker}")
+                }),
+                parent_element_id: None,
+            })
+            .unwrap();
+        let rev_id = store
+            .get_element("project.tex-narrative-test")
+            .unwrap()
+            .unwrap()
+            .latest
+            .unwrap()
+            .id;
+
+        let composition = Composition {
+            sections: vec![CompositionSection {
+                section_key: "projects".into(),
+                items: vec![CompositionItem {
+                    element_id: "project.tex-narrative-test".into(),
+                    revision_id: rev_id,
+                    resume_tag_skill_ids: vec![],
+                }],
+            }],
+        };
+        let resolved = resolve_composition(&store, &composition).unwrap();
+        let resolved_json = serde_json::to_string(&resolved).unwrap();
+        assert!(!resolved_json.contains(marker));
+
+        let built = jobdesk_build_composition_to_dir(
+            &store,
+            &root,
+            &root.join("settings/jobdesk.yaml"),
+            &root.join("target/test-narrative-tex-out"),
+            &composition,
+            false,
+            "classic",
+        )
+        .unwrap();
+        assert!(!built.tex.contains(marker));
+        assert!(built.tex.contains("Visible bullet"));
+    }
 }

@@ -50,7 +50,7 @@ pub use skills::{
     validate_element_links, validate_pdf_group, validate_skill_id, validate_skill_node,
     ElementSkillLink, SkillError, SkillKind, SkillNode, PDF_SKILL_GROUPS, SKILL_KINDS,
 };
-pub use validation::{validate_payload, ValidationError};
+pub use validation::{validate_payload, ValidationError, PROJECT_PORTFOLIO_NARRATIVE_KEY};
 
 /// Build config: section order + templates. Content comes from catalog resolve (jobdesk).
 #[derive(Debug, Clone, Deserialize, Serialize)]

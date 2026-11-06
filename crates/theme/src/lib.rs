@@ -71,8 +71,8 @@ pub fn hash_theme_dir(theme_dir: &Path) -> Result<String> {
             .context("strip theme prefix")?
             .to_string_lossy()
             .replace('\\', "/");
-        let bytes = fs::read(entry.path())
-            .with_context(|| format!("read {}", entry.path().display()))?;
+        let bytes =
+            fs::read(entry.path()).with_context(|| format!("read {}", entry.path().display()))?;
         let mut hasher = Sha256::new();
         hasher.update(&bytes);
         files.push((rel, format!("{:x}", hasher.finalize())));
@@ -93,8 +93,8 @@ pub fn theme_dir_for_id(project_root: &Path, theme_id: &str) -> PathBuf {
 pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo> {
     let theme_dir = theme_dir_for_id(project_root, theme_id);
     let toml_path = theme_dir.join("theme.toml");
-    let raw = fs::read_to_string(&toml_path)
-        .with_context(|| format!("read {}", toml_path.display()))?;
+    let raw =
+        fs::read_to_string(&toml_path).with_context(|| format!("read {}", toml_path.display()))?;
     let doc: toml::Table = toml::from_str(&raw).context("parse theme.toml")?;
 
     let id = doc
@@ -102,10 +102,7 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
         .and_then(|v| v.as_str())
         .unwrap_or(theme_id)
         .to_string();
-    let version = doc
-        .get("version")
-        .and_then(|v| v.as_integer())
-        .unwrap_or(1) as u64;
+    let version = doc.get("version").and_then(|v| v.as_integer()).unwrap_or(1) as u64;
     let description = doc
         .get("description")
         .and_then(|v| v.as_str())
@@ -143,10 +140,7 @@ pub fn load_theme_info(project_root: &Path, theme_id: &str) -> Result<ThemeInfo>
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            let title = sec
-                .get("title")
-                .and_then(|v| v.as_str())
-                .map(String::from);
+            let title = sec.get("title").and_then(|v| v.as_str()).map(String::from);
             let optional_fields: Vec<String> = sec
                 .get("optional_fields")
                 .and_then(|v| v.as_array())
@@ -208,7 +202,11 @@ fn section_element_kind(section_key: &str) -> String {
 }
 
 /// Copy `themes/{theme_id}/` into `dest_root/themes/{theme_id}/` (idempotent).
-pub fn ensure_theme_snapshot(project_root: &Path, theme_id: &str, dest_root: &Path) -> Result<String> {
+pub fn ensure_theme_snapshot(
+    project_root: &Path,
+    theme_id: &str,
+    dest_root: &Path,
+) -> Result<String> {
     let theme_dir = theme_dir_for_id(project_root, theme_id);
     let files_hash = hash_theme_dir(&theme_dir)?;
     let snapshot_root = dest_root.join(files_hash.strip_prefix("sha256:").unwrap_or(&files_hash));
@@ -302,7 +300,13 @@ fn base_fields_for_kind(kind: &str) -> Vec<CatalogFieldDef> {
         "project" => vec![
             field("name", "Name", "string", false),
             field("date_range", "Dates", "date_range", true),
-            field("details", "Details", "string_list", true),
+            field("details", "Résumé bullets", "string_list", true),
+            field(
+                "portfolio_narrative",
+                "Portfolio narrative (Markdown, not on résumé PDF)",
+                "text",
+                true,
+            ),
         ],
         "skills" => vec![
             field("skills.languages", "Languages", "string", true),
@@ -344,7 +348,9 @@ fn field(key: &str, label: &str, field_type: &str, optional: bool) -> CatalogFie
 pub fn list_theme_ids(project_root: &Path) -> Result<Vec<String>> {
     let themes_dir = project_root.join("themes");
     let mut ids = Vec::new();
-    for entry in std::fs::read_dir(&themes_dir).with_context(|| format!("read {}", themes_dir.display()))? {
+    for entry in
+        std::fs::read_dir(&themes_dir).with_context(|| format!("read {}", themes_dir.display()))?
+    {
         let entry = entry?;
         if !entry.file_type()?.is_dir() {
             continue;
@@ -356,4 +362,64 @@ pub fn list_theme_ids(project_root: &Path) -> Result<Vec<String>> {
     }
     ids.sort();
     Ok(ids)
+}
+
+#[cfg(test)]
+mod catalog_field_tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    fn minimal_theme(optional_fields: Vec<&str>) -> ThemeInfo {
+        ThemeInfo {
+            id: "test".into(),
+            version: 1,
+            description: String::new(),
+            contract_version: 1,
+            month_display: "abbrev".into(),
+            files_hash: String::new(),
+            section_order: vec!["projects".into()],
+            sections: BTreeMap::from([(
+                "projects".into(),
+                ThemeSectionInfo {
+                    template: "sections/projects.jinja.tex".into(),
+                    title: None,
+                    optional_fields: optional_fields.into_iter().map(String::from).collect(),
+                    date_parts: vec!["month".into(), "year".into()],
+                    element_kind: "project".into(),
+                    resume_line_tags_max: None,
+                },
+            )]),
+            macros: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn project_portfolio_narrative_in_schema_without_theme_optional_entry() {
+        let theme = minimal_theme(vec!["details"]);
+        let fields = catalog_fields_for_kind("project", &theme);
+        let keys: Vec<_> = fields.iter().map(|f| f.key.as_str()).collect();
+        assert!(keys.contains(&"portfolio_narrative"));
+        let narrative = fields
+            .iter()
+            .find(|f| f.key == "portfolio_narrative")
+            .unwrap();
+        assert!(narrative.optional);
+    }
+
+    #[test]
+    fn project_field_schema_same_keys_across_reference_themes() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let classic = load_theme_info(&root, "classic").unwrap();
+        let ats = load_theme_info(&root, "ats-classic").unwrap();
+        let keys_classic: Vec<_> = catalog_fields_for_kind("project", &classic)
+            .into_iter()
+            .map(|f| f.key)
+            .collect();
+        let keys_ats: Vec<_> = catalog_fields_for_kind("project", &ats)
+            .into_iter()
+            .map(|f| f.key)
+            .collect();
+        assert_eq!(keys_classic, keys_ats);
+        assert!(keys_classic.contains(&"portfolio_narrative".to_string()));
+    }
 }

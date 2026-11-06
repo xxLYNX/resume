@@ -31,7 +31,7 @@ workspace/
 - [x] `elements` table: stable `id`, `kind`, `sort_order`, timestamps
 - [x] `element_revisions` table: append-only `payload_json` per element (`rev_number`)
 - [x] Element kinds: `header`, `objective`, `experience`, `education`, `project`, `course`, `certification`, `award`
-- [x] Payload schemas: required shapes per `ElementKind` (`validate_payload` on save/import)
+- [x] Payload schemas: required shapes per `ElementKind` (`validate_payload` on save/import); projects may include optional `portfolio_narrative` (Markdown, portfolio-only; stripped at resolve for PDF)
 - [x] UI/rule: edit wording → **new revision** (import skips existing; `--force` appends)
 
 ### Skills catalog & evidence — **Milestone F**

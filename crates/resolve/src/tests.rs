@@ -277,4 +277,105 @@ mod tests {
             "manifest replay must be stable"
         );
     }
+
+    #[test]
+    fn project_portfolio_narrative_stripped_on_resolve() {
+        use store::CreateElementRequest;
+
+        let db = test_root().join("target/resolve-test-narrative.db");
+        let _ = std::fs::remove_file(&db);
+        let store = Store::open(&db).unwrap();
+        let marker = "PORTFOLIO_NARRATIVE_SHOULD_NOT_RENDER_ON_PDF";
+        store
+            .create_element(&CreateElementRequest {
+                id: "project.narrative-test".into(),
+                kind: "project".into(),
+                payload: serde_json::json!({
+                    "name": "Narrative test",
+                    "details": ["Résumé bullet only"],
+                    "portfolio_narrative": format!("## Deep dive\n\n{marker}")
+                }),
+                parent_element_id: None,
+            })
+            .unwrap();
+
+        let rev_id = store
+            .get_element("project.narrative-test")
+            .unwrap()
+            .unwrap()
+            .latest
+            .unwrap()
+            .id;
+
+        let composition = Composition {
+            sections: vec![CompositionSection {
+                section_key: "projects".into(),
+                items: vec![CompositionItem {
+                    element_id: "project.narrative-test".into(),
+                    revision_id: rev_id,
+                    resume_tag_skill_ids: vec![],
+                }],
+            }],
+        };
+
+        let resolved = resolve_composition(&store, &composition).unwrap();
+        let row = &resolved.get("projects").unwrap()["projects"]
+            .as_array()
+            .unwrap()[0];
+        assert!(row.get("portfolio_narrative").is_none());
+        assert_eq!(
+            row.get("details").unwrap().as_array().unwrap()[0],
+            "Résumé bullet only"
+        );
+    }
+
+    #[test]
+    fn project_revision_history_preserves_portfolio_narrative() {
+        use store::CreateElementRequest;
+
+        let db = test_root().join("target/resolve-test-narrative-revisions.db");
+        let _ = std::fs::remove_file(&db);
+        let store = Store::open(&db).unwrap();
+        store
+            .create_element(&CreateElementRequest {
+                id: "project.narrative-rev".into(),
+                kind: "project".into(),
+                payload: serde_json::json!({
+                    "name": "Rev test",
+                    "portfolio_narrative": "version one"
+                }),
+                parent_element_id: None,
+            })
+            .unwrap();
+        store
+            .create_revision(
+                "project.narrative-rev",
+                serde_json::json!({
+                    "name": "Rev test",
+                    "portfolio_narrative": "version two"
+                }),
+            )
+            .unwrap();
+
+        let detail = store.get_element("project.narrative-rev").unwrap().unwrap();
+        assert_eq!(detail.revisions.len(), 2);
+        let narratives: Vec<_> = detail
+            .revisions
+            .iter()
+            .map(|r| {
+                store
+                    .get_revision(&r.id)
+                    .unwrap()
+                    .unwrap()
+                    .payload
+                    .get("portfolio_narrative")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect();
+        assert!(narratives.contains(&"version one".to_string()));
+        assert!(narratives.contains(&"version two".to_string()));
+    }
 }
