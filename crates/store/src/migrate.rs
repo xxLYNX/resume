@@ -62,7 +62,12 @@ pub fn migrate(conn: &Connection) -> Result<()> {
         ",
     )?;
 
-    add_column_if_missing(conn, "applications", "phase", "TEXT NOT NULL DEFAULT 'draft'")?;
+    add_column_if_missing(
+        conn,
+        "applications",
+        "phase",
+        "TEXT NOT NULL DEFAULT 'draft'",
+    )?;
 
     conn.execute(
         "UPDATE applications SET phase = 'submitted' WHERE status != 'draft'",
@@ -160,7 +165,12 @@ fn migrate_catalog_seed_v12(conn: &Connection) -> Result<()> {
 }
 
 fn migrate_posting_text_and_framework_refs_v13(conn: &Connection) -> Result<()> {
-    add_column_if_missing(conn, "applications", "posting_text", "TEXT NOT NULL DEFAULT ''")?;
+    add_column_if_missing(
+        conn,
+        "applications",
+        "posting_text",
+        "TEXT NOT NULL DEFAULT ''",
+    )?;
     crate::skills::apply_framework_refs_seed(conn)?;
     Ok(())
 }
@@ -199,12 +209,10 @@ fn strip_skills_sections_from_compositions(
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
         .collect::<Result<_, _>>()?;
     for (id, json) in rows {
-        let mut composition: Composition =
-            serde_json::from_str(&json).with_context(|| format!("parse {table}.{column} `{id}`"))?;
+        let mut composition: Composition = serde_json::from_str(&json)
+            .with_context(|| format!("parse {table}.{column} `{id}`"))?;
         let before = composition.sections.len();
-        composition
-            .sections
-            .retain(|s| s.section_key != "skills");
+        composition.sections.retain(|s| s.section_key != "skills");
         if composition.sections.len() == before {
             continue;
         }
@@ -256,7 +264,10 @@ fn migrate_competency_graph_v10(conn: &Connection) -> Result<()> {
         [],
     )?;
     for (old, new) in [
-        ("activity.reverse-engineering", "competency.reverse-engineering"),
+        (
+            "activity.reverse-engineering",
+            "competency.reverse-engineering",
+        ),
         ("activity.security-audit", "competency.security-audit"),
         ("activity.code-review", "competency.code-review"),
     ] {
@@ -301,11 +312,8 @@ fn migrate_competency_graph_v10(conn: &Connection) -> Result<()> {
         ",
     )?;
 
-    let has_element_links: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM element_skill_links",
-        [],
-        |r| r.get(0),
-    )?;
+    let has_element_links: i64 =
+        conn.query_row("SELECT COUNT(*) FROM element_skill_links", [], |r| r.get(0))?;
     if has_element_links == 0 {
         conn.execute(
             "INSERT OR IGNORE INTO element_skill_links (element_id, skill_id, source)
@@ -325,8 +333,34 @@ fn migrate_competency_graph_v10(conn: &Connection) -> Result<()> {
         ",
     )?;
 
-    add_column_if_missing(conn, "elements", "parent_element_id", "TEXT REFERENCES elements(id)")?;
+    add_column_if_missing(
+        conn,
+        "elements",
+        "parent_element_id",
+        "TEXT REFERENCES elements(id)",
+    )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod migrate_tests {
+    use crate::Store;
+
+    #[test]
+    fn fresh_database_schema_version_is_15() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("jobdesk.db");
+        let store = Store::open(&db).unwrap();
+        let v: String = store
+            .connection()
+            .query_row(
+                "SELECT value FROM schema_meta WHERE key = 'schema_version'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(v, "15");
+    }
 }
 
 fn schema_version(conn: &Connection) -> Result<i64> {
@@ -383,7 +417,12 @@ fn migrate_payload_date_ranges(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-fn add_column_if_missing(conn: &Connection, table: &str, column: &str, definition: &str) -> Result<()> {
+fn add_column_if_missing(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    definition: &str,
+) -> Result<()> {
     let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
     let names: Vec<String> = stmt
         .query_map([], |row| row.get::<_, String>(1))?

@@ -75,6 +75,9 @@ Stdio JSON-RPC ([Model Context Protocol](https://modelcontextprotocol.io/)). Too
 | `list_applications` | Tracker list |
 | `get_application` | One application + draft composition summary |
 | `get_catalog_summary` | Element ids, kinds, latest revision snippets |
+| `get_catalog_element` | Full element detail (all revisions + latest payload; not truncated) |
+| `get_catalog_revision` | One revision payload by id |
+| `get_element_usage` | Applications/presets referencing an element |
 | `get_skill_evidence` | Links for an element id |
 | `posting_hints` | Hint rows for an application |
 | `analyze_application` | Full K.1 report |
@@ -95,7 +98,8 @@ Applications tab: **Analyze posting** expands to structured sections (gaps, sugg
 ## Privacy
 
 - Default: no network from analyze or MCP (local DB only).
-- Tool responses cap text length; never dump full DB in one call.
+- Summary tools cap text length; `get_catalog_element` / `get_catalog_revision` return full JSON up to 512KB or an explicit error (no silent truncation).
+- Local MCP does not imply an external LLM keeps data private — do not feed classified/NDA material into chats.
 
 ---
 

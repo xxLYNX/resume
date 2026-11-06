@@ -4,14 +4,15 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use domain::{
-    build_application_analyze, validate_application_meta, validate_phase_and_workflow,
-    AnalyzeCatalogElement, ApplicationAnalyzeInput, ApplicationAnalyzeReport, Compensation,
-    Composition, SubmissionManifest, DRAFT_WORKFLOW,
+    apply_lifecycle_patch, build_application_analyze, validate_application_meta,
+    validate_phase_and_workflow, AnalyzeCatalogElement, ApplicationAnalyzeInput,
+    ApplicationAnalyzeReport, Compensation, Composition, LifecycleError, SubmissionManifest,
+    DRAFT_WORKFLOW,
 };
-use similarity::{rank_similar, RankInput, RankedMatch};
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use similarity::{rank_similar, RankInput, RankedMatch};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -164,7 +165,10 @@ pub struct UpdateApplicationRequest {
 pub const DEFAULT_THEME_ID: &str = "classic";
 
 impl Store {
-    pub fn list_applications(&self, filter: &ListApplicationsQuery) -> Result<Vec<ApplicationSummary>> {
+    pub fn list_applications(
+        &self,
+        filter: &ListApplicationsQuery,
+    ) -> Result<Vec<ApplicationSummary>> {
         let conn = self.connection();
         let q = filter
             .q
@@ -346,8 +350,8 @@ impl Store {
         let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
         let compensation: Compensation =
             serde_json::from_str(&compensation_json).unwrap_or_default();
-        let draft_composition: Composition = serde_json::from_str(&draft_json)
-            .context("parse draft_composition_json")?;
+        let draft_composition: Composition =
+            serde_json::from_str(&draft_json).context("parse draft_composition_json")?;
         let submissions = self.list_submissions_for_app(&id)?;
 
         Ok(Some(ApplicationDetail {
@@ -383,7 +387,10 @@ impl Store {
         text
     }
 
-    pub fn application_posting_hints(&self, application_id: &str) -> Result<Vec<domain::PostingHintRow>> {
+    pub fn application_posting_hints(
+        &self,
+        application_id: &str,
+    ) -> Result<Vec<domain::PostingHintRow>> {
         let app = self
             .get_application(application_id)?
             .with_context(|| format!("unknown application `{application_id}`"))?;
@@ -548,15 +555,18 @@ impl Store {
         };
         let phase_touched = req.phase.is_some();
         let status_touched = req.status.is_some();
-        let mut phase = req.phase.unwrap_or(existing.phase);
-        let mut status = req.status.unwrap_or(existing.status);
+        let mut phase = existing.phase.clone();
+        let mut status = existing.status.clone();
 
         if phase_touched || status_touched {
-            (phase, status) = reconcile_phase_status(
-                &phase,
-                &status,
+            (phase, status) = apply_lifecycle_patch(
+                &existing.phase,
+                &existing.status,
+                req.phase.as_deref(),
+                req.status.as_deref(),
                 !existing.submissions.is_empty(),
-            )?;
+            )
+            .map_err(lifecycle_err)?;
         }
         validate_phase_and_workflow(&phase, &status)?;
 
@@ -620,10 +630,7 @@ impl Store {
 
     pub fn delete_application(&self, application_id: &str) -> Result<bool> {
         let conn = self.connection();
-        let n = conn.execute(
-            "DELETE FROM applications WHERE id = ?1",
-            [application_id],
-        )?;
+        let n = conn.execute("DELETE FROM applications WHERE id = ?1", [application_id])?;
         Ok(n > 0)
     }
 
@@ -657,9 +664,7 @@ impl Store {
         let manifest_json = serde_json::to_string_pretty(&manifest)?;
         fs::write(&manifest_path, &manifest_json)?;
 
-        let manifest_rel = format!(
-            "artifacts/manifests/{manifest_filename}"
-        );
+        let manifest_rel = format!("artifacts/manifests/{manifest_filename}");
 
         let conn = self.connection();
         conn.execute(
@@ -711,8 +716,8 @@ impl Store {
 /// Load manifest JSON; `manifest_path` is stored relative to workspace root.
 pub fn load_manifest_at(workspace_root: &Path, manifest_rel: &str) -> Result<SubmissionManifest> {
     let path = workspace_root.join(manifest_rel);
-    let text = fs::read_to_string(&path)
-        .with_context(|| format!("read manifest {}", path.display()))?;
+    let text =
+        fs::read_to_string(&path).with_context(|| format!("read manifest {}", path.display()))?;
     serde_json::from_str(&text).context("parse submission manifest")
 }
 
@@ -806,36 +811,114 @@ struct RankInputRow {
     composition: Composition,
 }
 
-fn reconcile_phase_status(
-    phase: &str,
-    workflow: &str,
-    has_submission: bool,
-) -> Result<(String, String)> {
-    let phase = phase.to_string();
-    let workflow = workflow.to_string();
+fn lifecycle_err(e: LifecycleError) -> anyhow::Error {
+    anyhow::anyhow!("{e}")
+}
 
-    if phase == "draft" {
-        if has_submission {
-            anyhow::bail!(
-                "cannot return to draft phase after a submission; update pipeline workflow instead"
-            );
-        }
-        return Ok((phase, DRAFT_WORKFLOW.to_string()));
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+    use crate::catalog::CreateElementRequest;
+    use crate::Store;
+    use domain::Composition;
+
+    fn temp_store() -> (tempfile::TempDir, Store) {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("jobdesk.db");
+        let store = Store::open(&db).unwrap();
+        (dir, store)
     }
 
-    if phase == "submitted" {
-        if !has_submission {
-            anyhow::bail!(
-                "cannot set phase to submitted before the first Submit; use Submit to record what you sent"
-            );
-        }
-        if workflow == DRAFT_WORKFLOW {
-            return Ok((phase, "submitted".to_string()));
-        }
-        return Ok((phase, workflow));
+    fn minimal_draft() -> Composition {
+        Composition { sections: vec![] }
     }
 
-    anyhow::bail!("unknown phase `{phase}`")
+    fn new_app_req(company: &str, title: &str) -> CreateApplicationRequest {
+        CreateApplicationRequest {
+            company: company.into(),
+            title: title.into(),
+            posting_url: None,
+            posting_text: None,
+            source: None,
+            status: None,
+            tags: vec![],
+            clone_from_application_id: None,
+            clone_from_preset_id: None,
+            employment_type: None,
+            work_mode: None,
+            location: None,
+            compensation: None,
+        }
+    }
+
+    #[test]
+    fn cli_style_workflow_only_update_after_submit() {
+        let (_dir, store) = temp_store();
+        let app = store
+            .create_application(new_app_req("Co", "Eng"), minimal_draft())
+            .unwrap();
+        // Simulate submit without full workspace manifest file — insert submission row only for lifecycle.
+        let conn = store.connection();
+        conn.execute(
+            "INSERT INTO submissions (id, application_id, manifest_path, content_hash, is_canonical, submitted_at)
+             VALUES ('s1', ?1, 'artifacts/manifests/s1.json', 'sha256:abc', 1, '2020-01-01T00:00:00Z')",
+            [&app.id],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE applications SET phase = 'submitted', status = 'submitted' WHERE id = ?1",
+            [&app.id],
+        )
+        .unwrap();
+
+        let updated = store
+            .update_application(
+                &app.id,
+                UpdateApplicationRequest {
+                    status: Some("interview".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(updated.phase, "submitted");
+        assert_eq!(updated.status, "interview");
+    }
+
+    #[test]
+    fn workflow_only_update_without_submission_rejected() {
+        let (_dir, store) = temp_store();
+        let app = store
+            .create_application(new_app_req("Co", "Eng"), minimal_draft())
+            .unwrap();
+        let err = store
+            .update_application(
+                &app.id,
+                UpdateApplicationRequest {
+                    status: Some("interview".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("before the first Submit"));
+    }
+
+    #[test]
+    fn delete_application_leaves_portfolio() {
+        let (_dir, store) = temp_store();
+        store
+            .create_element(&CreateElementRequest {
+                id: "project.test".into(),
+                kind: "project".into(),
+                payload: serde_json::json!({"name": "T", "details": []}),
+                parent_element_id: None,
+            })
+            .unwrap();
+        let app = store
+            .create_application(new_app_req("Co", "T"), minimal_draft())
+            .unwrap();
+        assert!(store.delete_application(&app.id).unwrap());
+        assert!(store.get_element("project.test").unwrap().is_some());
+    }
 }
 
 fn map_application_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<ApplicationSummary> {

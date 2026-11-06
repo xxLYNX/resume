@@ -1,56 +1,55 @@
 mod application;
-mod compensation;
-mod dates;
-mod location;
-mod framework_refs;
 mod application_analyze;
-mod posting_hints;
-mod skills;
-mod ledger;
+mod application_lifecycle;
+mod compensation;
 mod composition;
+mod dates;
+mod framework_refs;
+mod ledger;
+mod location;
 mod manifest;
+mod posting_hints;
 mod resume_filename;
+mod skills;
 mod validation;
 
 use serde::{Deserialize, Serialize};
 
 pub use application::{
     phase_and_workflow_from_status, validate_application_status, validate_phase_and_workflow,
-    InvalidStatus, APPLICATION_PHASES, APPLICATION_STATUSES, DRAFT_WORKFLOW,
-    SUBMITTED_WORKFLOWS,
+    InvalidStatus, APPLICATION_PHASES, APPLICATION_STATUSES, DRAFT_WORKFLOW, SUBMITTED_WORKFLOWS,
 };
+pub use application_analyze::{
+    build_application_analyze, AnalyzeCatalogElement, ApplicationAnalyzeInput,
+    ApplicationAnalyzeReport, CompositionGapRow, ObjectiveAlignment, ObjectiveAlignmentNote,
+    SkillAlignmentStatus, SkillGapRow,
+};
+pub use application_lifecycle::{apply_lifecycle_patch, coerce_phase_and_workflow, LifecycleError};
 pub use compensation::{
     annual_equivalent, format_compensation, validate_application_meta, validate_compensation,
     ApplicationMetaError, Compensation, EMPLOYMENT_TYPES, PAY_UNITS, WORK_MODES,
 };
 pub use composition::{Composition, CompositionItem, CompositionSection};
-pub use location::WorkLocation;
-pub use framework_refs::{
-    merge_framework_refs, merge_framework_refs_into, FrameworkRefsImportRow,
+pub use dates::{
+    format_calendar_date, format_date_range, normalize_list_section_document,
+    normalize_payload_dates, parse_legacy_date_range, validate_date_range, CalendarDate, DateError,
+    DateRange, DateRangeEnd, MonthDisplay, MONTH_ABBR,
 };
-pub use application_analyze::{
-    build_application_analyze, ApplicationAnalyzeInput, ApplicationAnalyzeReport,
-    AnalyzeCatalogElement, CompositionGapRow, ObjectiveAlignment, ObjectiveAlignmentNote,
-    SkillAlignmentStatus, SkillGapRow,
+pub use framework_refs::{merge_framework_refs, merge_framework_refs_into, FrameworkRefsImportRow};
+pub use ledger::{render_ledger_tex, ApplicationLedgerRow};
+pub use location::WorkLocation;
+pub use manifest::{
+    compute_content_hash, compute_snapshot_hash, SubmissionManifest, MANIFEST_SCHEMA_VERSION,
 };
 pub use posting_hints::{
     build_posting_hints, match_skills_in_posting, posting_search_tokens, PostingHintRow,
     SkillPostingMatch,
 };
+pub use resume_filename::resume_download_filename;
 pub use skills::{
     validate_element_links, validate_pdf_group, validate_skill_id, validate_skill_node,
     ElementSkillLink, SkillError, SkillKind, SkillNode, PDF_SKILL_GROUPS, SKILL_KINDS,
 };
-pub use dates::{
-    format_calendar_date, format_date_range, normalize_list_section_document,
-    normalize_payload_dates, parse_legacy_date_range, validate_date_range, CalendarDate,
-    DateError, DateRange, DateRangeEnd, MonthDisplay, MONTH_ABBR,
-};
-pub use ledger::{render_ledger_tex, ApplicationLedgerRow};
-pub use manifest::{
-    compute_content_hash, compute_snapshot_hash, SubmissionManifest, MANIFEST_SCHEMA_VERSION,
-};
-pub use resume_filename::resume_download_filename;
 pub use validation::{validate_payload, ValidationError};
 
 /// Build config: section order + templates. Content comes from catalog resolve (jobdesk).

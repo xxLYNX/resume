@@ -5,20 +5,25 @@ use std::process::Command;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use resolve::{default_composition, resolve_composition_with_config, ResolveConfig};
-use theme::load_theme_info;
-use server::{AppState, run as run_server};
+use server::{run as run_server, AppState};
 use store::{
     default_ledger_download_path, export_catalog_to_content, import_legacy_content,
     CreateApplicationRequest, CreateElementRequest, ImportOptions, ListApplicationsQuery, Store,
-    UpdateApplicationRequest, STAGING_CONTENT_DIR, DEFAULT_THEME_ID,
+    UpdateApplicationRequest, DEFAULT_THEME_ID, STAGING_CONTENT_DIR,
 };
+use theme::load_theme_info;
 
 use render_tex::jobdesk_build_aligned;
 
 mod mcp;
+#[path = "mcp_tools.rs"]
+mod mcp_tools;
 
 #[derive(Parser)]
-#[command(name = "jobdesk", about = "Local job-search workspace (resume + tracker)")]
+#[command(
+    name = "jobdesk",
+    about = "Local job-search workspace (resume + tracker)"
+)]
 struct Cli {
     /// Project / repo root (defaults to current directory)
     #[arg(long, default_value = ".")]
@@ -212,11 +217,7 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Import { force } => {
             let store = Store::open(&db_path)?;
-            let stats = import_legacy_content(
-                &root,
-                &store,
-                ImportOptions { force },
-            )?;
+            let stats = import_legacy_content(&root, &store, ImportOptions { force })?;
             println!(
                 "Catalog at {} — created {}, skipped {}, appended {}",
                 db_path.display(),
@@ -310,7 +311,9 @@ async fn main() -> Result<()> {
                     yes,
                 } => {
                     if replace && !yes {
-                        anyhow::bail!("pass --yes with --replace to wipe the catalog before import");
+                        anyhow::bail!(
+                            "pass --yes with --replace to wipe the catalog before import"
+                        );
                     }
                     let dir = resolve_path(&root, &onet_dir);
                     let started = std::time::Instant::now();
@@ -336,7 +339,9 @@ async fn main() -> Result<()> {
                 SkillsCommands::CatalogStats => {
                     let stats = store.skill_catalog_stats()?;
                     if stats.is_empty() {
-                        println!("Catalog empty — run `jobdesk skills import-catalog --onet-dir …`");
+                        println!(
+                            "Catalog empty — run `jobdesk skills import-catalog --onet-dir …`"
+                        );
                     } else {
                         for (kind, n) in stats {
                             println!("{kind}: {n}");
@@ -370,11 +375,15 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Application { command } => {
-            let store = Store::open(&db_path).context(
-                "catalog database missing; run `jobdesk import` first",
-            )?;
+            let store = Store::open(&db_path)
+                .context("catalog database missing; run `jobdesk import` first")?;
             match command {
-                ApplicationCommands::List { q, phase, status, tag } => {
+                ApplicationCommands::List {
+                    q,
+                    phase,
+                    status,
+                    tag,
+                } => {
                     let apps = store.list_applications(&ListApplicationsQuery {
                         q,
                         phase,
@@ -492,11 +501,8 @@ async fn main() -> Result<()> {
                         resolved.insert(k, v);
                     }
                     let snap_dir = workspace.join("artifacts/theme_snapshots");
-                    let theme_files_hash = theme::ensure_theme_snapshot(
-                        &root,
-                        DEFAULT_THEME_ID,
-                        &snap_dir,
-                    )?;
+                    let theme_files_hash =
+                        theme::ensure_theme_snapshot(&root, DEFAULT_THEME_ID, &snap_dir)?;
                     let sub = store.submit_application(
                         &id,
                         &workspace,
@@ -544,11 +550,7 @@ async fn main() -> Result<()> {
                         if !report.skill_gaps.is_empty() {
                             println!("\nSkill gaps ({}):", report.skill_gaps.len());
                             for g in report.skill_gaps.iter().take(15) {
-                                println!(
-                                    "  • {} ({:?})",
-                                    g.label,
-                                    g.status
-                                );
+                                println!("  • {} ({:?})", g.label, g.status);
                             }
                         }
                     }

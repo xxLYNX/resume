@@ -19,15 +19,13 @@ use axum::{
     routing::{delete, get, patch, post},
     Json, Router,
 };
-use domain::{resume_download_filename, Composition, compute_snapshot_hash};
+use domain::{compute_snapshot_hash, resume_download_filename, Composition};
 use render_pdf::{write_tex_and_compile, PdfEngine};
-use render_tex::{
-    jobdesk_build_aligned, jobdesk_build_composition_to_dir, LegacyBuildResult,
-};
+use render_tex::{jobdesk_build_aligned, jobdesk_build_composition_to_dir, LegacyBuildResult};
 use resolve::{default_composition, resolve_from_manifest};
-use serde_json::Value;
 use resolve_checks::resolve_composition_checked;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use store::Store;
 use store::DEFAULT_THEME_ID;
 use theme::load_theme_info;
@@ -132,7 +130,10 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
             get(catalog::element_usage),
         )
         .route("/api/catalog/elements/{id}", get(catalog::get_element))
-        .route("/api/catalog/elements/{id}", delete(catalog::delete_element))
+        .route(
+            "/api/catalog/elements/{id}",
+            delete(catalog::delete_element),
+        )
         .route(
             "/api/catalog/elements/{id}/revisions",
             post(catalog::create_revision),
@@ -158,7 +159,10 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
             "/api/catalog/skill-link-summaries",
             get(skills::element_skill_link_summaries),
         )
-        .route("/api/applications/statuses", get(applications::list_statuses))
+        .route(
+            "/api/applications/statuses",
+            get(applications::list_statuses),
+        )
         .route("/api/applications", get(applications::list_applications))
         .route("/api/applications", post(applications::create_application))
         .route(
@@ -166,8 +170,14 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
             post(applications::export_application_ledger),
         )
         .route("/api/applications/{id}", get(applications::get_application))
-        .route("/api/applications/{id}", patch(applications::update_application))
-        .route("/api/applications/{id}", delete(applications::delete_application))
+        .route(
+            "/api/applications/{id}",
+            patch(applications::update_application),
+        )
+        .route(
+            "/api/applications/{id}",
+            delete(applications::delete_application),
+        )
         .route(
             "/api/applications/{id}/similar",
             get(applications::list_similar),
@@ -196,10 +206,7 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
             "/api/applications/{id}/submit",
             post(applications::submit_application),
         )
-        .route(
-            "/api/submissions/{id}",
-            get(applications::get_submission),
-        )
+        .route("/api/submissions/{id}", get(applications::get_submission))
         .route("/api/composition/default", get(default_composition_handler))
         .route("/api/themes", get(themes::list_themes))
         .route("/api/themes/{id}", get(themes::get_theme))
@@ -357,12 +364,18 @@ async fn get_preview_pdf_legacy(State(state): State<Arc<AppState>>) -> Response 
     let (content_hash, filename) = match state.preview_cache.lock() {
         Ok(c) => (
             c.content_hash.clone(),
-            c.download_filename.clone().unwrap_or_else(|| "resume.pdf".into()),
+            c.download_filename
+                .clone()
+                .unwrap_or_else(|| "resume.pdf".into()),
         ),
         _ => (None, "resume.pdf".into()),
     };
     let Some(hash) = content_hash else {
-        return (StatusCode::NOT_FOUND, "PDF not built yet; POST /api/preview").into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            "PDF not built yet; POST /api/preview",
+        )
+            .into_response();
     };
     let Some(path) = preview_pdf_path(&state.preview_dir, &hash) else {
         return (StatusCode::NOT_FOUND, "invalid preview hash").into_response();
@@ -398,10 +411,7 @@ fn preview_pdf_path(preview_dir: &Path, content_hash: &str) -> Option<PathBuf> {
 }
 
 fn preview_pdf_url(content_hash: &str) -> Option<String> {
-    Some(format!(
-        "/api/preview/pdf/{}",
-        tex_hash_hex(content_hash)?
-    ))
+    Some(format!("/api/preview/pdf/{}", tex_hash_hex(content_hash)?))
 }
 
 fn serve_preview_pdf_file(path: &Path, download_filename: &str) -> Response {
@@ -409,7 +419,10 @@ fn serve_preview_pdf_file(path: &Path, download_filename: &str) -> Response {
         return (StatusCode::NOT_FOUND, "PDF not found").into_response();
     };
     let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/pdf"));
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/pdf"),
+    );
     headers.insert(
         header::CACHE_CONTROL,
         HeaderValue::from_static("no-store, no-cache, must-revalidate"),
@@ -526,17 +539,22 @@ pub(crate) fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<Pr
         mode,
         &theme_id,
     )?;
-    let snapshot_hash =
-        preview_snapshot_hash(&store, state, req, application_id, mode, &theme_id)?;
+    let snapshot_hash = preview_snapshot_hash(&store, state, req, application_id, mode, &theme_id)?;
 
     let mut build = run_preview_build(state, &store, req, application_id, mode, false)?;
 
-    let (preview_source, draft_differs) =
-        preview_meta(&store, state, req, application_id, mode, &submission_snapshot)?;
+    let (preview_source, draft_differs) = preview_meta(
+        &store,
+        state,
+        req,
+        application_id,
+        mode,
+        &submission_snapshot,
+    )?;
 
     let content_hash = build.content_hash.clone();
-    let pdf_url = preview_pdf_url(&content_hash)
-        .context("preview content_hash is not sha256 hex")?;
+    let pdf_url =
+        preview_pdf_url(&content_hash).context("preview content_hash is not sha256 hex")?;
     let hash_pdf = preview_pdf_path(&state.preview_dir, &content_hash)
         .context("preview content_hash is not sha256 hex")?;
 
@@ -669,9 +687,7 @@ fn preview_meta(
                 Some(differs),
             )
         }
-        None if req.draft_composition.is_some() => {
-            ("new_application_draft_live".to_string(), None)
-        }
+        None if req.draft_composition.is_some() => ("new_application_draft_live".to_string(), None),
         None => ("catalog_default".to_string(), None),
     })
 }
@@ -730,8 +746,7 @@ fn draft_snapshot_hash(
     composition: &domain::Composition,
     theme_id: &str,
 ) -> Result<String> {
-    let resolved_map =
-        resolve_composition_checked(store, project_root, theme_id, composition)?;
+    let resolved_map = resolve_composition_checked(store, project_root, theme_id, composition)?;
     let mut resolved = std::collections::BTreeMap::new();
     for (k, v) in resolved_map {
         resolved.insert(k, v);
@@ -796,6 +811,38 @@ mod preview_tests {
     }
 
     #[test]
+    fn preview_build_matches_jobdesk_build_aligned_for_catalog_default() {
+        let state = test_app_state();
+        let store = Store::open(&state.db_path).unwrap();
+        let aligned = jobdesk_build_aligned(
+            &store,
+            &state.workspace_dir,
+            &state.root,
+            &state.config_path,
+            &state.preview_dir,
+            false,
+            None,
+            "draft",
+            DEFAULT_THEME_ID,
+        )
+        .expect("aligned build");
+
+        let req = PreviewRequest {
+            theme_id: Some(DEFAULT_THEME_ID.into()),
+            ..Default::default()
+        };
+        let preview = build_preview(&state, &req).expect("preview build");
+        let PreviewOutcome::Built(meta) = preview else {
+            panic!("expected built preview");
+        };
+        assert_eq!(
+            aligned.content_hash, meta.build.content_hash,
+            "server preview and CLI-aligned build must share the same TeX hash"
+        );
+        assert_eq!(aligned.tex, meta.build.tex);
+    }
+
+    #[test]
     fn preview_theme_changes_content_hash_and_tex() {
         let state = test_app_state();
         let store = Store::open(&state.db_path).unwrap();
@@ -815,8 +862,7 @@ mod preview_tests {
         let classic = build_preview(&state, &req_classic).expect("classic preview");
         let ats = build_preview(&state, &req_ats).expect("ats-classic preview");
 
-        let (PreviewOutcome::Built(c_meta), PreviewOutcome::Built(a_meta)) = (classic, ats)
-        else {
+        let (PreviewOutcome::Built(c_meta), PreviewOutcome::Built(a_meta)) = (classic, ats) else {
             panic!("expected built previews");
         };
 

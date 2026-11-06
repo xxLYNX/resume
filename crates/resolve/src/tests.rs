@@ -2,7 +2,9 @@
 mod tests {
     use std::path::PathBuf;
 
-    use domain::{Composition, CompositionItem, CompositionSection, ElementKind, SkillKind, SkillNode};
+    use domain::{
+        Composition, CompositionItem, CompositionSection, ElementKind, SkillKind, SkillNode,
+    };
     use store::{import_legacy_content, ImportOptions, Store};
 
     use crate::{resolve_composition, resolve_composition_with_config, ResolveConfig};
@@ -63,8 +65,12 @@ mod tests {
         let store = Store::open(&db).unwrap();
         import_legacy_content(&test_root(), &store, ImportOptions::default()).unwrap();
 
-        store.upsert_skill_node(&tool_node("tool.ghidra", "Ghidra")).unwrap();
-        store.upsert_skill_node(&tool_node("tool.c-lang", "C")).unwrap();
+        store
+            .upsert_skill_node(&tool_node("tool.ghidra", "Ghidra"))
+            .unwrap();
+        store
+            .upsert_skill_node(&tool_node("tool.c-lang", "C"))
+            .unwrap();
         store
             .set_element_skill_links(
                 "project.ghostrace-cve-research",
@@ -101,11 +107,11 @@ mod tests {
         };
 
         let mut config = ResolveConfig::default();
-        config
-            .resume_line_tags_max
-            .insert("projects".into(), 5);
+        config.resume_line_tags_max.insert("projects".into(), 5);
         let resolved = resolve_composition_with_config(&store, &composition, &config).unwrap();
-        let row = &resolved.get("projects").unwrap()["projects"].as_array().unwrap()[0];
+        let row = &resolved.get("projects").unwrap()["projects"]
+            .as_array()
+            .unwrap()[0];
         assert_eq!(row["resume_tags"].as_str(), Some("Ghidra, C"));
         assert!(row.get("technologies").is_none());
     }
@@ -199,5 +205,76 @@ mod tests {
         config.resume_line_tags_max.insert("projects".into(), 2);
         let err = resolve_composition_with_config(&store, &composition, &config).unwrap_err();
         assert!(format!("{err:#}").contains("at most 2"), "{err:#}");
+    }
+
+    #[test]
+    fn submitted_manifest_resolved_unchanged_when_skill_links_change() {
+        use domain::SubmissionManifest;
+        use std::collections::BTreeMap;
+
+        let db = test_root().join("target/resolve-test-manifest-freeze.db");
+        let _ = std::fs::remove_file(&db);
+        let store = Store::open(&db).unwrap();
+        import_legacy_content(&test_root(), &store, ImportOptions::default()).unwrap();
+
+        let composition = Composition {
+            sections: vec![CompositionSection {
+                section_key: "projects".into(),
+                items: vec![CompositionItem {
+                    element_id: "project.ghostrace-cve-research".into(),
+                    revision_id: store
+                        .list_elements(Some(ElementKind::Project.as_str()))
+                        .unwrap()
+                        .into_iter()
+                        .find(|e| e.id == "project.ghostrace-cve-research")
+                        .and_then(|e| e.latest_revision_id)
+                        .expect("ghostrace"),
+                    resume_tag_skill_ids: vec![],
+                }],
+            }],
+        };
+
+        let resolved_map: BTreeMap<String, serde_json::Value> =
+            resolve_composition(&store, &composition)
+                .unwrap()
+                .into_iter()
+                .collect();
+        let manifest = SubmissionManifest::new(
+            "2020-01-01T00:00:00Z".into(),
+            "classic".into(),
+            None,
+            composition.clone(),
+            resolved_map.clone(),
+        );
+
+        store
+            .upsert_skill_node(&tool_node("tool.mcp-freeze", "FreezeTag"))
+            .unwrap();
+        store
+            .set_element_skill_links(
+                "project.ghostrace-cve-research",
+                &[domain::ElementSkillLink {
+                    skill_id: "tool.mcp-freeze".into(),
+                    source: "asserted".into(),
+                }],
+            )
+            .unwrap();
+
+        let live: BTreeMap<String, serde_json::Value> = resolve_composition(&store, &composition)
+            .unwrap()
+            .into_iter()
+            .collect();
+        let frozen = crate::resolve_from_manifest(&manifest).unwrap();
+        assert_ne!(
+            live.get("toolbelt"),
+            frozen.get("toolbelt"),
+            "draft toolbelt should reflect new skill links"
+        );
+        let frozen_again = crate::resolve_from_manifest(&manifest).unwrap();
+        assert_eq!(
+            frozen.get("projects"),
+            frozen_again.get("projects"),
+            "manifest replay must be stable"
+        );
     }
 }
