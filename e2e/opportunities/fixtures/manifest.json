@@ -8,6 +8,11 @@
       { "file": "greenhouse-flexport-v1.json", "content_type": "application/json" },
       { "file": "greenhouse-flexport-v2-mismatch.json", "content_type": "application/json" },
       { "simulate_transport_error": true }
+    ],
+    "https://crowdstrike.wd5.myworkdayjobs.com/wday/cxs/crowdstrike/crowdstrikecareers/job/USA---Remote/Detection-Engineer--Falcon-Complete--Remote-_R30634": [
+      { "file": "workday-r30634-v1.json", "content_type": "application/json" },
+      { "file": "workday-r30634-v2-mismatch.json", "content_type": "application/json" },
+      { "simulate_transport_error": true }
     ]
   }
 }

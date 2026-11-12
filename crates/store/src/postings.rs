@@ -326,8 +326,8 @@ impl Store {
         Ok(())
     }
 
-    /// Greenhouse adapter ingest: always records fetch attempt; snapshot only for archivable JSON body.
-    pub fn ingest_greenhouse_fetch(
+    /// Provider adapter ingest: always records fetch attempt; snapshot only for archivable JSON body.
+    pub fn ingest_provider_fetch(
         &self,
         ingest_url: &str,
         api_request_url: &str,
@@ -345,6 +345,7 @@ impl Store {
         machine_suggested: &FetchedPostingPayload,
         outcome: &str,
         attempt_response_body: Option<&str>,
+        retrieval_kind: &str,
     ) -> Result<PostingDetail> {
         let normalized = normalize_posting_url(ingest_url)?;
         let conn = self.connection();
@@ -403,7 +404,7 @@ impl Store {
                         extractor_id,
                         extractor_version,
                         diagnostics_json,
-                        RETRIEVAL_KIND_GREENHOUSE,
+                        retrieval_kind,
                         provenance_json
                     ],
                 )?;
@@ -434,7 +435,7 @@ impl Store {
                     attempt_id,
                     posting_id,
                     now,
-                    RETRIEVAL_KIND_GREENHOUSE,
+                    retrieval_kind,
                     api_request_url,
                     final_url,
                     serde_json::to_string(redirect_chain_json)?,
@@ -466,12 +467,67 @@ impl Store {
         }
     }
 
-    /// Record greenhouse transport failure (attempt only).
+    pub fn ingest_greenhouse_fetch(
+        &self,
+        ingest_url: &str,
+        api_request_url: &str,
+        final_url: &str,
+        redirect_chain_json: &Value,
+        http_status: i64,
+        content_type: &str,
+        snapshot_stored: Option<&str>,
+        snapshot_raw_bytes: Option<&[u8]>,
+        body_sha256: Option<&str>,
+        provenance_json: &str,
+        extractor_id: &str,
+        extractor_version: &str,
+        diagnostics: &[String],
+        machine_suggested: &FetchedPostingPayload,
+        outcome: &str,
+        attempt_response_body: Option<&str>,
+    ) -> Result<PostingDetail> {
+        self.ingest_provider_fetch(
+            ingest_url,
+            api_request_url,
+            final_url,
+            redirect_chain_json,
+            http_status,
+            content_type,
+            snapshot_stored,
+            snapshot_raw_bytes,
+            body_sha256,
+            provenance_json,
+            extractor_id,
+            extractor_version,
+            diagnostics,
+            machine_suggested,
+            outcome,
+            attempt_response_body,
+            RETRIEVAL_KIND_GREENHOUSE,
+        )
+    }
+
     pub fn ingest_greenhouse_transport_failure(
         &self,
         ingest_url: &str,
         api_request_url: &str,
         diagnostics: &[String],
+    ) -> Result<PostingDetail> {
+        self.ingest_provider_transport_failure(
+            ingest_url,
+            api_request_url,
+            diagnostics,
+            RETRIEVAL_KIND_GREENHOUSE,
+        )
+    }
+
+    /// Record provider transport failure (attempt only).
+    pub fn ingest_provider_transport_failure(
+        &self,
+        ingest_url: &str,
+        api_request_url: &str,
+        diagnostics: &[String],
+        retrieval_kind: &str,
     ) -> Result<PostingDetail> {
         let normalized = normalize_posting_url(ingest_url)?;
         let conn = self.connection();
@@ -502,7 +558,7 @@ impl Store {
                     attempt_id,
                     posting_id,
                     now,
-                    RETRIEVAL_KIND_GREENHOUSE,
+                    retrieval_kind,
                     api_request_url,
                     api_request_url,
                     attempt_diags
@@ -1675,18 +1731,14 @@ mod tests {
 
     #[test]
     fn invalid_utf8_snapshot_stores_base64_and_matching_hash() {
-        let bytes: &[u8] = &[0xff, b'{' , b'}'];
+        let bytes: &[u8] = &[0xff, b'{', b'}'];
         let stored = domain::snapshot_body_for_storage(bytes).0;
         let hash = domain::sha256_hex(bytes);
         assert!(stored.starts_with(domain::SNAPSHOT_BODY_PREFIX_BASE64));
         let dir = TempDir::new().unwrap();
         let store = Store::open(&dir.path().join("jobdesk.db")).unwrap();
         let outcome = domain::OUTCOME_EXTRACTION_FAILED;
-        let diags = vec![format!(
-            "{}{}",
-            domain::DIAG_OUTCOME_PREFIX,
-            outcome
-        )];
+        let diags = vec![format!("{}{}", domain::DIAG_OUTCOME_PREFIX, outcome)];
         let d = store
             .ingest_greenhouse_fetch(
                 "https://job-boards.greenhouse.io/t/jobs/1",
@@ -1709,10 +1761,100 @@ mod tests {
             .unwrap();
         let snap = &d.snapshots[0];
         assert_eq!(snap.body_sha256, hash);
-        let raw: String = store
-            .get_snapshot_html(&snap.id)
-            .unwrap()
-            .unwrap();
+        let raw: String = store.get_snapshot_html(&snap.id).unwrap().unwrap();
         assert_eq!(raw, stored);
+    }
+
+    #[test]
+    fn ingest_provider_fetch_sets_workday_retrieval_kind() {
+        let raw = include_str!("../../domain/tests/fixtures/workday/crowdstrike-r30561.json");
+        let bytes = raw.as_bytes();
+        let stored = domain::snapshot_body_for_storage(bytes).0;
+        let hash = domain::sha256_hex(bytes);
+        let ext = domain::interpret_workday_cxs_json(raw, Some("R30561"));
+        let outcome = domain::parse_extraction_outcome(&ext.diagnostics).unwrap();
+        let dir = TempDir::new().unwrap();
+        let store = Store::open(&dir.path().join("jobdesk.db")).unwrap();
+        let ingest =
+            "https://crowdstrike.wd5.myworkdayjobs.com/en-US/crowdstrikecareers/job/USA---Remote/_R30561";
+        let cxs = "https://crowdstrike.wd5.myworkdayjobs.com/wday/cxs/crowdstrike/crowdstrikecareers/job/USA---Remote/_R30561";
+        let d = store
+            .ingest_provider_fetch(
+                ingest,
+                cxs,
+                cxs,
+                &serde_json::json!([]),
+                200,
+                "application/json",
+                Some(stored.as_str()),
+                Some(bytes),
+                Some(&hash),
+                "{}",
+                domain::WORKDAY_ADAPTER_ID,
+                "1",
+                &ext.diagnostics,
+                &ext.payload,
+                &outcome,
+                None,
+                domain::RETRIEVAL_KIND_WORKDAY,
+            )
+            .unwrap();
+        let snap_id = d.snapshots[0].id.clone();
+        assert_eq!(
+            store
+                .get_snapshot_retrieval_kind(&snap_id)
+                .unwrap()
+                .as_deref(),
+            Some(domain::RETRIEVAL_KIND_WORKDAY)
+        );
+    }
+
+    #[test]
+    fn provider_fetch_404_no_snapshot_attempt_has_body() {
+        let err_body = r#"{"errorCode":"S21","httpStatus":404,"message":"not found"}"#;
+        let dir = TempDir::new().unwrap();
+        let store = Store::open(&dir.path().join("jobdesk.db")).unwrap();
+        let diags = vec![
+            format!(
+                "{}{}",
+                domain::DIAG_OUTCOME_PREFIX,
+                domain::OUTCOME_SOURCE_UNAVAILABLE
+            ),
+            "http_status:404".into(),
+        ];
+        let d = store
+            .ingest_provider_fetch(
+                "https://crowdstrike.wd5.myworkdayjobs.com/en-US/crowdstrikecareers/job/nope",
+                "https://crowdstrike.wd5.myworkdayjobs.com/wday/cxs/crowdstrike/crowdstrikecareers/job/nope",
+                "https://crowdstrike.wd5.myworkdayjobs.com/wday/cxs/crowdstrike/crowdstrikecareers/job/nope",
+                &serde_json::json!([]),
+                404,
+                "application/json",
+                None,
+                None,
+                None,
+                "{}",
+                domain::WORKDAY_ADAPTER_ID,
+                "1",
+                &diags,
+                &domain::FetchedPostingPayload::default(),
+                domain::OUTCOME_SOURCE_UNAVAILABLE,
+                Some(err_body),
+                domain::RETRIEVAL_KIND_WORKDAY,
+            )
+            .unwrap();
+        assert!(d.snapshots.is_empty());
+        let attempt = d.latest_fetch_attempt.as_ref().unwrap();
+        assert_eq!(attempt.http_status, 404);
+        assert_eq!(attempt.outcome, domain::OUTCOME_SOURCE_UNAVAILABLE);
+        let body: Option<String> = store
+            .connection()
+            .query_row(
+                "SELECT response_body FROM posting_fetch_attempts WHERE id = ?1",
+                [&attempt.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(body.as_deref().is_some_and(|b| b.contains("not found")));
     }
 }

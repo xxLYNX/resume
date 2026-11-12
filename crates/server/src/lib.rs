@@ -8,6 +8,7 @@ mod presets;
 mod resolve_checks;
 mod skills;
 mod themes;
+pub mod workday_ingest;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;

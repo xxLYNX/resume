@@ -83,6 +83,14 @@ pub async fn ingest_posting(
         }
     }
 
+    if let Some(wd) = crate::workday_ingest::parse_workday_url(&url) {
+        if let Some(resp) =
+            crate::workday_ingest::try_ingest_workday(&state, &url, wd, apps_before).await
+        {
+            return resp;
+        }
+    }
+
     let fetcher = Arc::clone(&state.posting_fetcher);
     let fetch_outcome =
         tokio::task::spawn_blocking(move || fetch_posting_via(fetcher.as_ref(), &url)).await;
@@ -228,7 +236,10 @@ pub async fn get_snapshot_source(
         let raw = s.get_snapshot_html(&id)?;
         Ok((kind, raw))
     }) {
-        Ok((Some(kind), Some(body))) if kind == domain::RETRIEVAL_KIND_GREENHOUSE => {
+        Ok((Some(kind), Some(body)))
+            if kind == domain::RETRIEVAL_KIND_GREENHOUSE
+                || kind == domain::RETRIEVAL_KIND_WORKDAY =>
+        {
             let display = domain::snapshot_body_for_view(&body);
             (
                 StatusCode::OK,
@@ -268,11 +279,9 @@ pub async fn patch_posting(
     }
     match Store::open(&state.db_path).and_then(|s| s.update_posting_interpretation(&id, body)) {
         Ok(p) => Json(p).into_response(),
-        Err(e) if e.to_string().contains("stale_interpretation") => (
-            StatusCode::CONFLICT,
-            Json(json!({"error": e.to_string()})),
-        )
-            .into_response(),
+        Err(e) if e.to_string().contains("stale_interpretation") => {
+            (StatusCode::CONFLICT, Json(json!({"error": e.to_string()}))).into_response()
+        }
         Err(e) => anyhow_response(e).into_response(),
     }
 }
@@ -542,6 +551,231 @@ mod ingest_tests {
     }
 
     #[tokio::test]
+    async fn workday_cxs_ingest_recognized() {
+        use domain::workday_cxs_job_url;
+        use std::collections::HashMap;
+        use std::fs;
+
+        let ingest_url = "https://crowdstrike.wd5.myworkdayjobs.com/en-US/crowdstrikecareers/job/USA---Rancho-Cordova-CA/Data-Center-Technician--Santa-Clara--CA-_R30561";
+        let wd = domain::parse_workday_job_detail_url(ingest_url).expect("parse");
+        let cxs_url = workday_cxs_job_url(&wd);
+        let dir = TempDir::new().unwrap();
+        let db = dir.path().join("jobdesk.db");
+        let _store = Store::open(&db).unwrap();
+        let json_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../domain/tests/fixtures/workday/crowdstrike-r30561.json");
+        let body = fs::read(&json_path).unwrap();
+        let mut map = HashMap::new();
+        map.insert(
+            cxs_url.clone(),
+            PostingHttpResult {
+                final_url: cxs_url.clone(),
+                status: 200,
+                content_type: "application/json".to_string(),
+                body,
+                redirect_chain: vec![ingest_url.to_string()],
+                acceptance_transport_failure: false,
+            },
+        );
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let fetcher = Arc::new(MockPostingHttpFetcher::map(map));
+        let state = Arc::new(AppState::with_posting_fetcher(
+            root.clone(),
+            root.join("settings/jobdesk.yaml"),
+            root.join("target/test-wd-workspace"),
+            db.clone(),
+            root.join("target/test-wd-workspace-data"),
+            fetcher,
+        ));
+        let app = api_router(state);
+        let apps_before = Store::open(&db).unwrap().count_applications().unwrap();
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/opportunities/ingest")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(r#"{{"url":"{ingest_url}"}}"#)))
+            .unwrap();
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        let store = Store::open(&db).unwrap();
+        assert_eq!(store.count_applications().unwrap(), apps_before);
+        let list = store.list_postings().unwrap();
+        assert_eq!(list.len(), 1);
+        let detail = store.get_posting(&list[0].id).unwrap().unwrap();
+        let snap_id = detail.snapshots.first().expect("snapshot").id.clone();
+        assert_eq!(
+            store
+                .get_snapshot_retrieval_kind(&snap_id)
+                .unwrap()
+                .as_deref(),
+            Some(domain::RETRIEVAL_KIND_WORKDAY)
+        );
+        assert_eq!(
+            detail
+                .current
+                .as_ref()
+                .and_then(|c| c.extraction_outcome.as_deref()),
+            Some(domain::OUTCOME_RECOGNIZED)
+        );
+    }
+
+    struct SeqMockFetcher {
+        url: String,
+        seq: std::sync::Mutex<Vec<PostingHttpResult>>,
+    }
+
+    impl crate::posting_http::PostingHttpFetcher for SeqMockFetcher {
+        fn fetch_posting_html(
+            &self,
+            url: &str,
+        ) -> Result<PostingHttpResult, domain::PostingFetchError> {
+            self.next_in_sequence(url)
+        }
+
+        fn fetch_posting_document(
+            &self,
+            url: &str,
+        ) -> Result<PostingHttpResult, domain::PostingFetchError> {
+            self.next_in_sequence(url)
+        }
+    }
+
+    impl SeqMockFetcher {
+        fn next_in_sequence(
+            &self,
+            url: &str,
+        ) -> Result<PostingHttpResult, domain::PostingFetchError> {
+            if url.trim() != self.url {
+                return Err(domain::PostingFetchError::Transport(format!(
+                    "mock miss for `{url}`"
+                )));
+            }
+            let mut seq = self.seq.lock().unwrap();
+            if seq.is_empty() {
+                return Err(domain::PostingFetchError::Transport(
+                    "mock sequence exhausted".into(),
+                ));
+            }
+            Ok(seq.remove(0))
+        }
+    }
+
+    #[tokio::test]
+    async fn workday_http_404_no_snapshot_preserves_reviewed() {
+        use domain::workday_cxs_job_url;
+        use std::fs;
+
+        let ingest_url = "https://crowdstrike.wd5.myworkdayjobs.com/en-US/crowdstrikecareers/job/USA---Remote/Detection-Engineer--Falcon-Complete--Remote-_R30634";
+        let wd = domain::parse_workday_job_detail_url(ingest_url).expect("parse");
+        let cxs_url = workday_cxs_job_url(&wd);
+        let json_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../e2e/opportunities/fixtures/workday-r30634-v1.json");
+        let ok_body = fs::read(&json_path).unwrap();
+        let err_body =
+            br#"{"errorCode":"S21","httpStatus":404,"message":"not found: Job_Posting_Anchor_ID"}"#
+                .to_vec();
+        let dir = TempDir::new().unwrap();
+        let db = dir.path().join("jobdesk.db");
+        let _store = Store::open(&db).unwrap();
+        let fetcher = Arc::new(SeqMockFetcher {
+            url: cxs_url.clone(),
+            seq: std::sync::Mutex::new(vec![
+                PostingHttpResult {
+                    final_url: cxs_url.clone(),
+                    status: 200,
+                    content_type: "application/json".to_string(),
+                    body: ok_body,
+                    redirect_chain: vec![ingest_url.to_string()],
+                    acceptance_transport_failure: false,
+                },
+                PostingHttpResult {
+                    final_url: cxs_url.clone(),
+                    status: 404,
+                    content_type: "application/json".to_string(),
+                    body: err_body,
+                    redirect_chain: vec![ingest_url.to_string()],
+                    acceptance_transport_failure: false,
+                },
+            ]),
+        });
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let state = Arc::new(AppState::with_posting_fetcher(
+            root.clone(),
+            root.join("settings/jobdesk.yaml"),
+            root.join("target/test-wd-404"),
+            db.clone(),
+            root.join("target/test-wd-404-data"),
+            fetcher,
+        ));
+        let app = api_router(state);
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/opportunities/ingest")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(r#"{{"url":"{ingest_url}"}}"#)))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        let store = Store::open(&db).unwrap();
+        let pid = store.list_postings().unwrap()[0].id.clone();
+        let reviewed_id = store
+            .get_posting(&pid)
+            .unwrap()
+            .unwrap()
+            .current
+            .as_ref()
+            .unwrap()
+            .id
+            .clone();
+        let patch = Request::builder()
+            .method("PATCH")
+            .uri(format!("/api/opportunities/{pid}/interpretation"))
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"interpretation_id":"{reviewed_id}","mark_reviewed":true}}"#
+            )))
+            .unwrap();
+        let patch_res = app.clone().oneshot(patch).await.unwrap();
+        assert_eq!(patch_res.status(), StatusCode::OK);
+        let req2 = Request::builder()
+            .method("POST")
+            .uri("/api/opportunities/ingest")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(r#"{{"url":"{ingest_url}"}}"#)))
+            .unwrap();
+        let res2 = app.oneshot(req2).await.unwrap();
+        assert_eq!(res2.status(), StatusCode::CREATED);
+        let detail = store.get_posting(&pid).unwrap().unwrap();
+        assert_eq!(detail.snapshots.len(), 1, "404 must not add snapshot");
+        let attempt = detail.latest_fetch_attempt.as_ref().unwrap();
+        assert_eq!(attempt.http_status, 404);
+        assert_eq!(attempt.outcome, domain::OUTCOME_SOURCE_UNAVAILABLE);
+        let body: Option<String> = store
+            .connection()
+            .query_row(
+                "SELECT response_body FROM posting_fetch_attempts WHERE id = ?1",
+                [&attempt.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(body.as_deref().is_some_and(|b| b.contains("not found")));
+        let current = detail.current.as_ref().unwrap();
+        assert!(
+            current.reviewed_at.is_some(),
+            "reviewed interpretation remains current after 404 refetch"
+        );
+        assert_eq!(current.id, reviewed_id);
+        assert_eq!(
+            detail.last_usable.as_ref().map(|u| u.id.as_str()),
+            Some(reviewed_id.as_str())
+        );
+        assert!(
+            detail.prior_reviewed.is_none(),
+            "no new interpretation on 404 — prior_reviewed not applicable"
+        );
+    }
+
+    #[tokio::test]
     async fn greenhouse_empty_body_503_records_extraction_failed() {
         use domain::greenhouse_api_job_url;
         use std::collections::HashMap;
@@ -609,7 +843,13 @@ mod ingest_tests {
         assert_eq!(res.status(), StatusCode::CREATED);
         let store = Store::open(&db).unwrap();
         let pid = store.list_postings().unwrap()[0].id.clone();
-        let stale_id = store.get_posting(&pid).unwrap().unwrap().current.unwrap().id;
+        let stale_id = store
+            .get_posting(&pid)
+            .unwrap()
+            .unwrap()
+            .current
+            .unwrap()
+            .id;
         let html2 = job_html("T2", "Co");
         let state2 = mock_state(db.clone(), url, html2);
         let app2 = api_router(state2);
