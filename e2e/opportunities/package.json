@@ -1,0 +1,14 @@
+{
+  "name": "jobdesk-opportunities-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:firefox": "playwright test --project=firefox",
+    "test:chromium": "playwright test --project=chromium",
+    "install-browsers": "playwright install firefox chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1"
+  }
+}

@@ -1,6 +1,8 @@
 mod applications;
 mod assets;
 mod catalog;
+pub mod opportunities;
+pub mod posting_http;
 mod presets;
 mod resolve_checks;
 mod skills;
@@ -47,6 +49,10 @@ pub struct AppState {
     pub preview_dir: PathBuf,
     pub db_path: PathBuf,
     pub workspace_dir: PathBuf,
+    pub posting_fetcher: Arc<dyn posting_http::PostingHttpFetcher>,
+    /// True when started with `--acceptance-fixtures` (enables test-only routes).
+    pub acceptance_testing: bool,
+    pub acceptance_fixture: Option<Arc<posting_http::AcceptanceFixturePostingFetcher>>,
     preview_cache: Arc<Mutex<PreviewCache>>,
 }
 
@@ -58,12 +64,55 @@ impl AppState {
         db_path: PathBuf,
         workspace_dir: PathBuf,
     ) -> Self {
+        Self::with_posting_fetcher(
+            root,
+            config_path,
+            preview_dir,
+            db_path,
+            workspace_dir,
+            Arc::new(posting_http::SecurePostingHttpFetcher::default()),
+        )
+    }
+
+    pub fn with_posting_fetcher(
+        root: PathBuf,
+        config_path: PathBuf,
+        preview_dir: PathBuf,
+        db_path: PathBuf,
+        workspace_dir: PathBuf,
+        posting_fetcher: Arc<dyn posting_http::PostingHttpFetcher>,
+    ) -> Self {
+        Self::with_posting_fetcher_and_acceptance(
+            root,
+            config_path,
+            preview_dir,
+            db_path,
+            workspace_dir,
+            posting_fetcher,
+            false,
+            None,
+        )
+    }
+
+    pub fn with_posting_fetcher_and_acceptance(
+        root: PathBuf,
+        config_path: PathBuf,
+        preview_dir: PathBuf,
+        db_path: PathBuf,
+        workspace_dir: PathBuf,
+        posting_fetcher: Arc<dyn posting_http::PostingHttpFetcher>,
+        acceptance_testing: bool,
+        acceptance_fixture: Option<Arc<posting_http::AcceptanceFixturePostingFetcher>>,
+    ) -> Self {
         Self {
             root,
             config_path,
             preview_dir,
             db_path,
             workspace_dir,
+            posting_fetcher,
+            acceptance_testing,
+            acceptance_fixture,
             preview_cache: Arc::new(Mutex::new(PreviewCache::default())),
         }
     }
@@ -216,8 +265,29 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
         .route("/api/presets/{id}", get(presets::get_preset))
         .route("/api/presets/{id}", patch(presets::update_preset))
         .route("/api/presets/{id}", delete(presets::delete_preset))
-        .layer(TraceLayer::new_for_http())
-        .with_state(shared);
+        .route(
+            "/api/opportunities/ingest",
+            post(opportunities::ingest_posting),
+        )
+        .route("/api/opportunities", get(opportunities::list_postings))
+        .route("/api/opportunities/{id}", get(opportunities::get_posting))
+        .route(
+            "/api/opportunities/{id}/interpretation",
+            patch(opportunities::patch_posting),
+        )
+        .route(
+            "/api/opportunities/snapshots/{id}/source",
+            get(opportunities::get_snapshot_source),
+        );
+    let app = if shared.acceptance_testing {
+        app.route(
+            "/api/_acceptance/reset-opportunities",
+            post(opportunities::acceptance_reset_postings),
+        )
+    } else {
+        app
+    };
+    let app = app.layer(TraceLayer::new_for_http()).with_state(shared);
 
     let addr: SocketAddr = format!("{host}:{port}")
         .parse()

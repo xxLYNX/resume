@@ -49,6 +49,15 @@ workspace/
 - [ ] `theme_bundles` DB registry (optional); build config fully driven by theme bundle only
 - [ ] Versioned global filters/macros library for third-party themes (expand contract)
 
+### Opportunity postings (schema v16)
+
+- [x] **`postings`**: saved job opportunities (research), independent of applications
+- [x] **`posting_snapshots`**: append-only retrieved HTML + metadata (never overwritten on re-fetch)
+- [x] **`posting_interpretations`**: machine extraction + optional user JSON overrides; `reviewed_at` optional
+- [ ] **`applications.posting_id`**: deferred until “start application from posting” workflow
+
+Ingestion (serve UI **Opportunities** tab or `POST /api/opportunities/ingest`) does **not** create an application. Closure scope and deferred ATS work: [`docs/MILESTONE_L_CLOSURE.md`](docs/MILESTONE_L_CLOSURE.md), [`docs/MILESTONE_M_GREENHOUSE_ADAPTER_SPEC.md`](docs/MILESTONE_M_GREENHOUSE_ADAPTER_SPEC.md).
+
 ### Applications & submissions
 
 - [x] `applications`: posting URL, company, title, source, **`phase`** + workflow **`status`**, tags, `draft_composition_json` (see [`docs/APPLICATION_LIFECYCLE.md`](docs/APPLICATION_LIFECYCLE.md))

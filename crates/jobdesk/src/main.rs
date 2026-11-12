@@ -5,7 +5,9 @@ use std::process::Command;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use resolve::{default_composition, resolve_composition_with_config, ResolveConfig};
+use server::posting_http::{load_acceptance_fixture_fetcher, SecurePostingHttpFetcher};
 use server::{run as run_server, AppState};
+use std::sync::Arc;
 use store::{
     default_ledger_download_path, export_catalog_to_content, import_legacy_content,
     CreateApplicationRequest, CreateElementRequest, ImportOptions, ListApplicationsQuery, Store,
@@ -93,6 +95,9 @@ enum Commands {
         port: u16,
         #[arg(long)]
         open: bool,
+        /// JSON manifest of canned posting HTML for acceptance tests only (no live job-board fetch).
+        #[arg(long)]
+        acceptance_fixtures: Option<PathBuf>,
     },
 }
 
@@ -565,6 +570,7 @@ async fn main() -> Result<()> {
             host,
             port,
             open,
+            acceptance_fixtures,
         } => {
             let config_path = resolve_path(&root, &config);
             let preview_dir = workspace.join("preview");
@@ -577,13 +583,40 @@ async fn main() -> Result<()> {
                 });
             }
 
+            if acceptance_fixtures.is_some()
+                && !server::opportunities::acceptance_e2e_workspace(&workspace)
+            {
+                anyhow::bail!(
+                    "--acceptance-fixtures requires workspace directory e2e-opportunities-workspace \
+                     (or e2e-opportunities-*); got {}",
+                    workspace.display()
+                );
+            }
+
+            let (posting_fetcher, acceptance_fixture): (
+                Arc<dyn server::posting_http::PostingHttpFetcher>,
+                Option<Arc<server::posting_http::AcceptanceFixturePostingFetcher>>,
+            ) = if let Some(manifest) = acceptance_fixtures {
+                let path = resolve_path(&root, &manifest);
+                let fixture = load_acceptance_fixture_fetcher(&path)
+                    .map_err(|e| anyhow::anyhow!("acceptance fixtures: {e}"))?;
+                let fetcher: Arc<dyn server::posting_http::PostingHttpFetcher> = fixture.clone();
+                (fetcher, Some(fixture))
+            } else {
+                (Arc::new(SecurePostingHttpFetcher::default()), None)
+            };
+
+            let acceptance = acceptance_fixture.is_some();
             run_server(
-                AppState::new(
+                AppState::with_posting_fetcher_and_acceptance(
                     root.clone(),
                     config_path,
                     preview_dir,
                     db_path.clone(),
                     workspace.clone(),
+                    posting_fetcher,
+                    acceptance,
+                    acceptance_fixture,
                 ),
                 &host,
                 port,

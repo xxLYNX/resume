@@ -34,6 +34,17 @@ cargo run -p jobdesk -- catalog add experience experience.acme-2024 --payload ./
 
 **Data:** `workspace/jobdesk.db` is canonical. `content/*.yaml` is import seed; use `import` / `export` when you want file round-trips.
 
+**Opportunity postings** (saved job URLs for research — **not** applications): use the **Opportunities** tab in `serve`, or:
+
+```bash
+curl -s -X POST http://127.0.0.1:3847/api/opportunities/ingest \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com/job"}'
+curl -s http://127.0.0.1:3847/api/opportunities
+```
+
+See [`docs/MILESTONE_L_OPPORTUNITY_POSTINGS.md`](docs/MILESTONE_L_OPPORTUNITY_POSTINGS.md).
+
 **Applications** (tracker + composition + submit) are easiest in `serve`. CLI:
 
 ```bash

@@ -126,9 +126,59 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if version < 15 {
         migrate_strip_project_technologies_v15(conn)?;
     }
+    if version < 16 {
+        migrate_opportunity_postings_v16(conn)?;
+    }
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '15')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '16')",
         [],
+    )?;
+    Ok(())
+}
+
+fn migrate_opportunity_postings_v16(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS postings (
+            id TEXT PRIMARY KEY NOT NULL,
+            normalized_url TEXT NOT NULL UNIQUE,
+            user_state TEXT NOT NULL DEFAULT 'active',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS posting_snapshots (
+            id TEXT PRIMARY KEY NOT NULL,
+            posting_id TEXT NOT NULL REFERENCES postings(id) ON DELETE CASCADE,
+            fetched_at TEXT NOT NULL,
+            request_url TEXT NOT NULL,
+            final_url TEXT NOT NULL,
+            redirect_chain_json TEXT NOT NULL DEFAULT '[]',
+            http_status INTEGER NOT NULL,
+            content_type TEXT NOT NULL,
+            body_sha256 TEXT NOT NULL,
+            raw_body_html TEXT NOT NULL,
+            extractor_id TEXT NOT NULL,
+            extractor_version TEXT NOT NULL,
+            diagnostics_json TEXT NOT NULL DEFAULT '[]'
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_posting_snapshots_posting
+            ON posting_snapshots(posting_id, fetched_at);
+
+        CREATE TABLE IF NOT EXISTS posting_interpretations (
+            id TEXT PRIMARY KEY NOT NULL,
+            posting_id TEXT NOT NULL REFERENCES postings(id) ON DELETE CASCADE,
+            snapshot_id TEXT NOT NULL REFERENCES posting_snapshots(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL,
+            reviewed_at TEXT,
+            machine_json TEXT NOT NULL,
+            user_json TEXT NOT NULL DEFAULT '{}'
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_posting_interpretations_posting
+            ON posting_interpretations(posting_id, created_at);
+        ",
     )?;
     Ok(())
 }
@@ -347,7 +397,7 @@ mod migrate_tests {
     use crate::Store;
 
     #[test]
-    fn fresh_database_schema_version_is_15() {
+    fn fresh_database_schema_version_is_16() {
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("jobdesk.db");
         let store = Store::open(&db).unwrap();
@@ -359,7 +409,7 @@ mod migrate_tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(v, "15");
+        assert_eq!(v, "16");
     }
 }
 

@@ -1,0 +1,8 @@
+{
+  "urls": {
+    "https://example.com/jobdesk-e2e/job/acceptance-1": [
+      { "file": "job-v1.html" },
+      { "file": "job-v2.html" }
+    ]
+  }
+}

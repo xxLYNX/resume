@@ -10,3 +10,5 @@ serde_yaml = { workspace = true }
 sha2 = { workspace = true }
 thiserror = "2"
 time = { workspace = true }
+url = { workspace = true }
+scraper = "0.22"

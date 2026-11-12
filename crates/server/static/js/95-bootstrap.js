@@ -1,14 +1,19 @@
+    const tabOpp = document.getElementById("tab-opportunities");
+    const panelOpp = document.getElementById("panel-opportunities");
+
     function activateTab(which) {
       activeMainTab = which;
       tabCatalog.classList.toggle("active", which === "catalog");
       tabResume.classList.toggle("active", which === "resume");
       tabApps.classList.toggle("active", which === "apps");
+      if (tabOpp) tabOpp.classList.toggle("active", which === "opportunities");
       tabPresets.classList.toggle("active", which === "presets");
       panelCatalog.classList.toggle("hidden", which !== "catalog");
       if (typeof resumeWorkspace !== "undefined" && resumeWorkspace) {
         resumeWorkspace.classList.toggle("hidden", which !== "resume");
       }
       panelApps.classList.toggle("hidden", which !== "apps");
+      if (panelOpp) panelOpp.classList.toggle("hidden", which !== "opportunities");
       panelPresets.classList.toggle("hidden", which !== "presets");
       updateMainLayout();
       if (which === "catalog" && selectedElementId && selectedElementKind) {
@@ -43,6 +48,15 @@
       loadPresets();
       rebuild();
     });
+    if (tabOpp) {
+      tabOpp.addEventListener("click", () => {
+        activateTab("opportunities");
+        rebuild();
+        if (typeof window.loadOpportunitiesList === "function") {
+          window.loadOpportunitiesList();
+        }
+      });
+    }
 
     document.getElementById("new-catalog-entry").addEventListener("click", () => {
       openNewElementForm(newEntryKindSelect.value);

@@ -13,6 +13,7 @@
       <button type="button" id="tab-catalog" class="active" role="tab">Portfolio</button>
       <button type="button" id="tab-resume" role="tab">Resume</button>
       <button type="button" id="tab-apps" role="tab">Applications</button>
+      <button type="button" id="tab-opportunities" role="tab" data-testid="tab-opportunities">Opportunities</button>
       <button type="button" id="tab-presets" role="tab">Presets</button>
     </div>
     <span class="meta hidden" id="preview-mode-wrap" title="Which resume snapshot drives the PDF on the right">
@@ -376,6 +377,80 @@
       </div>
     </section>
     </div>
+    <section class="panel hidden" id="panel-opportunities" aria-label="Opportunities">
+      <p class="help">Save job postings from a public URL for research. This does <strong>not</strong> create an application.</p>
+      <div class="row">
+        <label class="meta">Posting URL
+          <input type="url" id="opp-url" data-testid="opp-url" placeholder="https://…" style="width:min(36rem,100%);margin-top:0.25rem" />
+        </label>
+        <button type="button" id="opp-fetch-save" data-testid="opp-fetch-save">Fetch &amp; save</button>
+      </div>
+      <p class="meta" id="opp-status"></p>
+      <div id="opp-detail" class="hidden" data-testid="opp-detail">
+        <div class="detail-head">
+          <button type="button" id="opp-close-detail">Close</button>
+          <p class="meta" id="opp-meta" style="margin:0"></p>
+        </div>
+        <p class="meta" id="opp-extraction-line"></p>
+        <ul id="opp-extraction-diagnostics" class="meta" style="padding-left:1.2rem"></ul>
+        <p class="meta" id="opp-review-line" data-testid="opp-review-line"></p>
+        <p class="meta hidden opp-prior-review-banner" id="opp-prior-review-banner" role="status" data-testid="opp-prior-review-banner"></p>
+        <label class="meta">Title (your edit)
+          <input type="text" id="opp-field-title" data-testid="opp-field-title" style="width:100%;margin-top:0.25rem" />
+        </label>
+        <label class="meta">Employer (your edit)
+          <input type="text" id="opp-field-employer" style="width:100%;margin-top:0.25rem" />
+        </label>
+        <label class="meta">Location
+          <input type="text" id="opp-field-location" style="width:100%;margin-top:0.25rem" />
+        </label>
+        <label class="meta">Employment
+          <select id="opp-field-employment-type">
+            <option value="">—</option>
+            <option value="full_time">Full-time</option>
+            <option value="part_time">Part-time</option>
+            <option value="contract">Contract</option>
+            <option value="internship">Internship</option>
+          </select>
+        </label>
+        <label class="meta">Work mode
+          <select id="opp-field-work-mode">
+            <option value="">—</option>
+            <option value="remote">Remote</option>
+            <option value="hybrid">Hybrid</option>
+            <option value="on_site">In-person</option>
+          </select>
+        </label>
+        <div class="row">
+          <label class="meta">Pay unit
+            <select id="opp-field-pay-unit">
+              <option value="">—</option>
+              <option value="annual">Annual</option>
+              <option value="hourly">Hourly</option>
+            </select>
+          </label>
+          <label class="meta">Pay min
+            <input type="number" id="opp-field-pay-min" min="0" step="any" style="width:7rem" />
+          </label>
+          <label class="meta">Pay max
+            <input type="number" id="opp-field-pay-max" min="0" step="any" style="width:7rem" />
+          </label>
+        </div>
+        <label class="meta">Description (plain text, your edit)
+          <textarea id="opp-field-description" rows="8" style="width:100%;margin-top:0.25rem"></textarea>
+        </label>
+        <div class="row">
+          <button type="button" id="opp-save-edits" data-testid="opp-save-edits">Save interpretation edits</button>
+          <button type="button" id="opp-mark-reviewed" data-testid="opp-mark-reviewed">Mark reviewed</button>
+        </div>
+        <details>
+          <summary class="meta">Raw HTML snapshot (immutable)</summary>
+          <pre id="opp-source-preview" class="log" style="max-height:14rem;overflow:auto"></pre>
+        </details>
+      </div>
+      <h3 class="meta">Saved postings</h3>
+      <ul id="opp-list" class="meta" data-testid="opp-list"></ul>
+    </section>
     <section class="panel hidden" id="panel-presets" aria-label="Presets">
       <p class="meta">Saved compositions (no posting row). Clone into a new application from the Applications tab.</p>
       <div class="row">
@@ -404,6 +479,7 @@
   <script src="/static/js/70-skills-element.js"></script>
   <script src="/static/js/71-skill-discovery.js"></script>
   <script src="/static/js/72-relationships.js"></script>
+  <script src="/static/js/86-opportunities.js?v=5"></script>
   <script src="/static/js/90-applications.js?v=8"></script>
   <script src="/static/js/45-resume.js?v=8"></script>
   <script src="/static/js/95-bootstrap.js?v=8"></script>

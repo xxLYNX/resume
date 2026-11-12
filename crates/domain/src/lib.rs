@@ -8,6 +8,7 @@ mod framework_refs;
 mod ledger;
 mod location;
 mod manifest;
+mod posting_fetch;
 mod posting_hints;
 mod resume_filename;
 mod skills;
@@ -40,6 +41,15 @@ pub use ledger::{render_ledger_tex, ApplicationLedgerRow};
 pub use location::WorkLocation;
 pub use manifest::{
     compute_content_hash, compute_snapshot_hash, SubmissionManifest, MANIFEST_SCHEMA_VERSION,
+};
+pub use posting_fetch::{
+    detect_source_unavailable, extract_from_html, is_disallowed_destination_ip,
+    looks_like_embedded_app_dump, outcome_list_label, parse_extraction_outcome,
+    resolve_public_socket_addr, sha256_hex, validate_final_url_after_redirects,
+    validate_public_fetch_url, ExtractPostingResult, FetchedPostingPayload, PostingFetchError,
+    DEFAULT_FETCH_TIMEOUT, DIAG_OUTCOME_PREFIX, MAX_FALLBACK_DESCRIPTION_CHARS,
+    MAX_POSTING_BODY_BYTES, MAX_POSTING_REDIRECTS, OUTCOME_EXTRACTION_FAILED, OUTCOME_PARTIAL,
+    OUTCOME_RECOGNIZED, OUTCOME_SOURCE_UNAVAILABLE, POSTING_EXTRACTOR_VERSION,
 };
 pub use posting_hints::{
     build_posting_hints, match_skills_in_posting, posting_search_tokens, PostingHintRow,

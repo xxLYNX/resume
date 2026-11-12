@@ -51,6 +51,7 @@
         "layout-catalog",
         "layout-resume",
         "layout-apps",
+        "layout-opportunities",
         "layout-presets",
       );
       const layout =
@@ -58,6 +59,8 @@
           ? "layout-resume"
           : activeMainTab === "apps"
             ? "layout-apps"
+            : activeMainTab === "opportunities"
+              ? "layout-opportunities"
             : activeMainTab === "presets"
               ? "layout-presets"
               : "layout-catalog";

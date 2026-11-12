@@ -76,8 +76,19 @@
       flex-direction: column;
     }
     main.layout-apps,
+    main.layout-opportunities,
     main.layout-presets {
       grid-template-columns: 1fr;
+    }
+    button.linklike {
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--link, #06c);
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+      text-decoration: underline;
     }
     @media (max-width: 900px) {
       .resume-workspace {
@@ -662,4 +673,17 @@
       background: var(--surface);
       color: var(--text);
       cursor: pointer;
+    }
+    .opp-prior-review-banner {
+      margin: 0.35rem 0;
+      padding: 0.45rem 0.6rem;
+      border-left: 3px solid var(--accent);
+      background: #e8f4fc;
+      color: var(--text);
+    }
+    @media (prefers-color-scheme: dark) {
+      .opp-prior-review-banner {
+        background: #1e3d52;
+        color: var(--text);
+      }
     }

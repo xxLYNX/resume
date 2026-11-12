@@ -20,7 +20,7 @@ version = "0.1.0"
 
 [workspace.dependencies]
 anyhow = "1"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 minijinja = { version = "2", features = ["serde"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
@@ -41,3 +41,9 @@ similarity = { path = "crates/similarity" }
 store = { path = "crates/store" }
 theme = { path = "crates/theme" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+url = { version = "2" }
+reqwest = { version = "0.12", default-features = false, features = [
+    "blocking",
+    "rustls-tls",
+    "gzip",
+] }
