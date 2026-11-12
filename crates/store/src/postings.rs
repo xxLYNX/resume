@@ -2,8 +2,9 @@
 
 use anyhow::{Context, Result};
 use domain::{
-    outcome_list_label, parse_extraction_outcome, validate_application_meta, validate_compensation,
-    FetchedPostingPayload,
+    extraction_outcome_usable, outcome_list_label, parse_extraction_outcome,
+    validate_application_meta, validate_compensation, FetchedPostingPayload,
+    RETRIEVAL_KIND_GREENHOUSE,
 };
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -85,16 +86,38 @@ pub struct PriorReviewedInterpretation {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct PostingFetchAttemptSummary {
+    pub id: String,
+    pub attempted_at: String,
+    pub retrieval_kind: String,
+    pub http_status: i64,
+    pub outcome: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diagnostics: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct PostingDetail {
     pub posting: PostingSummary,
     pub snapshots: Vec<PostingSnapshotSummary>,
+    /// Latest interpretation row (may be failed extraction).
     pub current: Option<PostingInterpretationDetail>,
+    /// Latest interpretation whose outcome is `recognized` or `partial`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_usable: Option<PostingInterpretationDetail>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prior_reviewed: Option<PriorReviewedInterpretation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_fetch_attempt: Option<PostingFetchAttemptSummary>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdatePostingInterpretationRequest {
+    /// Interpretation the client is editing (required for conflict detection when stale).
+    #[serde(default)]
+    pub interpretation_id: Option<String>,
     #[serde(default)]
     pub user_overrides: Option<Value>,
     /// When set, marks interpretation reviewed (optional).
@@ -180,7 +203,42 @@ impl Store {
         diagnostics: &[String],
         machine_suggested: &FetchedPostingPayload,
     ) -> Result<PostingDetail> {
-        let normalized = normalize_posting_url(final_url)?;
+        self.save_posting_fetch_extended(
+            request_url,
+            final_url,
+            redirect_chain_json,
+            http_status,
+            content_type,
+            raw_body_html,
+            body_sha256,
+            extractor_id,
+            extractor_version,
+            diagnostics,
+            machine_suggested,
+            "http_html",
+            "{}",
+            None,
+        )
+    }
+
+    pub fn save_posting_fetch_extended(
+        &self,
+        request_url: &str,
+        final_url: &str,
+        redirect_chain_json: &Value,
+        http_status: i64,
+        content_type: &str,
+        raw_body_html: &str,
+        body_sha256: &str,
+        extractor_id: &str,
+        extractor_version: &str,
+        diagnostics: &[String],
+        machine_suggested: &FetchedPostingPayload,
+        retrieval_kind: &str,
+        provider_provenance_json: &str,
+        identity_url: Option<&str>,
+    ) -> Result<PostingDetail> {
+        let normalized = normalize_posting_url(identity_url.unwrap_or(final_url))?;
         let conn = self.connection();
         let now = now_rfc3339();
 
@@ -205,8 +263,9 @@ impl Store {
                 "INSERT INTO posting_snapshots (
                 id, posting_id, fetched_at, request_url, final_url, redirect_chain_json,
                 http_status, content_type, body_sha256, raw_body_html,
-                extractor_id, extractor_version, diagnostics_json
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                extractor_id, extractor_version, diagnostics_json,
+                retrieval_kind, provider_provenance_json
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     snap_id,
                     posting_id,
@@ -220,7 +279,9 @@ impl Store {
                     raw_body_html,
                     extractor_id,
                     extractor_version,
-                    diagnostics_json
+                    diagnostics_json,
+                    retrieval_kind,
+                    provider_provenance_json
                 ],
             )?;
 
@@ -257,11 +318,214 @@ impl Store {
     pub fn clear_all_postings_for_acceptance(&self) -> Result<()> {
         let conn = self.connection();
         conn.execute_batch(
-            "DELETE FROM posting_interpretations;
+            "DELETE FROM posting_fetch_attempts;
+             DELETE FROM posting_interpretations;
              DELETE FROM posting_snapshots;
              DELETE FROM postings;",
         )?;
         Ok(())
+    }
+
+    /// Greenhouse adapter ingest: always records fetch attempt; snapshot only for archivable JSON body.
+    pub fn ingest_greenhouse_fetch(
+        &self,
+        ingest_url: &str,
+        api_request_url: &str,
+        final_url: &str,
+        redirect_chain_json: &Value,
+        http_status: i64,
+        content_type: &str,
+        snapshot_stored: Option<&str>,
+        snapshot_raw_bytes: Option<&[u8]>,
+        body_sha256: Option<&str>,
+        provenance_json: &str,
+        extractor_id: &str,
+        extractor_version: &str,
+        diagnostics: &[String],
+        machine_suggested: &FetchedPostingPayload,
+        outcome: &str,
+        attempt_response_body: Option<&str>,
+    ) -> Result<PostingDetail> {
+        let normalized = normalize_posting_url(ingest_url)?;
+        let conn = self.connection();
+        let now = now_rfc3339();
+        conn.execute_batch("BEGIN IMMEDIATE;")?;
+        let tx = (|| -> Result<String> {
+            let posting_id = match self.get_posting_by_normalized_url(&normalized)? {
+                Some(id) => id,
+                None => {
+                    let id = Uuid::new_v4().to_string();
+                    conn.execute(
+                        "INSERT INTO postings (id, normalized_url, user_state, created_at, updated_at)
+                         VALUES (?1, ?2, 'active', ?3, ?4)",
+                        params![id, normalized, now, now],
+                    )?;
+                    id
+                }
+            };
+
+            let attempt_id = Uuid::new_v4().to_string();
+            let attempt_diags = serde_json::to_string(diagnostics)?;
+            let mut snapshot_id: Option<String> = None;
+
+            let create_snapshot = matches!(snapshot_stored, Some(raw) if !raw.is_empty())
+                && http_status >= 200
+                && http_status < 300;
+
+            if let (true, Some(stored)) = (create_snapshot, snapshot_stored) {
+                let snap_id = Uuid::new_v4().to_string();
+                let hash = body_sha256.context("body sha required with snapshot")?;
+                if let Some(raw) = snapshot_raw_bytes {
+                    let expect = domain::sha256_hex(raw);
+                    if expect != hash {
+                        anyhow::bail!("body_sha256 does not match snapshot bytes");
+                    }
+                }
+                let diagnostics_json = serde_json::to_string(diagnostics)?;
+                conn.execute(
+                    "INSERT INTO posting_snapshots (
+                    id, posting_id, fetched_at, request_url, final_url, redirect_chain_json,
+                    http_status, content_type, body_sha256, raw_body_html,
+                    extractor_id, extractor_version, diagnostics_json,
+                    retrieval_kind, provider_provenance_json
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                    params![
+                        snap_id,
+                        posting_id,
+                        now,
+                        api_request_url,
+                        final_url,
+                        serde_json::to_string(redirect_chain_json)?,
+                        http_status,
+                        content_type,
+                        hash,
+                        stored,
+                        extractor_id,
+                        extractor_version,
+                        diagnostics_json,
+                        RETRIEVAL_KIND_GREENHOUSE,
+                        provenance_json
+                    ],
+                )?;
+                let interp_id = Uuid::new_v4().to_string();
+                let machine_json = serde_json::to_string(machine_suggested)?;
+                conn.execute(
+                    "INSERT INTO posting_interpretations (
+                    id, posting_id, snapshot_id, created_at, reviewed_at, machine_json, user_json
+                 ) VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6)",
+                    params![interp_id, posting_id, snap_id, now, machine_json, "{}"],
+                )?;
+                snapshot_id = Some(snap_id);
+            }
+
+            let attempt_body = if snapshot_id.is_some() {
+                None
+            } else {
+                attempt_response_body
+            };
+
+            conn.execute(
+                "INSERT INTO posting_fetch_attempts (
+                    id, posting_id, attempted_at, retrieval_kind, request_url, final_url,
+                    redirect_chain_json, http_status, response_content_type, response_body,
+                    outcome, diagnostics_json, snapshot_id
+                 ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
+                params![
+                    attempt_id,
+                    posting_id,
+                    now,
+                    RETRIEVAL_KIND_GREENHOUSE,
+                    api_request_url,
+                    final_url,
+                    serde_json::to_string(redirect_chain_json)?,
+                    http_status,
+                    content_type,
+                    attempt_body,
+                    outcome,
+                    attempt_diags,
+                    snapshot_id
+                ],
+            )?;
+
+            conn.execute(
+                "UPDATE postings SET updated_at = ?1 WHERE id = ?2",
+                params![now, posting_id],
+            )?;
+            Ok(posting_id)
+        })();
+        match tx {
+            Ok(pid) => {
+                conn.execute_batch("COMMIT;")?;
+                self.get_posting(&pid)?
+                    .context("posting missing after greenhouse ingest")
+            }
+            Err(e) => {
+                let _ = conn.execute_batch("ROLLBACK;");
+                Err(e)
+            }
+        }
+    }
+
+    /// Record greenhouse transport failure (attempt only).
+    pub fn ingest_greenhouse_transport_failure(
+        &self,
+        ingest_url: &str,
+        api_request_url: &str,
+        diagnostics: &[String],
+    ) -> Result<PostingDetail> {
+        let normalized = normalize_posting_url(ingest_url)?;
+        let conn = self.connection();
+        let now = now_rfc3339();
+        conn.execute_batch("BEGIN IMMEDIATE;")?;
+        let tx = (|| -> Result<String> {
+            let posting_id = match self.get_posting_by_normalized_url(&normalized)? {
+                Some(id) => id,
+                None => {
+                    let id = Uuid::new_v4().to_string();
+                    conn.execute(
+                        "INSERT INTO postings (id, normalized_url, user_state, created_at, updated_at)
+                         VALUES (?1, ?2, 'active', ?3, ?4)",
+                        params![id, normalized, now, now],
+                    )?;
+                    id
+                }
+            };
+            let attempt_id = Uuid::new_v4().to_string();
+            let attempt_diags = serde_json::to_string(diagnostics)?;
+            conn.execute(
+                "INSERT INTO posting_fetch_attempts (
+                    id, posting_id, attempted_at, retrieval_kind, request_url, final_url,
+                    redirect_chain_json, http_status, response_content_type, response_body,
+                    outcome, diagnostics_json, snapshot_id
+                 ) VALUES (?1,?2,?3,?4,?5,?6,'[]',0,NULL,NULL,'extraction_failed',?7,NULL)",
+                params![
+                    attempt_id,
+                    posting_id,
+                    now,
+                    RETRIEVAL_KIND_GREENHOUSE,
+                    api_request_url,
+                    api_request_url,
+                    attempt_diags
+                ],
+            )?;
+            conn.execute(
+                "UPDATE postings SET updated_at = ?1 WHERE id = ?2",
+                params![now, posting_id],
+            )?;
+            Ok(posting_id)
+        })();
+        match tx {
+            Ok(pid) => {
+                conn.execute_batch("COMMIT;")?;
+                Ok(self.get_posting(&pid)?.ok_or_else(|| {
+                    anyhow::anyhow!("posting missing after transport failure ingest")
+                })?)
+            }
+            Err(e) => {
+                let _ = conn.execute_batch("ROLLBACK;");
+                Err(e)
+            }
+        }
     }
 
     pub fn list_postings(&self) -> Result<Vec<PostingSummary>> {
@@ -310,11 +574,54 @@ impl Store {
         &self,
         posting_id: &str,
     ) -> Result<Option<FetchedPostingPayload>> {
-        if let Some(detail) = self.load_current_interpretation(posting_id)? {
-            Ok(Some(detail.merged))
+        let current = self.load_current_interpretation(posting_id)?;
+        let use_row = if let Some(ref c) = current {
+            if extraction_outcome_usable(c.extraction_outcome.as_deref()) {
+                current
+            } else {
+                self.load_last_usable_interpretation(posting_id)?
+            }
         } else {
-            Ok(None)
+            self.load_last_usable_interpretation(posting_id)?
+        };
+        Ok(use_row.map(|d| d.merged))
+    }
+
+    fn assert_interpretation_belongs_to_posting(
+        &self,
+        interpretation_id: &str,
+        posting_id: &str,
+    ) -> Result<()> {
+        let conn = self.connection();
+        let ok: Option<String> = conn
+            .query_row(
+                "SELECT posting_id FROM posting_interpretations WHERE id = ?1",
+                [interpretation_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        match ok {
+            Some(pid) if pid == posting_id => Ok(()),
+            Some(_) => anyhow::bail!("interpretation does not belong to posting"),
+            None => anyhow::bail!("interpretation not found"),
         }
+    }
+
+    /// Interpretation PATCH/Mark-reviewed target: avoid writing user edits onto a failed latest row.
+    fn interpretation_id_for_user_edit(&self, posting_id: &str) -> Result<String> {
+        let current = self.load_current_interpretation(posting_id)?;
+        if let Some(ref c) = current {
+            if extraction_outcome_usable(c.extraction_outcome.as_deref()) {
+                return Ok(c.id.clone());
+            }
+        }
+        if let Some(u) = self.load_last_usable_interpretation(posting_id)? {
+            return Ok(u.id);
+        }
+        if let Some(c) = current {
+            return Ok(c.id);
+        }
+        anyhow::bail!("no interpretation for posting")
     }
 
     fn load_current_interpretation(
@@ -336,7 +643,7 @@ impl Store {
                         i.machine_json, i.user_json
                  FROM posting_interpretations i
                  WHERE i.posting_id = ?1
-                 ORDER BY i.created_at DESC, i.id DESC
+                 ORDER BY i.created_at DESC, i.rowid DESC
                  LIMIT 1",
                 [posting_id],
                 |row| {
@@ -452,9 +759,19 @@ impl Store {
             .collect::<Result<_, _>>()?;
 
         let current = self.load_current_interpretation(posting_id)?;
+        let last_usable = self.load_last_usable_interpretation(posting_id)?;
+        let latest_fetch_attempt = self.load_latest_fetch_attempt(posting_id)?;
         let prior_reviewed = self.load_prior_reviewed(posting_id, current.as_ref())?;
-        let (display_title, display_company) = current
+        let display_source = if current
             .as_ref()
+            .and_then(|c| c.extraction_outcome.as_deref())
+            .is_some_and(|o| extraction_outcome_usable(Some(o)))
+        {
+            current.as_ref()
+        } else {
+            last_usable.as_ref().or(current.as_ref())
+        };
+        let (display_title, display_company) = display_source
             .map(|c| display_from_merged(&c.merged))
             .unwrap_or((None, None));
         let (extraction_outcome, list_label) =
@@ -474,8 +791,102 @@ impl Store {
             },
             snapshots,
             current,
+            last_usable,
             prior_reviewed,
+            latest_fetch_attempt,
         }))
+    }
+
+    fn load_last_usable_interpretation(
+        &self,
+        posting_id: &str,
+    ) -> Result<Option<PostingInterpretationDetail>> {
+        let conn = self.connection();
+        let mut stmt = conn.prepare(
+            "SELECT i.id, i.posting_id, i.snapshot_id, i.created_at, i.reviewed_at,
+                    i.machine_json, i.user_json
+             FROM posting_interpretations i
+             WHERE i.posting_id = ?1
+             ORDER BY i.created_at DESC, i.rowid DESC",
+        )?;
+        let rows = stmt.query_map([posting_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, String>(6)?,
+            ))
+        })?;
+        for r in rows {
+            let (iid, pid, sid, created, reviewed, machine_s, user_s) = r?;
+            let machine_val: Value = serde_json::from_str(&machine_s)?;
+            let user_val: Value = serde_json::from_str(&user_s)?;
+            let machine_suggested: FetchedPostingPayload = parse_fetched_payload(&machine_val)?;
+            let merged = merge_payload(&machine_suggested, &user_val)?;
+            let snapshot_diags = self.load_snapshot_diagnostics(&sid)?;
+            let extraction_outcome = parse_extraction_outcome(&snapshot_diags);
+            if extraction_outcome_usable(extraction_outcome.as_deref()) {
+                return Ok(Some(PostingInterpretationDetail {
+                    id: iid,
+                    posting_id: pid,
+                    snapshot_id: sid,
+                    created_at: created,
+                    reviewed_at: reviewed,
+                    machine_suggested,
+                    user_overrides: user_val,
+                    merged,
+                    extraction_outcome,
+                    extraction_diagnostics: ui_extraction_diagnostics(&snapshot_diags),
+                }));
+            }
+        }
+        Ok(None)
+    }
+
+    fn load_latest_fetch_attempt(
+        &self,
+        posting_id: &str,
+    ) -> Result<Option<PostingFetchAttemptSummary>> {
+        let conn = self.connection();
+        let row: Option<(String, String, String, i64, String, String, Option<String>)> = conn
+            .query_row(
+                "SELECT id, attempted_at, retrieval_kind, http_status, outcome,
+                        diagnostics_json, snapshot_id
+                 FROM posting_fetch_attempts
+                 WHERE posting_id = ?1
+                 ORDER BY attempted_at DESC, rowid DESC
+                 LIMIT 1",
+                [posting_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                        row.get(6)?,
+                    ))
+                },
+            )
+            .optional()?;
+        Ok(row.map(
+            |(id, attempted_at, retrieval_kind, http_status, outcome, diags_raw, snapshot_id)| {
+                let diagnostics: Vec<String> = serde_json::from_str(&diags_raw).unwrap_or_default();
+                PostingFetchAttemptSummary {
+                    id,
+                    attempted_at,
+                    retrieval_kind,
+                    http_status,
+                    outcome,
+                    diagnostics: ui_extraction_diagnostics(&diagnostics),
+                    snapshot_id,
+                }
+            },
+        ))
     }
 
     fn load_prior_reviewed(
@@ -492,7 +903,7 @@ impl Store {
             conn.query_row(
                 "SELECT id, snapshot_id, reviewed_at FROM posting_interpretations
                  WHERE posting_id = ?1 AND reviewed_at IS NOT NULL AND id != ?2
-                 ORDER BY reviewed_at DESC, id DESC
+                 ORDER BY reviewed_at DESC, rowid DESC
                  LIMIT 1",
                 params![posting_id, cid],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
@@ -502,7 +913,7 @@ impl Store {
             conn.query_row(
                 "SELECT id, snapshot_id, reviewed_at FROM posting_interpretations
                  WHERE posting_id = ?1 AND reviewed_at IS NOT NULL
-                 ORDER BY reviewed_at DESC, id DESC
+                 ORDER BY reviewed_at DESC, rowid DESC
                  LIMIT 1",
                 [posting_id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
@@ -516,6 +927,17 @@ impl Store {
                 reviewed_at,
             },
         ))
+    }
+
+    pub fn get_snapshot_retrieval_kind(&self, snapshot_id: &str) -> Result<Option<String>> {
+        let conn = self.connection();
+        conn.query_row(
+            "SELECT retrieval_kind FROM posting_snapshots WHERE id = ?1",
+            [snapshot_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(Into::into)
     }
 
     pub fn get_snapshot_html(&self, snapshot_id: &str) -> Result<Option<String>> {
@@ -536,17 +958,17 @@ impl Store {
         req: UpdatePostingInterpretationRequest,
     ) -> Result<PostingDetail> {
         let conn = self.connection();
-        let interp_id: String = conn
-            .query_row(
-                "SELECT id FROM posting_interpretations
-                 WHERE posting_id = ?1
-                 ORDER BY created_at DESC, id DESC
-                 LIMIT 1",
-                [posting_id],
-                |row| row.get(0),
-            )
-            .optional()?
-            .context("no interpretation for posting")?;
+        let target_id = self.interpretation_id_for_user_edit(posting_id)?;
+        let interp_id = if let Some(ref client_id) = req.interpretation_id {
+            if client_id != &target_id {
+                anyhow::bail!("stale_interpretation: client={client_id} target={target_id}");
+            }
+            self.assert_interpretation_belongs_to_posting(client_id, posting_id)?;
+            client_id.clone()
+        } else {
+            self.assert_interpretation_belongs_to_posting(&target_id, posting_id)?;
+            target_id
+        };
 
         let existing_user: String = conn.query_row(
             "SELECT user_json FROM posting_interpretations WHERE id = ?1",
@@ -827,6 +1249,7 @@ mod tests {
             .update_posting_interpretation(
                 &pid,
                 UpdatePostingInterpretationRequest {
+                    interpretation_id: None,
                     user_overrides: Some(serde_json::json!({"title": "Edited"})),
                     mark_reviewed: None,
                 },
@@ -881,6 +1304,7 @@ mod tests {
             .update_posting_interpretation(
                 &pid,
                 UpdatePostingInterpretationRequest {
+                    interpretation_id: None,
                     user_overrides: None,
                     mark_reviewed: Some(true),
                 },
@@ -890,6 +1314,7 @@ mod tests {
             .update_posting_interpretation(
                 &pid,
                 UpdatePostingInterpretationRequest {
+                    interpretation_id: None,
                     user_overrides: Some(serde_json::json!({"title": "Tweaked"})),
                     mark_reviewed: None,
                 },
@@ -929,6 +1354,7 @@ mod tests {
             .update_posting_interpretation(
                 &pid,
                 UpdatePostingInterpretationRequest {
+                    interpretation_id: None,
                     user_overrides: Some(serde_json::json!({"title": "Edited title"})),
                     mark_reviewed: None,
                 },
@@ -938,6 +1364,7 @@ mod tests {
             .update_posting_interpretation(
                 &pid,
                 UpdatePostingInterpretationRequest {
+                    interpretation_id: None,
                     user_overrides: None,
                     mark_reviewed: Some(true),
                 },
@@ -978,5 +1405,314 @@ mod tests {
         let list = store.list_postings().unwrap();
         assert_eq!(list.len(), 1);
         assert!(list[0].prior_reviewed_at.is_some());
+    }
+
+    #[test]
+    fn patch_targets_last_usable_after_greenhouse_mismatch_refetch() {
+        use std::fs;
+        use std::path::PathBuf;
+
+        let dir = TempDir::new().unwrap();
+        let db = dir.path().join("jobdesk.db");
+        let store = Store::open(&db).unwrap();
+        let ingest = "https://job-boards.greenhouse.io/flexport/jobs/8009198";
+        let api =
+            "https://boards-api.greenhouse.io/v1/boards/flexport/jobs/8009198?pay_transparency=true";
+        let fx = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../domain/tests/fixtures/greenhouse/flexport-8009198.json");
+        let good = fs::read_to_string(&fx).unwrap();
+        let extracted = domain::interpret_greenhouse_job_json(&good, "8009198");
+        let hash = domain::sha256_hex(good.as_bytes());
+        let outcome = domain::parse_extraction_outcome(&extracted.diagnostics).unwrap();
+        let d1 = store
+            .ingest_greenhouse_fetch(
+                ingest,
+                api,
+                api,
+                &serde_json::json!([]),
+                200,
+                "application/json",
+                Some(good.as_str()),
+                Some(good.as_bytes()),
+                Some(&hash),
+                "{}",
+                domain::GREENHOUSE_ADAPTER_ID,
+                domain::GREENHOUSE_ADAPTER_VERSION,
+                &extracted.diagnostics,
+                &extracted.payload,
+                &outcome,
+                None,
+            )
+            .unwrap();
+        let pid = d1.posting.id.clone();
+        let usable_id = d1.current.as_ref().unwrap().id.clone();
+        let usable_id_chk = usable_id.clone();
+        store
+            .update_posting_interpretation(
+                &pid,
+                UpdatePostingInterpretationRequest {
+                    interpretation_id: None,
+                    user_overrides: None,
+                    mark_reviewed: Some(true),
+                },
+            )
+            .unwrap();
+        let mut bad: serde_json::Value = serde_json::from_str(&good).unwrap();
+        bad["id"] = serde_json::json!(9999999);
+        let bad_s = serde_json::to_string(&bad).unwrap();
+        let bad_ext = domain::interpret_greenhouse_job_json(&bad_s, "8009198");
+        let bad_outcome = domain::parse_extraction_outcome(&bad_ext.diagnostics).unwrap();
+        let _d2 = store
+            .ingest_greenhouse_fetch(
+                ingest,
+                api,
+                api,
+                &serde_json::json!([]),
+                200,
+                "application/json",
+                Some(bad_s.as_str()),
+                Some(bad_s.as_bytes()),
+                Some(&domain::sha256_hex(bad_s.as_bytes())),
+                "{}",
+                domain::GREENHOUSE_ADAPTER_ID,
+                domain::GREENHOUSE_ADAPTER_VERSION,
+                &bad_ext.diagnostics,
+                &bad_ext.payload,
+                &bad_outcome,
+                None,
+            )
+            .unwrap();
+        store
+            .update_posting_interpretation(
+                &pid,
+                UpdatePostingInterpretationRequest {
+                    interpretation_id: Some(usable_id.clone()),
+                    user_overrides: Some(serde_json::json!({"title": "Owner edit"})),
+                    mark_reviewed: None,
+                },
+            )
+            .unwrap();
+        let detail = store.get_posting(&pid).unwrap().unwrap();
+        assert_ne!(
+            detail.current.as_ref().unwrap().id,
+            usable_id,
+            "current is failed extraction"
+        );
+        assert_eq!(detail.last_usable.as_ref().unwrap().id, usable_id);
+        let failed_user: String = store
+            .connection()
+            .query_row(
+                "SELECT user_json FROM posting_interpretations WHERE id = ?1",
+                [detail.current.as_ref().unwrap().id.clone()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(failed_user, "{}");
+        let usable_user: String = store
+            .connection()
+            .query_row(
+                "SELECT user_json FROM posting_interpretations WHERE id = ?1",
+                [usable_id.as_str()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let uv: serde_json::Value = serde_json::from_str(&usable_user).unwrap();
+        assert_eq!(uv["title"], "Owner edit");
+        // Editing cleared reviewed_at on the usable row (L semantics); failed current stays unreviewed.
+        assert!(detail.last_usable.as_ref().unwrap().reviewed_at.is_none());
+    }
+
+    #[test]
+    fn patch_stale_interpretation_id_rejected() {
+        let dir = TempDir::new().unwrap();
+        let db = dir.path().join("jobdesk.db");
+        let store = Store::open(&db).unwrap();
+        let html = r#"<!DOCTYPE html><html><head><script type="application/ld+json">
+{"@type":"JobPosting","title":"V1","hiringOrganization":{"name":"Co"}}
+</script></head><body></body></html>"#;
+        let m = domain::extract_from_html(html).payload;
+        let d = store
+            .save_posting_fetch(
+                "https://example.com/job",
+                "https://example.com/job",
+                &serde_json::json!([]),
+                200,
+                "text/html",
+                html,
+                &domain::sha256_hex(html.as_bytes()),
+                "t",
+                domain::POSTING_EXTRACTOR_VERSION,
+                &[],
+                &m,
+            )
+            .unwrap();
+        let pid = d.posting.id;
+        let first_id = d.current.as_ref().unwrap().id.clone();
+        let html2 = r#"<!DOCTYPE html><html><head><script type="application/ld+json">
+{"@type":"JobPosting","title":"V2","hiringOrganization":{"name":"Co"}}
+</script></head><body></body></html>"#;
+        let m2 = domain::extract_from_html(html2).payload;
+        let d2 = store
+            .save_posting_fetch(
+                "https://example.com/job",
+                "https://example.com/job",
+                &serde_json::json!([]),
+                200,
+                "text/html",
+                html2,
+                &domain::sha256_hex(html2.as_bytes()),
+                "t",
+                domain::POSTING_EXTRACTOR_VERSION,
+                &[],
+                &m2,
+            )
+            .unwrap();
+        let stale = first_id;
+        let current = d2.current.as_ref().unwrap().id.clone();
+        assert_ne!(stale, current);
+        let err = store
+            .update_posting_interpretation(
+                &pid,
+                UpdatePostingInterpretationRequest {
+                    interpretation_id: Some(stale),
+                    user_overrides: Some(serde_json::json!({"title": "stale"})),
+                    mark_reviewed: None,
+                },
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("stale_interpretation"));
+    }
+
+    #[test]
+    fn mark_reviewed_stale_interpretation_id_rejected() {
+        let dir = TempDir::new().unwrap();
+        let db = dir.path().join("jobdesk.db");
+        let store = Store::open(&db).unwrap();
+        let html = r#"<!DOCTYPE html><html><head><script type="application/ld+json">
+{"@type":"JobPosting","title":"V1","hiringOrganization":{"name":"Co"}}
+</script></head><body></body></html>"#;
+        let m = domain::extract_from_html(html).payload;
+        let d = store
+            .save_posting_fetch(
+                "https://example.com/job",
+                "https://example.com/job",
+                &serde_json::json!([]),
+                200,
+                "text/html",
+                html,
+                &domain::sha256_hex(html.as_bytes()),
+                "t",
+                domain::POSTING_EXTRACTOR_VERSION,
+                &[],
+                &m,
+            )
+            .unwrap();
+        let pid = d.posting.id;
+        let stale = d.current.as_ref().unwrap().id.clone();
+        let html2 = r#"<!DOCTYPE html><html><head><script type="application/ld+json">
+{"@type":"JobPosting","title":"V2","hiringOrganization":{"name":"Co"}}
+</script></head><body></body></html>"#;
+        let m2 = domain::extract_from_html(html2).payload;
+        store
+            .save_posting_fetch(
+                "https://example.com/job",
+                "https://example.com/job",
+                &serde_json::json!([]),
+                200,
+                "text/html",
+                html2,
+                &domain::sha256_hex(html2.as_bytes()),
+                "t",
+                domain::POSTING_EXTRACTOR_VERSION,
+                &[],
+                &m2,
+            )
+            .unwrap();
+        let err = store
+            .update_posting_interpretation(
+                &pid,
+                UpdatePostingInterpretationRequest {
+                    interpretation_id: Some(stale),
+                    user_overrides: None,
+                    mark_reviewed: Some(true),
+                },
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("stale_interpretation"));
+    }
+
+    #[test]
+    fn snapshot_sha256_matches_raw_bytes() {
+        let bytes = br#"{"id":1,"title":"X","company_name":"Y","content":"<p>Role</p>"}"#;
+        let stored = domain::snapshot_body_for_storage(bytes).0;
+        let hash = domain::sha256_hex(bytes);
+        let dir = TempDir::new().unwrap();
+        let store = Store::open(&dir.path().join("jobdesk.db")).unwrap();
+        let ext = domain::interpret_greenhouse_job_json(std::str::from_utf8(bytes).unwrap(), "1");
+        let outcome = domain::parse_extraction_outcome(&ext.diagnostics).unwrap();
+        let d = store
+            .ingest_greenhouse_fetch(
+                "https://job-boards.greenhouse.io/t/jobs/1",
+                "https://boards-api.greenhouse.io/v1/boards/t/jobs/1?pay_transparency=true",
+                "https://boards-api.greenhouse.io/v1/boards/t/jobs/1?pay_transparency=true",
+                &serde_json::json!([]),
+                200,
+                "application/json",
+                Some(stored.as_str()),
+                Some(bytes.as_slice()),
+                Some(&hash),
+                "{}",
+                domain::GREENHOUSE_ADAPTER_ID,
+                "1",
+                &ext.diagnostics,
+                &ext.payload,
+                &outcome,
+                None,
+            )
+            .unwrap();
+        assert_eq!(d.snapshots[0].body_sha256, hash);
+    }
+
+    #[test]
+    fn invalid_utf8_snapshot_stores_base64_and_matching_hash() {
+        let bytes: &[u8] = &[0xff, b'{' , b'}'];
+        let stored = domain::snapshot_body_for_storage(bytes).0;
+        let hash = domain::sha256_hex(bytes);
+        assert!(stored.starts_with(domain::SNAPSHOT_BODY_PREFIX_BASE64));
+        let dir = TempDir::new().unwrap();
+        let store = Store::open(&dir.path().join("jobdesk.db")).unwrap();
+        let outcome = domain::OUTCOME_EXTRACTION_FAILED;
+        let diags = vec![format!(
+            "{}{}",
+            domain::DIAG_OUTCOME_PREFIX,
+            outcome
+        )];
+        let d = store
+            .ingest_greenhouse_fetch(
+                "https://job-boards.greenhouse.io/t/jobs/1",
+                "https://boards-api.greenhouse.io/v1/boards/t/jobs/1?pay_transparency=true",
+                "https://boards-api.greenhouse.io/v1/boards/t/jobs/1?pay_transparency=true",
+                &serde_json::json!([]),
+                200,
+                "application/json",
+                Some(stored.as_str()),
+                Some(bytes),
+                Some(&hash),
+                "{}",
+                domain::GREENHOUSE_ADAPTER_ID,
+                "1",
+                &diags,
+                &domain::FetchedPostingPayload::default(),
+                outcome,
+                None,
+            )
+            .unwrap();
+        let snap = &d.snapshots[0];
+        assert_eq!(snap.body_sha256, hash);
+        let raw: String = store
+            .get_snapshot_html(&snap.id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(raw, stored);
     }
 }

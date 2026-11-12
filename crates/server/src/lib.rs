@@ -1,6 +1,7 @@
 mod applications;
 mod assets;
 mod catalog;
+pub mod greenhouse_ingest;
 pub mod opportunities;
 pub mod posting_http;
 mod presets;

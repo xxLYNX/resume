@@ -49,7 +49,7 @@ fn err_response(err: PostingFetchError) -> (StatusCode, Json<Value>) {
     )
 }
 
-fn anyhow_response(err: anyhow::Error) -> (StatusCode, Json<Value>) {
+pub(crate) fn anyhow_response(err: anyhow::Error) -> (StatusCode, Json<Value>) {
     (
         StatusCode::BAD_REQUEST,
         Json(json!({"error": format!("{err:#}")})),
@@ -74,6 +74,15 @@ pub async fn ingest_posting(
     };
 
     let url = body.url.trim().to_string();
+
+    if let Some(gh) = crate::greenhouse_ingest::parse_gh_url(&url) {
+        if let Some(resp) =
+            crate::greenhouse_ingest::try_ingest_greenhouse(&state, &url, gh, apps_before).await
+        {
+            return resp;
+        }
+    }
+
     let fetcher = Arc::clone(&state.posting_fetcher);
     let fetch_outcome =
         tokio::task::spawn_blocking(move || fetch_posting_via(fetcher.as_ref(), &url)).await;
@@ -103,7 +112,7 @@ pub async fn ingest_posting(
 
     match Store::open(&state.db_path).and_then(|store| {
         let chain_json = serde_json::to_value(&chain).unwrap_or(json!([]));
-        let detail = store.save_posting_fetch(
+        let detail = store.save_posting_fetch_extended(
             body.url.trim(),
             &final_url,
             &chain_json,
@@ -115,6 +124,9 @@ pub async fn ingest_posting(
             POSTING_EXTRACTOR_VERSION,
             &diagnostics,
             &machine,
+            "http_html",
+            "{}",
+            Some(body.url.trim()),
         )?;
         let apps_after = store.count_applications()?;
         Ok((detail, apps_after))
@@ -211,8 +223,24 @@ pub async fn get_snapshot_source(
         )
             .into_response();
     }
-    match Store::open(&state.db_path).and_then(|s| s.get_snapshot_html(&id)) {
-        Ok(Some(html)) => (
+    match Store::open(&state.db_path).and_then(|s| {
+        let kind = s.get_snapshot_retrieval_kind(&id)?;
+        let raw = s.get_snapshot_html(&id)?;
+        Ok((kind, raw))
+    }) {
+        Ok((Some(kind), Some(body))) if kind == domain::RETRIEVAL_KIND_GREENHOUSE => {
+            let display = domain::snapshot_body_for_view(&body);
+            (
+                StatusCode::OK,
+                [(
+                    axum::http::header::CONTENT_TYPE,
+                    "text/plain; charset=utf-8",
+                )],
+                display,
+            )
+                .into_response()
+        }
+        Ok((_, Some(html))) => (
             StatusCode::OK,
             [(
                 axum::http::header::CONTENT_TYPE,
@@ -221,7 +249,7 @@ pub async fn get_snapshot_source(
             html,
         )
             .into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, "not found").into_response(),
+        Ok((_, None)) => (StatusCode::NOT_FOUND, "not found").into_response(),
         Err(e) => anyhow_response(e).into_response(),
     }
 }
@@ -240,6 +268,11 @@ pub async fn patch_posting(
     }
     match Store::open(&state.db_path).and_then(|s| s.update_posting_interpretation(&id, body)) {
         Ok(p) => Json(p).into_response(),
+        Err(e) if e.to_string().contains("stale_interpretation") => (
+            StatusCode::CONFLICT,
+            Json(json!({"error": e.to_string()})),
+        )
+            .into_response(),
         Err(e) => anyhow_response(e).into_response(),
     }
 }
@@ -273,6 +306,7 @@ mod ingest_tests {
                 content_type: "text/html".to_string(),
                 body: html.into_bytes(),
                 redirect_chain: vec![url.to_string()],
+                acceptance_transport_failure: false,
             },
         ));
         Arc::new(AppState::with_posting_fetcher(
@@ -337,6 +371,7 @@ mod ingest_tests {
                     content_type: "text/html".to_string(),
                     body: html.into_bytes(),
                     redirect_chain: vec![url.to_string()],
+                    acceptance_transport_failure: false,
                 },
             ));
             let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -367,6 +402,7 @@ mod ingest_tests {
             .update_posting_interpretation(
                 &pid,
                 UpdatePostingInterpretationRequest {
+                    interpretation_id: None,
                     user_overrides: Some(json!({"title": "User Title"})),
                     mark_reviewed: Some(true),
                 },
@@ -443,6 +479,157 @@ mod ingest_tests {
             "GET detail must surface prior_reviewed after refetch"
         );
         assert!(v["current"]["reviewed_at"].is_null());
+    }
+
+    #[tokio::test]
+    async fn greenhouse_api_ingest_recognized() {
+        use domain::greenhouse_api_job_url;
+        use std::collections::HashMap;
+        use std::fs;
+
+        let dir = TempDir::new().unwrap();
+        let db = dir.path().join("jobdesk.db");
+        let _store = Store::open(&db).unwrap();
+        let ingest_url = "https://job-boards.greenhouse.io/flexport/jobs/8009198";
+        let api_url = greenhouse_api_job_url("flexport", "8009198");
+        let json_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../domain/tests/fixtures/greenhouse/flexport-8009198.json");
+        let body = fs::read(&json_path).unwrap();
+        let mut map = HashMap::new();
+        map.insert(
+            api_url.clone(),
+            PostingHttpResult {
+                final_url: api_url,
+                status: 200,
+                content_type: "application/json".to_string(),
+                body,
+                redirect_chain: vec![ingest_url.to_string()],
+                acceptance_transport_failure: false,
+            },
+        );
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let fetcher = Arc::new(MockPostingHttpFetcher::map(map));
+        let state = Arc::new(AppState::with_posting_fetcher(
+            root.clone(),
+            root.join("settings/jobdesk.yaml"),
+            root.join("target/test-gh-workspace"),
+            db.clone(),
+            root.join("target/test-gh-workspace-data"),
+            fetcher,
+        ));
+        let app = api_router(state);
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/opportunities/ingest")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(r#"{{"url":"{ingest_url}"}}"#)))
+            .unwrap();
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        let store = Store::open(&db).unwrap();
+        let list = store.list_postings().unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].display_title.as_deref(), Some("Account Executive"));
+        let detail = store.get_posting(&list[0].id).unwrap().unwrap();
+        assert!(detail.latest_fetch_attempt.is_some());
+        assert_eq!(
+            detail
+                .current
+                .as_ref()
+                .and_then(|c| c.extraction_outcome.as_deref()),
+            Some(domain::OUTCOME_RECOGNIZED)
+        );
+    }
+
+    #[tokio::test]
+    async fn greenhouse_empty_body_503_records_extraction_failed() {
+        use domain::greenhouse_api_job_url;
+        use std::collections::HashMap;
+
+        let dir = TempDir::new().unwrap();
+        let db = dir.path().join("jobdesk.db");
+        let _store = Store::open(&db).unwrap();
+        let ingest_url = "https://job-boards.greenhouse.io/flexport/jobs/8009198";
+        let api_url = greenhouse_api_job_url("flexport", "8009198");
+        let mut map = HashMap::new();
+        map.insert(
+            api_url.clone(),
+            PostingHttpResult {
+                final_url: api_url,
+                status: 503,
+                content_type: "application/json".to_string(),
+                body: Vec::new(),
+                redirect_chain: vec![ingest_url.to_string()],
+                acceptance_transport_failure: false,
+            },
+        );
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let fetcher = Arc::new(MockPostingHttpFetcher::map(map));
+        let state = Arc::new(AppState::with_posting_fetcher(
+            root.clone(),
+            root.join("settings/jobdesk.yaml"),
+            root.join("target/test-gh-503"),
+            db.clone(),
+            root.join("target/test-gh-503-data"),
+            fetcher,
+        ));
+        let app = api_router(state);
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/opportunities/ingest")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(r#"{{"url":"{ingest_url}"}}"#)))
+            .unwrap();
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        let store = Store::open(&db).unwrap();
+        let list = store.list_postings().unwrap();
+        let detail = store.get_posting(&list[0].id).unwrap().unwrap();
+        let attempt = detail.latest_fetch_attempt.unwrap();
+        assert_eq!(attempt.http_status, 503);
+        assert_eq!(attempt.outcome, domain::OUTCOME_EXTRACTION_FAILED);
+    }
+
+    #[tokio::test]
+    async fn patch_stale_interpretation_returns_409() {
+        let dir = TempDir::new().unwrap();
+        let db = dir.path().join("jobdesk.db");
+        let _store = Store::open(&db).unwrap();
+        let url = "https://example.com/job/a";
+        let html1 = job_html("T1", "Co");
+        let state = mock_state(db.clone(), url, html1);
+        let app = api_router(state.clone());
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/opportunities/ingest")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(r#"{{"url":"{url}"}}"#)))
+            .unwrap();
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        let store = Store::open(&db).unwrap();
+        let pid = store.list_postings().unwrap()[0].id.clone();
+        let stale_id = store.get_posting(&pid).unwrap().unwrap().current.unwrap().id;
+        let html2 = job_html("T2", "Co");
+        let state2 = mock_state(db.clone(), url, html2);
+        let app2 = api_router(state2);
+        let req2 = Request::builder()
+            .method("POST")
+            .uri("/api/opportunities/ingest")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(r#"{{"url":"{url}"}}"#)))
+            .unwrap();
+        let _ = app2.clone().oneshot(req2).await.unwrap();
+        let patch_req = Request::builder()
+            .method("PATCH")
+            .uri(format!("/api/opportunities/{pid}/interpretation"))
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"interpretation_id":"{stale_id}","user_overrides":{{"title":"nope"}}}}"#
+            )))
+            .unwrap();
+        let patch_res = app2.oneshot(patch_req).await.unwrap();
+        assert_eq!(patch_res.status(), StatusCode::CONFLICT);
     }
 }
 

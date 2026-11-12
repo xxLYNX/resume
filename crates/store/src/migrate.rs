@@ -129,9 +129,49 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if version < 16 {
         migrate_opportunity_postings_v16(conn)?;
     }
+    if version < 17 {
+        migrate_opportunity_postings_v17(conn)?;
+    }
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '16')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '17')",
         [],
+    )?;
+    Ok(())
+}
+
+fn migrate_opportunity_postings_v17(conn: &Connection) -> Result<()> {
+    add_column_if_missing(
+        conn,
+        "posting_snapshots",
+        "retrieval_kind",
+        "TEXT NOT NULL DEFAULT 'http_html'",
+    )?;
+    add_column_if_missing(
+        conn,
+        "posting_snapshots",
+        "provider_provenance_json",
+        "TEXT NOT NULL DEFAULT '{}'",
+    )?;
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS posting_fetch_attempts (
+            id TEXT PRIMARY KEY NOT NULL,
+            posting_id TEXT NOT NULL REFERENCES postings(id) ON DELETE CASCADE,
+            attempted_at TEXT NOT NULL,
+            retrieval_kind TEXT NOT NULL,
+            request_url TEXT NOT NULL,
+            final_url TEXT NOT NULL,
+            redirect_chain_json TEXT NOT NULL DEFAULT '[]',
+            http_status INTEGER NOT NULL,
+            response_content_type TEXT,
+            response_body TEXT,
+            outcome TEXT NOT NULL,
+            diagnostics_json TEXT NOT NULL DEFAULT '[]',
+            snapshot_id TEXT REFERENCES posting_snapshots(id) ON DELETE SET NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_posting_fetch_attempts_posting
+            ON posting_fetch_attempts(posting_id, attempted_at, id);
+        ",
     )?;
     Ok(())
 }
@@ -397,7 +437,7 @@ mod migrate_tests {
     use crate::Store;
 
     #[test]
-    fn fresh_database_schema_version_is_16() {
+    fn fresh_database_schema_version_is_17() {
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("jobdesk.db");
         let store = Store::open(&db).unwrap();
@@ -409,7 +449,7 @@ mod migrate_tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(v, "16");
+        assert_eq!(v, "17");
     }
 }
 

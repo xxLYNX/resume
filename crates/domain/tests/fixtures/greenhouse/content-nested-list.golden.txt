@@ -1,0 +1,7 @@
+Role summary
+- Ship features
+- Review code
+- Nested one
+- Nested two
+-
+More detail

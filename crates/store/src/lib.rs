@@ -29,8 +29,9 @@ pub use ledger::default_ledger_download_path;
 pub use legacy_inventory::write_legacy_skills_inventory;
 pub use migrate::migrate;
 pub use postings::{
-    normalize_posting_url, PostingDetail, PostingInterpretationDetail, PostingSnapshotSummary,
-    PostingSummary, PriorReviewedInterpretation, UpdatePostingInterpretationRequest,
+    normalize_posting_url, PostingDetail, PostingFetchAttemptSummary, PostingInterpretationDetail,
+    PostingSnapshotSummary, PostingSummary, PriorReviewedInterpretation,
+    UpdatePostingInterpretationRequest,
 };
 pub use presets::{
     create_preset, delete_preset, get_preset, list_presets, update_preset, CreatePresetRequest,

@@ -3,6 +3,11 @@
     "https://example.com/jobdesk-e2e/job/acceptance-1": [
       { "file": "job-v1.html" },
       { "file": "job-v2.html" }
+    ],
+    "https://boards-api.greenhouse.io/v1/boards/flexport/jobs/8009198?pay_transparency=true": [
+      { "file": "greenhouse-flexport-v1.json", "content_type": "application/json" },
+      { "file": "greenhouse-flexport-v2-mismatch.json", "content_type": "application/json" },
+      { "simulate_transport_error": true }
     ]
   }
 }

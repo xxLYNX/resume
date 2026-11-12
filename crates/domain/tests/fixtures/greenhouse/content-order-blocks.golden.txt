@@ -1,0 +1,5 @@
+Intro paragraph before the role.
+About the team
+- First duty
+- Second duty
+Closing paragraph after the list.

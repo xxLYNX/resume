@@ -60,6 +60,16 @@ pub struct FetchedPostingPayload {
     pub compensation: Option<crate::Compensation>,
     /// Plain-text description for display and future analysis (not raw HTML).
     pub description_plain: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub application_deadline: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_published: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub posting_updated_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compensation_ranges: Option<Vec<Value>>,
 }
 
 impl Default for FetchedPostingPayload {
@@ -72,6 +82,11 @@ impl Default for FetchedPostingPayload {
             work_mode: None,
             compensation: None,
             description_plain: None,
+            application_deadline: None,
+            first_published: None,
+            posting_updated_at: None,
+            language: None,
+            compensation_ranges: None,
         }
     }
 }
@@ -172,6 +187,128 @@ pub fn validate_final_url_after_redirects(final_url: &str) -> Result<(), Posting
 }
 
 /// SHA-256 hex digest of body (for integrity).
+pub const SNAPSHOT_BODY_PREFIX_BASE64: &str = "base64:";
+
+/// Store exact bytes in SQLite text: UTF-8 as-is, otherwise `base64:` + standard encoding.
+pub fn snapshot_body_for_storage(bytes: &[u8]) -> (String, bool) {
+    match std::str::from_utf8(bytes) {
+        Ok(s) => (s.to_string(), false),
+        Err(_) => (
+            format!(
+                "{SNAPSHOT_BODY_PREFIX_BASE64}{}",
+                base64_encode(bytes)
+            ),
+            true,
+        ),
+    }
+}
+
+/// Decode stored snapshot text for UI/source view (pretty JSON when applicable).
+pub fn snapshot_body_for_view(stored: &str) -> String {
+    let raw = if let Some(b64) = stored.strip_prefix(SNAPSHOT_BODY_PREFIX_BASE64) {
+        match base64_decode(b64) {
+            Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+            Err(_) => return stored.to_string(),
+        }
+    } else {
+        stored.to_string()
+    };
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) {
+        serde_json::to_string_pretty(&v).unwrap_or(raw)
+    } else {
+        raw
+    }
+}
+
+#[cfg(test)]
+mod snapshot_storage_tests {
+    use super::*;
+
+    #[test]
+    fn sha256_matches_stored_utf8_bytes() {
+        let bytes = b"{\"id\":1}";
+        let (stored, enc) = snapshot_body_for_storage(bytes);
+        assert!(!enc);
+        assert_eq!(stored.as_bytes(), bytes);
+        assert_eq!(sha256_hex(bytes), sha256_hex(stored.as_bytes()));
+    }
+
+    #[test]
+    fn invalid_utf8_stored_as_base64_prefix() {
+        let bytes: &[u8] = &[0xff, 0xfe, b'{', b'}'];
+        let (stored, enc) = snapshot_body_for_storage(bytes);
+        assert!(enc);
+        assert!(stored.starts_with(SNAPSHOT_BODY_PREFIX_BASE64));
+        assert_eq!(sha256_hex(bytes), sha256_hex(bytes));
+    }
+
+    #[test]
+    fn snapshot_view_decodes_base64_roundtrip() {
+        let bytes: &[u8] = &[0xff, b'"', b'x', b'"', 0];
+        let (stored, _) = snapshot_body_for_storage(bytes);
+        let view = snapshot_body_for_view(&stored);
+        assert!(!view.starts_with(SNAPSHOT_BODY_PREFIX_BASE64));
+    }
+}
+
+fn base64_decode_table() -> [u8; 256] {
+    let mut t = [255u8; 256];
+    let chars = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    for (i, &c) in chars.iter().enumerate() {
+        t[c as usize] = i as u8;
+    }
+    t
+}
+
+fn base64_decode(input: &str) -> Result<Vec<u8>, ()> {
+    let table = base64_decode_table();
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len() * 3 / 4);
+    let mut buf = 0u32;
+    let mut bits = 0u32;
+    for &b in bytes {
+        if b == b'=' {
+            break;
+        }
+        let v = table[b as usize];
+        if v == 255 {
+            return Err(());
+        }
+        buf = (buf << 6) | v as u32;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buf >> bits) as u8);
+            buf &= (1 << bits) - 1;
+        }
+    }
+    Ok(out)
+}
+
+fn base64_encode(bytes: &[u8]) -> String {
+    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = chunk.get(1).copied().unwrap_or(0) as u32;
+        let b2 = chunk.get(2).copied().unwrap_or(0) as u32;
+        let n = (b0 << 16) | (b1 << 8) | b2;
+        out.push(TABLE[((n >> 18) & 63) as usize] as char);
+        out.push(TABLE[((n >> 12) & 63) as usize] as char);
+        out.push(if chunk.len() > 1 {
+            TABLE[((n >> 6) & 63) as usize] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            TABLE[(n & 63) as usize] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
 pub fn sha256_hex(bytes: &[u8]) -> String {
     let mut h = Sha256::new();
     h.update(bytes);

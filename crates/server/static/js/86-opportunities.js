@@ -28,9 +28,35 @@
 
   let selectedPostingId = null;
   let lastDetail = null;
+  let editingInterpretationId = null;
+
+  function interpretationForDisplay(detail) {
+    const cur = detail?.current;
+    const usableOutcomes = ["recognized", "partial"];
+    if (cur && usableOutcomes.includes(cur.extraction_outcome)) return cur;
+    if (detail?.last_usable) return detail.last_usable;
+    return cur;
+  }
+
+  function latestFetchFailureMessage(attempt) {
+    if (!attempt) return "";
+    const failed =
+      attempt.outcome === "extraction_failed" ||
+      attempt.outcome === "source_unavailable" ||
+      attempt.http_status === 0 ||
+      attempt.http_status >= 400;
+    if (!failed) return "";
+    return (
+      " Latest fetch failed: HTTP " +
+      attempt.http_status +
+      " (" +
+      attempt.outcome +
+      ")."
+    );
+  }
 
   function mergedPayload(detail) {
-    const c = detail?.current;
+    const c = interpretationForDisplay(detail);
     return c?.merged || {};
   }
 
@@ -69,10 +95,12 @@
     oppFieldPayUnit.value = comp.unit || "";
     oppFieldPayMin.value = comp.min != null ? String(comp.min) : "";
     oppFieldPayMax.value = comp.max != null ? String(comp.max) : "";
+    const displayInterp = interpretationForDisplay(detail);
+    editingInterpretationId = displayInterp?.id || null;
     const cur = detail?.current;
-    const outcome = cur?.extraction_outcome;
-    const userDesc = cur?.user_overrides?.description_plain;
-    const machineDesc = cur?.machine_suggested?.description_plain;
+    const outcome = displayInterp?.extraction_outcome;
+    const userDesc = displayInterp?.user_overrides?.description_plain;
+    const machineDesc = displayInterp?.machine_suggested?.description_plain;
     if (userDesc) {
       oppFieldDescription.value = userDesc;
     } else if (
@@ -94,9 +122,20 @@
         extraction_failed:
           "Extraction: could not derive useful posting text from HTML.",
       };
-      oppExtractionLine.textContent =
+      let line =
         labels[outcome] ||
         "Extraction: saved HTML snapshot; machine fields may be empty.";
+      const attempt = detail?.latest_fetch_attempt;
+      line += latestFetchFailureMessage(attempt);
+      if (
+        detail?.last_usable &&
+        displayInterp &&
+        detail.current &&
+        detail.current.id !== displayInterp.id
+      ) {
+        line += " Showing last usable extraction; latest attempt did not replace it.";
+      }
+      oppExtractionLine.textContent = line;
     }
     if (oppExtractionDiagnostics) {
       oppExtractionDiagnostics.replaceChildren();
@@ -106,8 +145,8 @@
         oppExtractionDiagnostics.appendChild(li);
       }
     }
-    if (cur?.reviewed_at) {
-      oppReviewLine.textContent = "Reviewed at " + cur.reviewed_at;
+    if (displayInterp?.reviewed_at) {
+      oppReviewLine.textContent = "Reviewed at " + displayInterp.reviewed_at;
     } else {
       let line =
         "Not reviewed — extraction is a suggestion until you save edits and mark reviewed.";
@@ -310,7 +349,10 @@
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_overrides: userOverridesBody() }),
+          body: JSON.stringify({
+            interpretation_id: editingInterpretationId,
+            user_overrides: userOverridesBody(),
+          }),
         },
       );
       const data = await res.json();
@@ -341,7 +383,10 @@
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mark_reviewed: true }),
+          body: JSON.stringify({
+            interpretation_id: editingInterpretationId,
+            mark_reviewed: true,
+          }),
         },
       );
       const data = await res.json();

@@ -12,3 +12,5 @@ thiserror = "2"
 time = { workspace = true }
 url = { workspace = true }
 scraper = "0.22"
+html-escape = "0.2"
+ego-tree = "0.10"

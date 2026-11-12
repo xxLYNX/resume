@@ -5,6 +5,8 @@ mod compensation;
 mod composition;
 mod dates;
 mod framework_refs;
+mod greenhouse;
+mod greenhouse_content;
 mod ledger;
 mod location;
 mod manifest;
@@ -37,6 +39,15 @@ pub use dates::{
     DateRange, DateRangeEnd, MonthDisplay, MONTH_ABBR,
 };
 pub use framework_refs::{merge_framework_refs, merge_framework_refs_into, FrameworkRefsImportRow};
+pub use greenhouse::{
+    build_greenhouse_provenance, extraction_outcome_usable, greenhouse_api_job_url,
+    greenhouse_http_error_outcome, interpret_greenhouse_job_json, is_greenhouse_api_url,
+    parse_greenhouse_job_detail_url, GreenhouseJobRef, GREENHOUSE_ADAPTER_ID,
+    GREENHOUSE_ADAPTER_VERSION, RETRIEVAL_KIND_GREENHOUSE,
+};
+pub use greenhouse_content::{
+    content_meaningful, decode_entities_capped, greenhouse_content_to_plain,
+};
 pub use ledger::{render_ledger_tex, ApplicationLedgerRow};
 pub use location::WorkLocation;
 pub use manifest::{
@@ -46,7 +57,9 @@ pub use posting_fetch::{
     detect_source_unavailable, extract_from_html, is_disallowed_destination_ip,
     looks_like_embedded_app_dump, outcome_list_label, parse_extraction_outcome,
     resolve_public_socket_addr, sha256_hex, validate_final_url_after_redirects,
-    validate_public_fetch_url, ExtractPostingResult, FetchedPostingPayload, PostingFetchError,
+    snapshot_body_for_storage, snapshot_body_for_view, validate_public_fetch_url,
+    ExtractPostingResult,
+    FetchedPostingPayload, PostingFetchError, SNAPSHOT_BODY_PREFIX_BASE64,
     DEFAULT_FETCH_TIMEOUT, DIAG_OUTCOME_PREFIX, MAX_FALLBACK_DESCRIPTION_CHARS,
     MAX_POSTING_BODY_BYTES, MAX_POSTING_REDIRECTS, OUTCOME_EXTRACTION_FAILED, OUTCOME_PARTIAL,
     OUTCOME_RECOGNIZED, OUTCOME_SOURCE_UNAVAILABLE, POSTING_EXTRACTOR_VERSION,
