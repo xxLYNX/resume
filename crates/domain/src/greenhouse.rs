@@ -32,7 +32,7 @@ pub fn parse_greenhouse_job_detail_url(input: &str) -> Option<GreenhouseJobRef> 
     if u.host_str()? != JOB_BOARDS_HOST {
         return None;
     }
-    let mut segs = u
+    let segs = u
         .path_segments()
         .map(|s| s.collect::<Vec<_>>())
         .unwrap_or_default();

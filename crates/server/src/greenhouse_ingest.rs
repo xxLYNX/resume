@@ -8,7 +8,6 @@ use domain::{
     interpret_greenhouse_job_json, parse_extraction_outcome, parse_greenhouse_job_detail_url,
     sha256_hex, snapshot_body_for_storage, GreenhouseJobRef, DIAG_OUTCOME_PREFIX,
     GREENHOUSE_ADAPTER_ID, GREENHOUSE_ADAPTER_VERSION, OUTCOME_EXTRACTION_FAILED,
-    OUTCOME_SOURCE_UNAVAILABLE,
 };
 use serde_json::{json, Value};
 use store::Store;
@@ -38,7 +37,7 @@ pub async fn try_ingest_greenhouse(
     let fetched = match fetch {
         Ok(Ok(r)) => r,
         Ok(Err(e)) => {
-            let mut diags = vec![
+            let diags = vec![
                 format!("retrieval:transport:{e}"),
                 format!("{DIAG_OUTCOME_PREFIX}{OUTCOME_EXTRACTION_FAILED}"),
                 "http_status:0".into(),
@@ -99,7 +98,7 @@ pub async fn try_ingest_greenhouse(
     }
 
     if body_bytes.is_empty() {
-        let mut diags = vec![
+        let diags = vec![
             "http_status:200".into(),
             "retrieval:empty_body".into(),
             format!("{DIAG_OUTCOME_PREFIX}{OUTCOME_EXTRACTION_FAILED}"),
@@ -134,7 +133,7 @@ pub async fn try_ingest_greenhouse(
     let mut extracted = body_utf8
         .map(|s| interpret_greenhouse_job_json(s, &gh.post_id))
         .unwrap_or_else(|| {
-            let mut diags = vec![
+            let diags = vec![
                 "retrieval:invalid_utf8".into(),
                 format!("{DIAG_OUTCOME_PREFIX}{OUTCOME_EXTRACTION_FAILED}"),
             ];
@@ -248,7 +247,6 @@ pub fn parse_gh_url(url: &str) -> Option<GreenhouseJobRef> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use domain::{
         greenhouse_http_error_outcome, OUTCOME_EXTRACTION_FAILED, OUTCOME_SOURCE_UNAVAILABLE,
     };

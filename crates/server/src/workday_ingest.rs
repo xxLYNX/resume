@@ -7,7 +7,7 @@ use domain::{
     build_workday_provenance, interpret_workday_cxs_json, parse_extraction_outcome,
     parse_workday_job_detail_url, sha256_hex, snapshot_body_for_storage, workday_cxs_job_url,
     workday_http_error_outcome, WorkdayJobRef, DIAG_OUTCOME_PREFIX, OUTCOME_EXTRACTION_FAILED,
-    OUTCOME_SOURCE_UNAVAILABLE, RETRIEVAL_KIND_WORKDAY, WORKDAY_ADAPTER_ID,
+    RETRIEVAL_KIND_WORKDAY, WORKDAY_ADAPTER_ID,
     WORKDAY_ADAPTER_VERSION,
 };
 use serde_json::{json, Value};
@@ -38,7 +38,7 @@ pub async fn try_ingest_workday(
     let fetched = match fetch {
         Ok(Ok(r)) => r,
         Ok(Err(e)) => {
-            let mut diags = vec![
+            let diags = vec![
                 format!("retrieval:transport:{e}"),
                 format!("{DIAG_OUTCOME_PREFIX}{OUTCOME_EXTRACTION_FAILED}"),
                 "http_status:0".into(),
@@ -108,7 +108,7 @@ pub async fn try_ingest_workday(
     }
 
     if body_bytes.is_empty() {
-        let mut diags = vec![
+        let diags = vec![
             "http_status:200".into(),
             "retrieval:empty_body".into(),
             format!("{DIAG_OUTCOME_PREFIX}{OUTCOME_EXTRACTION_FAILED}"),
@@ -260,7 +260,6 @@ pub fn parse_workday_url(url: &str) -> Option<WorkdayJobRef> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use domain::{
         workday_http_error_outcome, OUTCOME_EXTRACTION_FAILED, OUTCOME_SOURCE_UNAVAILABLE,
     };
