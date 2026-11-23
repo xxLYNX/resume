@@ -435,8 +435,6 @@ mod ingest_tests {
         let db = dir.path().join("jobdesk.db");
         let _store = Store::open(&db).unwrap();
         let url = "https://fixture.example/jobs/prior";
-        let state = mock_state(db.clone(), url, job_html("Role A", "Co A"));
-        let app = api_router(state);
 
         let ingest = |html: String| async {
             let st = mock_state(db.clone(), url, html);
@@ -878,12 +876,9 @@ mod acceptance_safety_tests {
     use super::*;
     use crate::posting_http::SecurePostingHttpFetcher;
     use crate::AppState;
-    use axum::body::Body;
-    use axum::http::Request;
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
     use tempfile::TempDir;
-    use tower::ServiceExt;
 
     #[test]
     fn acceptance_e2e_workspace_marker() {

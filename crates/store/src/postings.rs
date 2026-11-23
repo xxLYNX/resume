@@ -1502,7 +1502,6 @@ mod tests {
             .unwrap();
         let pid = d1.posting.id.clone();
         let usable_id = d1.current.as_ref().unwrap().id.clone();
-        let usable_id_chk = usable_id.clone();
         store
             .update_posting_interpretation(
                 &pid,
