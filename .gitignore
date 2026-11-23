@@ -24,3 +24,6 @@ go.work
 
 note.md
 resume.txt
+
+# Editor
+.vscode/

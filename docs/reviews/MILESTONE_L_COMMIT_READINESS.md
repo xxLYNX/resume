@@ -65,7 +65,7 @@ Production network fetch unchanged: `SecurePostingHttpFetcher` unless `--accepta
 ### Explicitly excluded (untracked / not staged)
 
 - `docs/MILESTONE_M_GREENHOUSE_ADAPTER_SPEC.md`
-- Root `00_*` … `09_*`, `PROPOSED_project.jobdesk_*`
+- `docs/00_*` … `docs/09_*`, `docs/PROPOSED_project.jobdesk_*`
 - `target/`, `e2e/opportunities/node_modules/`, Playwright artifacts
 
 ## Milestone L verdict
