@@ -27,3 +27,6 @@ resume.txt
 
 # Editor
 .vscode/
+
+# Review diffs exported for inspection
+*.patch
