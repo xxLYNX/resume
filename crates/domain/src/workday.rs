@@ -338,6 +338,9 @@ pub fn interpret_workday_cxs_json(
     if info.job_req_id.as_deref().unwrap_or("").is_empty() {
         push_gap(&mut diagnostics, "job_req_id");
     }
+    if info.job_posting_id.as_deref().unwrap_or("").is_empty() {
+        push_gap(&mut diagnostics, "job_posting_id");
+    }
     if info.external_url.as_deref().unwrap_or("").is_empty() {
         push_gap(&mut diagnostics, "external_url");
     }
