@@ -9,6 +9,8 @@ use walkdir::WalkDir;
 
 pub const CLASSIC_THEME_DIR: &str = "themes/classic";
 
+pub mod preferences;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ThemeInfo {
     pub id: String,

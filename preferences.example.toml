@@ -1,0 +1,14 @@
+# JobDesk workspace preferences. Copy to <workspace>/preferences.toml.
+# This file is TOML. Do not add a preferences.yaml.
+# Missing file: JobDesk uses these defaults in memory and does not create the file.
+# Unknown theme ids and malformed TOML are errors. JobDesk will not rewrite a file it cannot parse.
+
+schema_version = 1
+
+[resume.default_themes]
+# Résumé tab target "catalog default" (every catalog element). Not a saved composition.
+catalog_preview = "classic"
+# Future Showcase draft/preview. Does not change an already approved publication.
+showcase = "classic"
+# Theme suggested for a new application preview. Stored submissions keep the theme they were approved with.
+application = "ats-classic"
