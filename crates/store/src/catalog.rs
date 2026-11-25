@@ -80,11 +80,13 @@ pub struct ElementUsagePreset {
 pub struct ElementUsageReport {
     pub applications: Vec<ElementUsageApplication>,
     pub presets: Vec<ElementUsagePreset>,
+    /// The Showcase draft pins this element. Approved publications do not.
+    pub showcase_draft: bool,
 }
 
 impl ElementUsageReport {
     pub fn is_unused(&self) -> bool {
-        self.applications.is_empty() && self.presets.is_empty()
+        self.applications.is_empty() && self.presets.is_empty() && !self.showcase_draft
     }
 }
 
@@ -256,18 +258,28 @@ impl Store {
             }
         }
 
+        drop(p_stmt);
+        drop(stmt);
+        let showcase_draft = showcase_draft_references(conn, element_id)?;
+
         Ok(ElementUsageReport {
             applications,
             presets,
+            showcase_draft,
         })
     }
 
-    /// Remove element and all revisions. Fails if any application or preset composition references it.
+    /// Remove element and all revisions. Fails if an application, preset, or the Showcase draft references it.
     pub fn delete_element_if_unused(&self, element_id: &str) -> Result<()> {
         let usage = self.element_usage(element_id)?;
         if !usage.is_unused() {
+            let showcase = if usage.showcase_draft {
+                ", showcase draft"
+            } else {
+                ""
+            };
             anyhow::bail!(
-                "element `{element_id}` is in use ({} application(s), {} preset(s))",
+                "element `{element_id}` is in use ({} application(s), {} preset(s){showcase})",
                 usage.applications.len(),
                 usage.presets.len()
             );
@@ -511,6 +523,22 @@ impl<T> OptionalExt<T> for Result<T, rusqlite::Error> {
             Err(e) => Err(e),
         }
     }
+}
+
+fn showcase_draft_references(conn: &rusqlite::Connection, element_id: &str) -> Result<bool> {
+    let draft_json: Option<String> = conn
+        .query_row(
+            "SELECT draft_composition_json FROM showcase WHERE id = 'default'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let Some(draft_json) = draft_json else {
+        return Ok(false);
+    };
+    let composition: Composition = serde_json::from_str(&draft_json)
+        .context("parse showcase draft composition while checking element use")?;
+    Ok(composition.references_element(element_id))
 }
 
 fn parse_kind(s: &str) -> Result<ElementKind> {

@@ -132,9 +132,49 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if version < 17 {
         migrate_opportunity_postings_v17(conn)?;
     }
+    if version < 18 {
+        migrate_showcase_v18(conn)?;
+    }
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '17')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '18')",
         [],
+    )?;
+    Ok(())
+}
+
+fn migrate_showcase_v18(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS showcase_publications (
+            id TEXT PRIMARY KEY NOT NULL,
+            created_at TEXT NOT NULL,
+            theme_id TEXT NOT NULL,
+            theme_files_hash TEXT,
+            composition_json TEXT NOT NULL,
+            resolved_json TEXT NOT NULL,
+            snapshot_hash TEXT NOT NULL,
+            pdf_relpath TEXT NOT NULL,
+            pdf_sha256 TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS showcase (
+            id TEXT PRIMARY KEY NOT NULL CHECK (id = 'default'),
+            theme_id TEXT NOT NULL,
+            draft_composition_json TEXT NOT NULL,
+            current_publication_id TEXT REFERENCES showcase_publications(id),
+            updated_at TEXT NOT NULL
+        );
+        ",
+    )?;
+    let draft = serde_json::to_string(&domain::empty_showcase_composition())?;
+    let now = time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string());
+    conn.execute(
+        "INSERT INTO showcase (id, theme_id, draft_composition_json, current_publication_id, updated_at)
+         SELECT 'default', ?1, ?2, NULL, ?3
+         WHERE NOT EXISTS (SELECT 1 FROM showcase WHERE id = 'default')",
+        params![domain::SHOWCASE_DEFAULT_THEME_ID, draft, now],
     )?;
     Ok(())
 }
@@ -437,7 +477,7 @@ mod migrate_tests {
     use crate::Store;
 
     #[test]
-    fn fresh_database_schema_version_is_17() {
+    fn fresh_database_schema_version_is_18() {
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("jobdesk.db");
         let store = Store::open(&db).unwrap();
@@ -449,7 +489,7 @@ mod migrate_tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(v, "17");
+        assert_eq!(v, "18");
     }
 }
 

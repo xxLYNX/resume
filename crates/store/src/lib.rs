@@ -7,6 +7,7 @@ pub mod legacy_inventory;
 mod migrate;
 pub mod postings;
 pub mod presets;
+pub mod showcase;
 pub mod skills;
 
 use std::path::Path;

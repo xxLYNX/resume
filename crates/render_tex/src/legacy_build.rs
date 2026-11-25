@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use domain::{LegacyConfig, MonthDisplay};
 use render_pdf::write_tex_and_compile;
 use resolve::ResolvedSections;
 use sha2::{Digest, Sha256};
@@ -153,7 +154,57 @@ pub fn write_build_to_dir(
     theme_id: &str,
     composition_section_order: Option<&[String]>,
 ) -> Result<LegacyBuildResult> {
-    let (config, month_display) = load_themed_build_config(project_root, config_path, theme_id)?;
+    write_build_to_dir_named(
+        project_root,
+        config_path,
+        output_dir,
+        resolved,
+        compile_pdf,
+        theme_id,
+        composition_section_order,
+        None,
+    )
+}
+
+/// Same as [`write_build_to_dir`], with a fixed TeX job name so `output.filename`
+/// in the YAML cannot change the PDF.
+pub(crate) fn write_build_to_dir_named(
+    project_root: &Path,
+    config_path: &Path,
+    output_dir: &Path,
+    resolved: &ResolvedSections,
+    compile_pdf: bool,
+    theme_id: &str,
+    composition_section_order: Option<&[String]>,
+    output_filename: Option<&str>,
+) -> Result<LegacyBuildResult> {
+    let (mut config, month_display) =
+        load_themed_build_config(project_root, config_path, theme_id)?;
+    if let Some(filename) = output_filename {
+        config.output.filename = filename.to_string();
+    }
+    write_build_with_config(
+        project_root,
+        &config,
+        month_display,
+        output_dir,
+        resolved,
+        compile_pdf,
+        composition_section_order,
+    )
+}
+
+/// Render `config` as already prepared. Callers that need one configuration for
+/// identity and output use this instead of reading the YAML again.
+pub(crate) fn write_build_with_config(
+    project_root: &Path,
+    config: &LegacyConfig,
+    month_display: MonthDisplay,
+    output_dir: &Path,
+    resolved: &ResolvedSections,
+    compile_pdf: bool,
+    composition_section_order: Option<&[String]>,
+) -> Result<LegacyBuildResult> {
     let tex = build_resume_tex(
         project_root,
         &config,

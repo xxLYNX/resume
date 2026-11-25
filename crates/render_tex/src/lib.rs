@@ -1,5 +1,6 @@
 mod filters;
 mod legacy_build;
+mod showcase;
 
 use std::fs;
 use std::path::Path;
@@ -14,6 +15,7 @@ pub use legacy_build::{
     hash_tex, jobdesk_build_aligned, jobdesk_build_composition_to_dir,
     jobdesk_build_resolved_to_dir, jobdesk_build_to_dir, write_build_to_dir, LegacyBuildResult,
 };
+pub use showcase::approve_showcase;
 
 /// Apply `themes/{theme_id}/` template paths and read date display policy from `theme.toml`.
 pub fn load_themed_build_config(
@@ -126,7 +128,7 @@ pub fn build_resume_tex(
 }
 
 /// Composable sections follow draft order; config-only sections (e.g. toolbelt) keep YAML placement.
-fn section_render_order(
+pub(crate) fn section_render_order(
     config: &LegacyConfig,
     composition_order: Option<&[String]>,
 ) -> Vec<String> {

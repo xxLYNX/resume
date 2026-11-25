@@ -13,6 +13,7 @@ mod manifest;
 mod posting_fetch;
 mod posting_hints;
 mod resume_filename;
+mod showcase;
 mod skills;
 mod validation;
 mod workday;
@@ -69,6 +70,11 @@ pub use posting_hints::{
     SkillPostingMatch,
 };
 pub use resume_filename::resume_download_filename;
+pub use showcase::{
+    compute_showcase_snapshot_hash, empty_showcase_composition, sha256_prefixed,
+    showcase_composition_is_empty, ShowcaseDraft, ShowcasePublication, SHOWCASE_DEFAULT_THEME_ID,
+    SHOWCASE_ID, SHOWCASE_SECTION_KEYS,
+};
 pub use skills::{
     validate_element_links, validate_pdf_group, validate_skill_id, validate_skill_node,
     ElementSkillLink, SkillError, SkillKind, SkillNode, PDF_SKILL_GROUPS, SKILL_KINDS,

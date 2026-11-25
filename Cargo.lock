@@ -1361,6 +1361,7 @@ dependencies = [
  "serde_yaml",
  "sha2",
  "store",
+ "tempfile",
  "theme",
 ]
 
