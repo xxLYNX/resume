@@ -14,6 +14,7 @@ mod posting_fetch;
 mod posting_hints;
 mod resume_filename;
 mod showcase;
+mod showcase_approval;
 mod skills;
 mod validation;
 mod workday;
@@ -74,6 +75,11 @@ pub use showcase::{
     compute_showcase_snapshot_hash, empty_showcase_composition, sha256_prefixed,
     showcase_composition_is_empty, ShowcaseConflict, ShowcaseDraft, ShowcasePublication,
     SHOWCASE_DEFAULT_THEME_ID, SHOWCASE_ID, SHOWCASE_SECTION_KEYS,
+};
+pub use showcase_approval::{
+    showcase_has_unsaved_edits, showcase_preview_approve_enabled, showcase_preview_enables_approve,
+    showcase_requires_draft_preview_mode, ShowcasePreviewEnablesApproveInput,
+    ShowcaseUnsavedEditsInput,
 };
 pub use skills::{
     validate_element_links, validate_pdf_group, validate_skill_id, validate_skill_node,

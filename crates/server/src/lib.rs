@@ -3,7 +3,6 @@ mod assets;
 mod catalog;
 mod preferences_api;
 mod showcase;
-mod showcase_approval_guard;
 pub mod greenhouse_ingest;
 pub mod opportunities;
 pub mod posting_http;

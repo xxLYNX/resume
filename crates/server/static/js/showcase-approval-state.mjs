@@ -1,5 +1,6 @@
 /**
  * Shared Showcase approval / preview readiness rules (browser + node --test).
+ * Rust mirror: `domain::showcase_approval`. Contract tests: `domain/tests/fixtures/showcase_approval_cases.json`.
  */
 
 export function showcasePreviewEnablesApprove({

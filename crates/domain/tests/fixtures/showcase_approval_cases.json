@@ -1,0 +1,140 @@
+{
+  "strings": {
+    "savedA": "{\"sections\":[{\"section_key\":\"header\",\"items\":[]}]}",
+    "savedTheme": "classic",
+    "snapshotB": "{\"sections\":[{\"section_key\":\"header\",\"items\":[{\"element_id\":\"h\",\"revision_id\":\"r\"}]}]}"
+  },
+  "cases": [
+    {
+      "name": "theme-only unsaved change blocks approval readiness",
+      "op": "hasUnsavedEdits",
+      "args": {
+        "savedComposition": "savedA",
+        "savedTheme": "savedTheme",
+        "liveComposition": "savedA",
+        "liveTheme": "ats-classic"
+      },
+      "expect": true
+    },
+    {
+      "name": "stale preview for B does not enable approve after revert to saved A",
+      "op": "previewEnablesApprove",
+      "args": {
+        "savedComposition": "savedA",
+        "savedTheme": "savedTheme",
+        "snapshotComposition": "snapshotB",
+        "snapshotTheme": "savedTheme",
+        "liveComposition": "savedA",
+        "liveTheme": "savedTheme",
+        "requestId": 7,
+        "currentRequestId": 7
+      },
+      "expect": false
+    },
+    {
+      "name": "preview for saved A enables approve when editor still matches",
+      "op": "previewEnablesApprove",
+      "args": {
+        "savedComposition": "savedA",
+        "savedTheme": "savedTheme",
+        "snapshotComposition": "savedA",
+        "snapshotTheme": "savedTheme",
+        "liveComposition": "savedA",
+        "liveTheme": "savedTheme",
+        "requestId": 3,
+        "currentRequestId": 3
+      },
+      "expect": true
+    },
+    {
+      "name": "superseded request id never enables approve",
+      "op": "previewEnablesApprove",
+      "args": {
+        "savedComposition": "savedA",
+        "savedTheme": "savedTheme",
+        "snapshotComposition": "savedA",
+        "snapshotTheme": "savedTheme",
+        "liveComposition": "savedA",
+        "liveTheme": "savedTheme",
+        "requestId": 2,
+        "currentRequestId": 5
+      },
+      "expect": false
+    },
+    {
+      "name": "unavailable approval rules: null core",
+      "op": "previewApproveEnabled",
+      "rules_core": "null",
+      "args": {
+        "savedComposition": "savedA",
+        "savedTheme": "savedTheme",
+        "snapshotComposition": "savedA",
+        "snapshotTheme": "savedTheme",
+        "liveComposition": "savedA",
+        "liveTheme": "savedTheme",
+        "requestId": 1,
+        "currentRequestId": 1
+      },
+      "expect": false
+    },
+    {
+      "name": "unavailable approval rules: undefined core",
+      "op": "previewApproveEnabled",
+      "rules_core": "undefined",
+      "args": {
+        "savedComposition": "savedA",
+        "savedTheme": "savedTheme",
+        "snapshotComposition": "savedA",
+        "snapshotTheme": "savedTheme",
+        "liveComposition": "savedA",
+        "liveTheme": "savedTheme",
+        "requestId": 1,
+        "currentRequestId": 1
+      },
+      "expect": false
+    },
+    {
+      "name": "unavailable approval rules: empty core object",
+      "op": "previewApproveEnabled",
+      "rules_core": "empty",
+      "args": {
+        "savedComposition": "savedA",
+        "savedTheme": "savedTheme",
+        "snapshotComposition": "savedA",
+        "snapshotTheme": "savedTheme",
+        "liveComposition": "savedA",
+        "liveTheme": "savedTheme",
+        "requestId": 1,
+        "currentRequestId": 1
+      },
+      "expect": false
+    },
+    {
+      "name": "showcase target requires draft preview mode: submitted",
+      "op": "requiresDraftPreviewMode",
+      "args": {
+        "resumeTargetType": "showcase",
+        "previewModeValue": "submitted"
+      },
+      "expect": false
+    },
+    {
+      "name": "showcase target requires draft preview mode: draft",
+      "op": "requiresDraftPreviewMode",
+      "args": {
+        "resumeTargetType": "showcase",
+        "previewModeValue": "draft"
+      },
+      "expect": true
+    },
+    {
+      "name": "non-showcase target ignores preview mode",
+      "op": "requiresDraftPreviewMode",
+      "args": {
+        "resumeTargetType": "application",
+        "previewModeValue": "submitted"
+      },
+      "expect": true
+    }
+  ]
+}
