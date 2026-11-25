@@ -1,53 +1,68 @@
-# Showcase résumé (J1)
+# Showcase résumé
 
 One Showcase per workspace. It is not an application, a preset, or a second copy of the catalog.
 
-Schema **v18** adds `showcase` and `showcase_publications`. Opening a database creates the singleton draft if it is missing. Existing `elements`, `applications`, and `submissions` rows are not rewritten.
+Schema **v18** adds `showcase` and `showcase_publications`. Schema **v19** adds optional `applications.draft_theme_id` for per-application themes (NULL renders as `classic`).
 
-## Draft
+## J1 persistence and approval
 
-`showcase.id` is `default`. The first draft uses theme `classic` and the standard section keys with no items. It is not `default_composition`.
+Opening a database creates the singleton draft if it is missing. The first row uses theme `classic` and empty section items (not `default_composition`).
 
 `save_showcase_draft` replaces `theme_id` and `draft_composition_json`. It does not change publication rows or `current_publication_id`.
 
-Deleting a catalog element fails while the draft pins it. An approved publication does not keep that element alive. The publication already copied `resolved`.
+`approve_showcase` (`render_tex`) captures the draft once, renders from the theme snapshot, and commits a publication when the captured `updated_at`, composition, theme, and pointer still match. Empty compositions, stale captures, and missing or mismatched PDFs are rejected without altering the current approved pointer.
 
-## Publication
+Restore moves `current_publication_id` only; it does not rewrite the working draft.
 
-`approve_showcase` (`render_tex`) captures the draft once. That capture supplies the composition, theme, current publication pointer, and resolved data used both to render and to insert the publication. The database commit re-reads `theme_id`, the exact `draft_composition_json`, `updated_at`, and `current_publication_id` in the same transaction as the insert and the pointer update. If any of those differ, including a restore that moved the pointer, the attempt is a conflict: the new artifact directory is removed and the restored pointer stays. The early identical-approval return also requires the captured pointer to still be current.
+## JobDesk UI (J2)
 
-An empty composition is rejected before theme load or PDF compilation.
+### Resume editor target
 
-Rendering reads theme files from `artifacts/theme_snapshots/<hash>/`, not from the live `themes/` tree. The recorded `theme_files_hash` is checked against that snapshot and approval stops if they differ. `settings/jobdesk.yaml` is loaded once per approval. That same configuration supplies the ordered enabled-section list and the PDF build. Application and submission builds still load the YAML on their own path. Template paths, section titles, and the preamble path in that file are replaced from the theme. The TeX job name is fixed to `resume.tex`, so `output.filename` does not change the PDF. Comments in the YAML are not part of the publication identity. The enabled-section list is part of `compute_showcase_snapshot_hash` together with the theme id, theme-file hash, composition, and resolved JSON. That hash is separate from submission `compute_snapshot_hash`.
+Portfolio **Showcase** switches to the Resume tab with target **Showcase (working draft)**. The same composition editor, section pins, theme selector, and PDF preview are used. The catalog is never silently copied into Showcase.
 
-Each approval compiles in its own `artifacts/showcase-build/<pid>.<nanos>.<seq>/` directory. The directory is removed after a successful read of the PDF and after a failed build.
+HTTP:
 
-The PDF is installed with a unique temporary name. Before that rename, the parent directories that hold the new publication directory entry are synced. The file is then `sync_all`'d and renamed. After the rename, the publication directory that holds `resume.pdf` is synced. A failure before the rename says the publication was not created. A directory-sync failure after the rename says the new PDF may already be installed and does not delete it. A SQL failure removes only the new publication directory. Unreferenced artifact directories are left in place.
+- `GET /api/showcase` — working draft, current publication, history list
+- `POST /api/showcase/draft` — save `theme_id` + composition (validated theme)
+- `POST /api/showcase/apply-default-theme` — set the **saved** draft theme to the configured Showcase default from `workspace/preferences.toml` (requires matching `updated_at`; does not change composition or publications)
+- `POST /api/showcase/approve` — approve the **saved** draft (`updated_at` must match; server calls `render_tex::approve_showcase`)
+- `POST /api/showcase/restore` — move current publication pointer
+- `GET /api/showcase/publications/{id}/resume.pdf` — serve approved PDF with checksum check
 
-Each publication row stores:
+Browser UX:
 
-- the captured draft `theme_id` and composition
-- `theme_files_hash` of the snapshot that was compiled
-- denormalized `resolved_json`
-- `snapshot_hash` from `compute_showcase_snapshot_hash`
-- `pdf_relpath` `artifacts/showcase/<id>/resume.pdf`
-- `pdf_sha256` of those PDF bytes
+- **Approve** and **Use configured Showcase default theme** are disabled while the editor differs from the last saved draft.
+- Approval asks for confirmation and relies on the PDF preview (including contact fields).
+- History lists approved publications with view, restore pointer, and **copy composition to working draft** (separate from restore).
 
-The insert and the current-pointer update are one transaction. Approving the same snapshot as the current publication returns that row and does not insert another. Later catalog edits and later draft edits do not update an existing row.
+### Theme defaults vs saved themes
 
-`restore_showcase_pointer` moves the pointer to an older id after the PDF is present and its checksum matches `pdf_sha256`. It does not delete history and does not replace the draft. A missing or mismatched PDF leaves the pointer where it was.
+| Surface | What “default” means | What is stored |
+|---------|----------------------|----------------|
+| Settings → Showcase | Preference for *new* explicit applies via **Use configured Showcase default theme** | `preferences.toml` only; does not change the DB row when you save Settings |
+| Showcase DB row at open | Explicit `classic` on the singleton | Stays until user saves a draft or runs **apply-default-theme** |
+| Portfolio preview | Initial theme selector when themes load | Selector only until user previews/saves elsewhere |
+| Applications | Default for **new** applications (API/CLI) | `applications.draft_theme_id`; NULL → render `classic` |
 
-There is no application id on these tables.
+Changing a default in Settings does **not** retroactively change existing application drafts, submissions, Showcase approved publications, or presets.
 
-## Failure
+### Settings
 
-- Empty composition: no render, no row, no artifact directory.
-- Theme load, a theme-hash mismatch, resolve, or PDF compile fails: no publication row. The build directory for that attempt is removed. A content-addressed copy under `artifacts/theme_snapshots/` may remain. It is not a publication.
-- The draft changes after capture: conflict, new artifact removed, previous pointer unchanged.
-- The PDF file cannot be installed: no row, previous pointer unchanged.
-- Directory sync fails after the PDF rename: no row, previous pointer unchanged, and the new file may already be on disk. It is not swept up later.
-- The database insert fails: only the new publication directory is removed. Previously approved PDFs and unreferenced artifact directories are left in place.
+Header **Settings** edits `workspace/preferences.toml` slots `catalog_preview`, `showcase`, and `application` via `GET /api/preferences` and `POST /api/preferences/default-theme` (atomic TOML update, theme ids validated).
 
-## Not in this milestone
+### Application themes (J2)
 
-Settings UI, Showcase browser UI, `jobdesk showcase export`, and the website publisher are not implemented.
+New applications receive `draft_theme_id` from an explicit API choice, clone inheritance, or the Applications default in preferences. Legacy rows with NULL keep rendering as `classic`.
+
+`PATCH /api/applications/{id}` validates `draft_theme_id` even when composition is omitted; unknown themes are rejected.
+
+`jobdesk build --application ID` (draft mode) uses the stored application theme when `--theme` is omitted. `--theme` overrides. Submitted mode still uses the canonical submission manifest theme.
+
+### Header `location_label`
+
+Optional header field (e.g. `Fairfax County, VA`) renders as a footnote-sized line under contact links in `classic` and `ats-classic`.
+
+## Limitations (J2)
+
+- No browser automation in CI; HTTP integration tests cover APIs. Full click-through of Portfolio → Showcase is documented for manual verification.
+- No public website publisher, GitHub integration, or `jobdesk showcase export` (J3).

@@ -13,6 +13,7 @@ use theme::{load_theme_info, theme_dir_for_id};
 
 pub use legacy_build::{
     hash_tex, jobdesk_build_aligned, jobdesk_build_composition_to_dir,
+    resolve_jobdesk_build_theme,
     jobdesk_build_resolved_to_dir, jobdesk_build_to_dir, write_build_to_dir, LegacyBuildResult,
 };
 pub use showcase::approve_showcase;

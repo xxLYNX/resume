@@ -9,6 +9,11 @@
         opt.textContent = id;
         previewThemeSelect.appendChild(opt);
       }
+      const prefDefault =
+        window.jobdeskPreferences?.resume?.default_themes?.catalog_preview;
+      if (prefDefault && ids.includes(prefDefault)) {
+        previewThemeId = prefDefault;
+      }
       if (ids.includes(previewThemeId)) {
         previewThemeSelect.value = previewThemeId;
       } else if (ids.length) {
@@ -26,6 +31,7 @@
     async function onPreviewThemeChanged() {
       const theme = selectedPreviewThemeId();
       previewThemeId = theme;
+      window.jobdeskShowcase?.onEditorOrThemeChanged?.();
       invalidatePreviewClientState();
       statusEl.textContent = `Building preview (${theme})…`;
       statusEl.classList.remove("error");

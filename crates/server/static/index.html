@@ -30,11 +30,13 @@
     </label>
     <button type="button" id="rebuild">Rebuild preview</button>
     <span id="status" class="meta"></span>
+    <button type="button" id="open-settings" class="settings-button">Settings</button>
   </header>
   <main id="main-layout" class="layout-catalog">
     <section class="panel" id="panel-catalog" aria-label="Portfolio">
       <div class="row">
         <button type="button" id="reload-catalog">Reload</button>
+        <button type="button" id="open-showcase">Showcase</button>
         <label class="meta">New
           <select id="new-entry-kind">
             <option value="header">contact</option>
@@ -357,6 +359,17 @@
         <button type="button" id="resume-save-draft">Save draft</button>
         <span class="meta" id="resume-status"></span>
       </div>
+      <div id="showcase-tools" class="hidden">
+        <p class="help" id="showcase-banner">Working draft. Saving does not change the approved publication. Approval publishes the saved draft for public distribution.</p>
+        <div class="row">
+          <button type="button" id="showcase-apply-default-theme">Use configured Showcase default theme</button>
+          <button type="button" id="showcase-approve">Approve for public distribution</button>
+          <span class="meta" id="showcase-current"></span>
+        </div>
+        <p class="meta" id="showcase-approve-hint"></p>
+        <h3 class="meta">Approved publication history</h3>
+        <ul id="showcase-history" class="meta"></ul>
+      </div>
       <p class="meta" id="resume-preview-hint"></p>
       <div id="composition-editor" class="meta">Loading…</div>
       <details>
@@ -481,7 +494,29 @@
   <script src="/static/js/72-relationships.js"></script>
   <script src="/static/js/86-opportunities.js?v=7"></script>
   <script src="/static/js/90-applications.js?v=8"></script>
-  <script src="/static/js/45-resume.js?v=8"></script>
+  <dialog id="settings-dialog">
+    <form method="dialog">
+      <h2>Settings</h2>
+      <p class="help">Theme defaults are stored in <code>workspace/preferences.toml</code>. Saving a default does not change an existing application, preset, submission, Showcase draft, or approved publication.</p>
+      <label class="meta">Portfolio preview
+        <select id="pref-catalog-preview"></select>
+      </label>
+      <label class="meta">Showcase
+        <select id="pref-showcase"></select>
+      </label>
+      <label class="meta">Applications
+        <select id="pref-application"></select>
+      </label>
+      <p class="help">New applications use the Applications default. An existing application keeps its saved theme, or classic when it has none. The Showcase row created with the database keeps its own theme until you save a different one in the Resume editor.</p>
+      <p class="meta" id="settings-status"></p>
+      <div class="row">
+        <button type="submit" value="cancel">Close</button>
+      </div>
+    </form>
+  </dialog>
+  <script type="module" src="/static/js/showcase-approval-state-bridge.js?v=2"></script>
+  <script src="/static/js/45-resume.js?v=10"></script>
+  <script src="/static/js/48-showcase-settings.js?v=2"></script>
   <script src="/static/js/95-bootstrap.js?v=8"></script>
 </body>
 </html>

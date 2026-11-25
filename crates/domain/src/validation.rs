@@ -36,6 +36,7 @@ pub fn validate_payload(kind: ElementKind, payload: &Value) -> Result<(), Valida
             check_optional_string(obj, "linkedin")?;
             check_optional_string(obj, "website")?;
             check_optional_string(obj, "github")?;
+            check_optional_string(obj, "location_label")?;
         }
         ElementKind::Objective => {
             check_optional_string(obj, "objective")?;
@@ -139,6 +140,16 @@ fn check_optional_string_string_array(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn header_location_label_is_optional() {
+        validate_payload(ElementKind::Header, &json!({"name": "Ada"})).unwrap();
+        validate_payload(
+            ElementKind::Header,
+            &json!({"name": "Ada", "location_label": "Fairfax County, VA"}),
+        )
+        .unwrap();
+    }
 
     #[test]
     fn project_payload_without_narrative_valid() {

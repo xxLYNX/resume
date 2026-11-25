@@ -4,7 +4,21 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+use std::fmt::{self, Display, Formatter};
+
 use crate::{Composition, CompositionSection};
+
+/// Optimistic concurrency or in-flight approval race (maps to HTTP 409).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShowcaseConflict;
+
+impl Display for ShowcaseConflict {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "showcase conflict")
+    }
+}
+
+impl std::error::Error for ShowcaseConflict {}
 
 /// Singleton row id. One Showcase per workspace.
 pub const SHOWCASE_ID: &str = "default";

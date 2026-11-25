@@ -1141,6 +1141,7 @@ mod tests {
                     work_mode: None,
                     location: None,
                     compensation: None,
+                    draft_theme_id: None,
                 },
                 empty_composition(),
             )

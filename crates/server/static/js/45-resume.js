@@ -1,5 +1,9 @@
     /** Resume tab: composition target + preview gating. */
-    let resumeTarget = { type: "catalog_default", applicationId: null, presetId: null };
+    let resumeTarget = {
+      type: "catalog_default",
+      applicationId: null,
+      presetId: null,
+    };
 
     const tabResume = document.getElementById("tab-resume");
     const panelResume = document.getElementById("panel-resume");
@@ -37,6 +41,9 @@
       ) {
         resumePreviewHint.textContent =
           "Previewing last submit — switch to Current draft to see title-line changes.";
+      } else if (resumeTarget.type === "showcase") {
+        resumePreviewHint.textContent =
+          "Working Showcase draft. Save draft before approving. Approved publications stay unchanged until you approve again.";
       } else if (resumeTarget.type === "catalog_default") {
         resumePreviewHint.textContent =
           "Preview uses live editor (not saved until you pick an application and Save draft).";
@@ -83,6 +90,9 @@
           resumeTarget.type === "catalog_default" ||
           (resumeTarget.type === "application" && !resumeTarget.applicationId);
       }
+      if (window.jobdeskShowcase?.updateShowcasePanel) {
+        window.jobdeskShowcase.updateShowcasePanel();
+      }
       updateResumePreviewHint();
     }
 
@@ -94,6 +104,10 @@
       def.value = "catalog_default";
       def.textContent = "Catalog default (preview only)";
       resumeTargetSelect.appendChild(def);
+      const showcaseOpt = document.createElement("option");
+      showcaseOpt.value = "showcase";
+      showcaseOpt.textContent = "Showcase (working draft)";
+      resumeTargetSelect.appendChild(showcaseOpt);
 
       const presetGroup = document.createElement("optgroup");
       presetGroup.label = "Presets";
@@ -128,11 +142,13 @@
       resumeTargetSelect.appendChild(appGroup);
 
       const want =
-        resumeTarget.type === "application" && resumeTarget.applicationId
-          ? `application:${resumeTarget.applicationId}`
-          : resumeTarget.type === "preset" && resumeTarget.presetId
-            ? `preset:${resumeTarget.presetId}`
-            : "catalog_default";
+        resumeTarget.type === "showcase"
+          ? "showcase"
+          : resumeTarget.type === "application" && resumeTarget.applicationId
+            ? `application:${resumeTarget.applicationId}`
+            : resumeTarget.type === "preset" && resumeTarget.presetId
+              ? `preset:${resumeTarget.presetId}`
+              : "catalog_default";
       if ([...resumeTargetSelect.options].some((o) => o.value === want)) {
         resumeTargetSelect.value = want;
       } else if (prev && [...resumeTargetSelect.options].some((o) => o.value === prev)) {
@@ -158,6 +174,9 @@
           presetId: value.slice("preset:".length),
         };
       }
+      if (value === "showcase") {
+        return { type: "showcase", applicationId: null, presetId: null };
+      }
       return { type: "catalog_default", applicationId: null, presetId: null };
     }
 
@@ -165,7 +184,9 @@
       compositionEditorSilent += 1;
       let composition;
       try {
-      if (resumeTarget.type === "application" && resumeTarget.applicationId) {
+      if (resumeTarget.type === "showcase") {
+        composition = await window.jobdeskShowcase.loadShowcaseBundle();
+      } else if (resumeTarget.type === "application" && resumeTarget.applicationId) {
         const res = await fetch(
           `/api/applications/${encodeURIComponent(resumeTarget.applicationId)}`,
         );
@@ -174,6 +195,11 @@
         composition = app.draft_composition;
         selectedAppId = resumeTarget.applicationId;
         syncPreviewModeForApp(app);
+        const appTheme = app.draft_theme_id || "classic";
+        if (previewThemeSelect) {
+          previewThemeSelect.value = appTheme;
+          previewThemeId = appTheme;
+        }
       } else if (resumeTarget.type === "preset" && resumeTarget.presetId) {
         const res = await fetch(
           `/api/presets/${encodeURIComponent(resumeTarget.presetId)}`,
@@ -195,6 +221,9 @@
 
     async function setResumeTargetFromValue(value, { reload = true } = {}) {
       resumeTarget = parseResumeTargetValue(value);
+      if (resumeTarget.type === "showcase" && previewMode) {
+        previewMode.value = "draft";
+      }
       resetPreviewClientCache();
       updateMainLayout();
       if (reload) {
@@ -270,13 +299,27 @@
         if (resumeStatus) resumeStatus.textContent = "Invalid composition: " + e.message;
         return;
       }
+      if (resumeTarget.type === "showcase") {
+        try {
+          const draft = await window.jobdeskShowcase.saveShowcaseDraftFromEditor();
+          if (resumeStatus) resumeStatus.textContent = "Showcase working draft saved.";
+          draftEditor.value = JSON.stringify(draft.composition, null, 2);
+          await rebuild();
+        } catch (e) {
+          if (resumeStatus) resumeStatus.textContent = String(e);
+        }
+        return;
+      }
       if (resumeTarget.type === "application" && resumeTarget.applicationId) {
         const res = await fetch(
           `/api/applications/${encodeURIComponent(resumeTarget.applicationId)}`,
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ draft_composition }),
+            body: JSON.stringify({
+              draft_composition,
+              draft_theme_id: selectedPreviewThemeId(),
+            }),
           },
         );
         const app = await res.json();

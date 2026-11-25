@@ -100,6 +100,35 @@ pub fn preferences_path(workspace: &Path) -> PathBuf {
     workspace.join(PREFERENCES_FILE_NAME)
 }
 
+/// Theme for a new application.
+///
+/// An explicit id or an inherited document theme wins. Otherwise the application
+/// default in `preferences.toml` is used. This does not read or write existing rows.
+pub fn initial_application_theme(
+    project_root: &Path,
+    workspace: &Path,
+    explicit: Option<&str>,
+    inherited: Option<&str>,
+) -> Result<String> {
+    let chosen = explicit
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .or_else(|| inherited.map(str::trim).filter(|id| !id.is_empty()));
+    let theme_id = if let Some(id) = chosen {
+        id.to_string()
+    } else {
+        load_preferences(project_root, workspace)?
+            .resume
+            .default_themes
+            .application
+    };
+    let installed = list_theme_ids(project_root)?;
+    if !installed.iter().any(|id| id == &theme_id) {
+        bail!("unknown theme `{theme_id}` for a new application");
+    }
+    Ok(theme_id)
+}
+
 /// Load preferences. A missing file yields defaults and does not create a file.
 /// Malformed TOML, a bad schema, or an unknown theme id is an error.
 /// A directory at the preferences path is an error, not a missing file.
@@ -756,5 +785,25 @@ mod tests {
         assert!(msg.contains("may already have been installed"), "{msg}");
         assert!(msg.contains("replaced"), "{msg}");
         assert!(!msg.contains("original left unchanged"), "{msg}");
+    }
+
+    #[test]
+    fn new_application_theme_uses_the_preference_unless_a_document_theme_is_given() {
+        let root = fixture_root();
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            preferences_path(dir.path()),
+            "schema_version = 1\n[resume.default_themes]\napplication = \"ats-classic\"\nshowcase = \"classic\"\n",
+        )
+        .unwrap();
+        let from_pref = initial_application_theme(root.path(), dir.path(), None, None).unwrap();
+        assert_eq!(from_pref, "ats-classic");
+        let explicit =
+            initial_application_theme(root.path(), dir.path(), Some("classic"), Some("ats-classic"))
+                .unwrap();
+        assert_eq!(explicit, "classic");
+        let inherited =
+            initial_application_theme(root.path(), dir.path(), None, Some("classic")).unwrap();
+        assert_eq!(inherited, "classic");
     }
 }

@@ -16,7 +16,7 @@ use crate::resolve_checks::resolve_composition_checked;
 use serde::{Deserialize, Serialize};
 use store::{
     default_ledger_download_path, CreateApplicationRequest, ListApplicationsQuery,
-    QuickfillRequest, Store, UpdateApplicationRequest, DEFAULT_THEME_ID,
+    QuickfillRequest, Store, UpdateApplicationRequest,
 };
 
 use theme::ensure_theme_snapshot;
@@ -47,22 +47,34 @@ pub async fn list_applications(
 
 pub async fn create_application(
     State(state): State<Arc<AppState>>,
-    Json(body): Json<CreateApplicationRequest>,
+    Json(mut body): Json<CreateApplicationRequest>,
 ) -> impl IntoResponse {
+    let root = state.root.clone();
+    let workspace = state.workspace_dir.clone();
     with_store(state, move |store| {
-        let draft = if let Some(ref clone_id) = body.clone_from_application_id {
-            store
+        let (draft, inherited) = if let Some(ref clone_id) = body.clone_from_application_id {
+            let app = store
                 .get_application(clone_id)?
-                .map(|a| a.draft_composition)
-                .ok_or_else(|| anyhow::anyhow!("clone_from application not found"))?
+                .ok_or_else(|| anyhow::anyhow!("clone_from application not found"))?;
+            {
+                let theme = app.render_theme().to_string();
+                (app.draft_composition, Some(theme))
+            }
         } else if let Some(ref preset_id) = body.clone_from_preset_id {
-            store
+            let preset = store
                 .get_preset(preset_id)?
-                .map(|p| p.composition)
-                .ok_or_else(|| anyhow::anyhow!("clone_from preset not found"))?
+                .ok_or_else(|| anyhow::anyhow!("clone_from preset not found"))?;
+            (preset.composition, Some(preset.theme_id))
         } else {
-            default_composition(store)?
+            (default_composition(store)?, None)
         };
+        let explicit = body.draft_theme_id.clone();
+        body.draft_theme_id = Some(theme::preferences::initial_application_theme(
+            &root,
+            &workspace,
+            explicit.as_deref(),
+            inherited.as_deref(),
+        )?);
         let app = store.create_application(body, draft)?;
         Ok((StatusCode::CREATED, Json(app)).into_response())
     })
@@ -93,8 +105,27 @@ pub async fn update_application(
 ) -> impl IntoResponse {
     let project_root = state.root.clone();
     with_store(state, move |store| {
-        if let Some(ref composition) = body.draft_composition {
-            resolve_composition_checked(store, &project_root, DEFAULT_THEME_ID, composition)?;
+        let existing = store
+            .get_application(&app_id)?
+            .ok_or_else(|| anyhow::anyhow!("application not found"))?;
+        if let Some(ref theme_id) = body.draft_theme_id {
+            let theme_id = theme_id.trim();
+            if theme_id.is_empty() {
+                anyhow::bail!("draft theme id must not be empty");
+            }
+            theme::load_theme_info(&project_root, theme_id)?;
+            let composition = body
+                .draft_composition
+                .as_ref()
+                .unwrap_or(&existing.draft_composition);
+            resolve_composition_checked(store, &project_root, theme_id, composition)?;
+        } else if let Some(ref composition) = body.draft_composition {
+            resolve_composition_checked(
+                store,
+                &project_root,
+                existing.render_theme(),
+                composition,
+            )?;
         }
         let app = store.update_application(&app_id, body)?;
         Ok(Json(app).into_response())
@@ -195,7 +226,7 @@ pub async fn posting_hints_preview(
             .draft_composition
             .as_ref()
             .unwrap_or(&app.draft_composition);
-        resolve_composition_checked(store, &project_root, DEFAULT_THEME_ID, composition)?;
+        resolve_composition_checked(store, &project_root, app.render_theme(), composition)?;
         let posting_text = body.posting_text.trim();
         let used_posting_text = !posting_text.is_empty();
         let text = if used_posting_text {
@@ -230,11 +261,13 @@ pub async fn quickfill_application(
 ) -> impl IntoResponse {
     let project_root = state.root.clone();
     with_store(state, move |store| {
-        if let Some(ref composition) = store
-            .get_application(&body.from_application_id)?
-            .map(|a| a.draft_composition)
-        {
-            resolve_composition_checked(store, &project_root, DEFAULT_THEME_ID, composition)?;
+        if let Some(source) = store.get_application(&body.from_application_id)? {
+            resolve_composition_checked(
+                store,
+                &project_root,
+                source.render_theme(),
+                &source.draft_composition,
+            )?;
         }
         let app = store.quickfill_from_application(&app_id, &body.from_application_id)?;
         Ok(Json(app).into_response())
@@ -270,10 +303,11 @@ pub async fn submit_application(
         let app = store
             .get_application(&app_id)?
             .ok_or_else(|| anyhow::anyhow!("application not found"))?;
+        let theme_id = app.render_theme().to_string();
         let resolved_map = resolve_composition_checked(
             store,
             &project_root,
-            DEFAULT_THEME_ID,
+            &theme_id,
             &app.draft_composition,
         )?;
         let mut resolved = BTreeMap::new();
@@ -281,12 +315,11 @@ pub async fn submit_application(
             resolved.insert(k, v);
         }
         let snap_dir = workspace.join("artifacts/theme_snapshots");
-        let theme_files_hash =
-            ensure_theme_snapshot(&project_root, DEFAULT_THEME_ID, &snap_dir)?;
+        let theme_files_hash = ensure_theme_snapshot(&project_root, &theme_id, &snap_dir)?;
         let sub = store.submit_application(
             &app_id,
             &workspace,
-            DEFAULT_THEME_ID,
+            &theme_id,
             Some(theme_files_hash),
             &app.draft_composition,
             resolved,

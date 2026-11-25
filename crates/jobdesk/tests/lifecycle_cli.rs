@@ -93,6 +93,7 @@ fn store_http_equivalent_contradictory_phase_workflow_rejected() {
                 work_mode: None,
                 location: None,
                 compensation: None,
+                draft_theme_id: None,
             },
             Composition { sections: vec![] },
         )

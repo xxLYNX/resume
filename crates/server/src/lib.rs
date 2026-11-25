@@ -1,6 +1,9 @@
 mod applications;
 mod assets;
 mod catalog;
+mod preferences_api;
+mod showcase;
+mod showcase_approval_guard;
 pub mod greenhouse_ingest;
 pub mod opportunities;
 pub mod posting_http;
@@ -259,6 +262,27 @@ pub async fn run(state: AppState, host: &str, port: u16) -> Result<()> {
         )
         .route("/api/submissions/{id}", get(applications::get_submission))
         .route("/api/composition/default", get(default_composition_handler))
+        .route("/api/preferences", get(preferences_api::get_preferences))
+        .route(
+            "/api/preferences/default-theme",
+            post(preferences_api::put_default_theme),
+        )
+        .route("/api/showcase", get(showcase::get_showcase))
+        .route("/api/showcase/draft", post(showcase::save_showcase_draft))
+        .route(
+            "/api/showcase/apply-default-theme",
+            post(showcase::apply_showcase_default_theme),
+        )
+        .route("/api/showcase/approve", post(showcase::approve_showcase_draft))
+        .route("/api/showcase/restore", post(showcase::restore_showcase))
+        .route(
+            "/api/showcase/publications/{id}",
+            get(showcase::get_showcase_publication),
+        )
+        .route(
+            "/api/showcase/publications/{id}/resume.pdf",
+            get(showcase::get_showcase_publication_pdf),
+        )
         .route("/api/themes", get(themes::list_themes))
         .route("/api/themes/{id}", get(themes::get_theme))
         .route("/api/catalog/field-schema", get(themes::catalog_fields))
@@ -559,12 +583,16 @@ fn preview_download_filename(
         .unwrap_or_else(|| "resume.pdf".into()))
 }
 
-fn effective_preview_theme(req: &PreviewRequest) -> String {
-    req.theme_id
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .unwrap_or(DEFAULT_THEME_ID)
-        .to_string()
+fn effective_preview_theme(store: &Store, req: &PreviewRequest) -> String {
+    if let Some(id) = req.theme_id.as_deref().filter(|s| !s.is_empty()) {
+        return id.to_string();
+    }
+    if let Some(app_id) = req.application_id.as_deref() {
+        if let Ok(Some(app)) = store.get_application(app_id) {
+            return app.render_theme().to_string();
+        }
+    }
+    DEFAULT_THEME_ID.to_string()
 }
 
 pub(crate) fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<PreviewOutcome> {
@@ -601,7 +629,7 @@ pub(crate) fn build_preview(state: &AppState, req: &PreviewRequest) -> Result<Pr
         None
     };
 
-    let theme_id = effective_preview_theme(req);
+    let theme_id = effective_preview_theme(&store, req);
     let download_filename = preview_download_filename(
         &store,
         &state.root,
@@ -685,7 +713,7 @@ fn run_preview_build(
     mode: &str,
     compile_pdf: bool,
 ) -> Result<LegacyBuildResult> {
-    let theme_id = effective_preview_theme(req);
+    let theme_id = effective_preview_theme(&store, req);
     match (application_id, mode, req.draft_composition.as_ref()) {
         (Some(_), "submitted", _) => jobdesk_build_aligned(
             store,
@@ -742,7 +770,7 @@ fn preview_meta(
                 .draft_composition
                 .as_ref()
                 .unwrap_or(&app.draft_composition);
-            let theme_id = effective_preview_theme(req);
+            let theme_id = effective_preview_theme(&store, req);
             let draft_snapshot =
                 draft_snapshot_hash(&state.root, store, draft_for_hash, &theme_id)?;
             let differs = submission_snapshot

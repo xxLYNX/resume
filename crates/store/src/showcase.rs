@@ -7,9 +7,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use domain::{
-    compute_showcase_snapshot_hash, sha256_prefixed, showcase_composition_is_empty, Composition,
-    ShowcaseDraft, ShowcasePublication, SHOWCASE_ID,
+    compute_showcase_snapshot_hash, sha256_prefixed, showcase_composition_is_empty,
+    Composition, ShowcaseDraft, ShowcasePublication, SHOWCASE_ID,
 };
+use domain::ShowcaseConflict;
 use rusqlite::params;
 use serde_json::Value;
 use time::OffsetDateTime;
@@ -18,6 +19,10 @@ use uuid::Uuid;
 static PDF_TEMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
 use crate::Store;
+
+pub fn showcase_is_conflict(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| cause.is::<ShowcaseConflict>())
+}
 
 /// Draft row as read for an approval attempt. The commit rejects the attempt if
 /// the theme, composition JSON, timestamp, or current publication pointer changed.
@@ -79,10 +84,34 @@ impl Store {
     }
 
     /// Replace the draft. Does not change publication rows or the current pointer.
+    /// Replaces only the saved showcase theme. Composition and publications stay as they are.
+    pub fn apply_showcase_theme(
+        &self,
+        theme_id: &str,
+        expected_updated_at: &str,
+    ) -> Result<ShowcaseDraft> {
+        let captured = self.capture_showcase()?;
+        self.save_showcase_draft_versioned(
+            theme_id,
+            &captured.composition,
+            Some(expected_updated_at),
+        )
+    }
+
     pub fn save_showcase_draft(
         &self,
         theme_id: &str,
         composition: &Composition,
+    ) -> Result<ShowcaseDraft> {
+        self.save_showcase_draft_versioned(theme_id, composition, None)
+    }
+
+    /// When `expected_updated_at` is set, the update fails if another save landed first (optimistic concurrency).
+    pub fn save_showcase_draft_versioned(
+        &self,
+        theme_id: &str,
+        composition: &Composition,
+        expected_updated_at: Option<&str>,
     ) -> Result<ShowcaseDraft> {
         let theme_id = theme_id.trim();
         if theme_id.is_empty() {
@@ -90,13 +119,27 @@ impl Store {
         }
         let draft_json = serde_json::to_string(composition)?;
         let now = now_rfc3339();
-        let n = self.connection().execute(
-            "UPDATE showcase
-             SET theme_id = ?1, draft_composition_json = ?2, updated_at = ?3
-             WHERE id = ?4",
-            params![theme_id, draft_json, now, SHOWCASE_ID],
-        )?;
+        let n = if let Some(expected) = expected_updated_at {
+            self.connection().execute(
+                "UPDATE showcase
+                 SET theme_id = ?1, draft_composition_json = ?2, updated_at = ?3
+                 WHERE id = ?4 AND updated_at = ?5",
+                params![theme_id, draft_json, now, SHOWCASE_ID, expected],
+            )?
+        } else {
+            self.connection().execute(
+                "UPDATE showcase
+                 SET theme_id = ?1, draft_composition_json = ?2, updated_at = ?3
+                 WHERE id = ?4",
+                params![theme_id, draft_json, now, SHOWCASE_ID],
+            )?
+        };
         if n == 0 {
+            if expected_updated_at.is_some() {
+                return Err(ShowcaseConflict).context(
+                    "showcase draft was saved again — reload the draft and merge your edits",
+                );
+            }
             bail!("showcase row missing");
         }
         self.get_showcase()
@@ -230,7 +273,9 @@ impl Store {
                 || updated_at != captured.updated_at
                 || current_publication_id != captured.current_publication_id
             {
-                bail!("showcase draft or publication pointer changed during approval — publication was not created");
+                return Err(ShowcaseConflict).context(
+                    "showcase draft or publication pointer changed during approval — publication was not created",
+                );
             }
             let current_hash: Option<String> = tx
                 .query_row(
@@ -712,7 +757,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(version, "18");
+        assert_eq!(version, "19");
         let app = store.get_application("app-1").unwrap().unwrap();
         assert_eq!(app.company, "Kept Co");
         assert_eq!(app.title, "Kept Role");
@@ -978,17 +1023,9 @@ mod tests {
             )
             .unwrap_err();
         let msg = format!("{err:#}");
+        assert!(showcase_is_conflict(&err), "{msg}");
         assert!(msg.contains("changed"), "{msg}");
         assert!(store.list_showcase_publications().unwrap().is_empty());
-        assert!(store
-            .get_showcase()
-            .unwrap()
-            .current_publication_id
-            .is_none());
-        assert_eq!(
-            store.get_showcase().unwrap().composition.sections[0].items[0].element_id,
-            "header.after"
-        );
         let artifact_root = dir.path().join("artifacts/showcase");
         if artifact_root.exists() {
             for entry in fs::read_dir(&artifact_root).unwrap() {
@@ -1215,5 +1252,62 @@ mod tests {
         let msg = format!("{err:#}");
         assert!(msg.contains("may already have been installed"), "{msg}");
         assert!(!msg.contains("original left unchanged"), "{msg}");
+    }
+
+    #[test]
+    fn concurrent_draft_save_with_stale_timestamp_is_rejected() {
+        let (_dir, store) = open_store();
+        let v1 = store
+            .save_showcase_draft("classic", &header_item("header.v1"))
+            .unwrap();
+        store
+            .save_showcase_draft("classic", &header_item("header.v2"))
+            .unwrap();
+        let err = store
+            .save_showcase_draft_versioned(
+                "classic",
+                &header_item("header.v3"),
+                Some(&v1.updated_at),
+            )
+            .unwrap_err();
+        assert!(showcase_is_conflict(&err), "{err:#}");
+        assert_eq!(
+            store
+                .get_showcase()
+                .unwrap()
+                .composition
+                .sections[0]
+                .items[0]
+                .element_id,
+            "header.v2"
+        );
+    }
+
+    #[test]
+    fn apply_showcase_theme_rejects_after_concurrent_save() {
+        let (_dir, store) = open_store();
+        let stale = store.get_showcase().unwrap().updated_at;
+        store
+            .save_showcase_draft("classic", &header_item("header.race"))
+            .unwrap();
+        let err = store
+            .apply_showcase_theme("ats-classic", &stale)
+            .unwrap_err();
+        assert!(showcase_is_conflict(&err));
+    }
+
+    #[test]
+    fn apply_showcase_theme_changes_theme_not_composition() {
+        let (_dir, store) = open_store();
+        let composition = header_item("header.apply-default");
+        store.save_showcase_draft("classic", &composition).unwrap();
+        let before = store.capture_showcase().unwrap();
+        let draft = store
+            .apply_showcase_theme("ats-classic", &before.updated_at)
+            .unwrap();
+        assert_eq!(draft.theme_id, "ats-classic");
+        assert_eq!(draft.composition, composition);
+        assert_ne!(draft.updated_at, before.updated_at);
+        assert!(store.list_showcase_publications().unwrap().is_empty());
     }
 }

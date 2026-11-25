@@ -13,9 +13,9 @@ use store::{
     CreateApplicationRequest, CreateElementRequest, ImportOptions, ListApplicationsQuery, Store,
     UpdateApplicationRequest, DEFAULT_THEME_ID, STAGING_CONTENT_DIR,
 };
-use theme::load_theme_info;
+use theme::{initial_application_theme, load_theme_info};
 
-use render_tex::jobdesk_build_aligned;
+use render_tex::{jobdesk_build_aligned, resolve_jobdesk_build_theme};
 
 mod mcp;
 #[path = "mcp_tools.rs"]
@@ -65,8 +65,9 @@ enum Commands {
         /// With `--application`: `draft` (default) or `submitted`
         #[arg(long, default_value = "draft")]
         preview_mode: String,
-        #[arg(long, default_value = "classic")]
-        theme: String,
+        /// When omitted with `--application` (draft mode), uses the application's stored theme.
+        #[arg(long)]
+        theme: Option<String>,
     },
     /// Portfolio catalog (create elements)
     Catalog {
@@ -258,6 +259,12 @@ async fn main() -> Result<()> {
                 serde_yaml::from_str(&std::fs::read_to_string(&config_path)?)?;
             let out_dir = root.join(&legacy.output.directory);
 
+            let theme_id = resolve_jobdesk_build_theme(
+                &store,
+                application.as_deref(),
+                &preview_mode,
+                theme.as_deref(),
+            )?;
             let result = jobdesk_build_aligned(
                 &store,
                 &workspace,
@@ -267,7 +274,7 @@ async fn main() -> Result<()> {
                 pdf,
                 application.as_deref(),
                 &preview_mode,
-                &theme,
+                &theme_id,
             )?;
             println!("Wrote {}", result.tex_path.display());
             if let Some(pdf_path) = result.pdf_path {
@@ -428,6 +435,16 @@ async fn main() -> Result<()> {
                     } else {
                         default_composition(&store)?
                     };
+                    let inherited = clone_from
+                        .as_deref()
+                        .and_then(|id| store.get_application(id).ok().flatten())
+                        .map(|a| a.render_theme().to_string());
+                    let theme = initial_application_theme(
+                        &root,
+                        &workspace,
+                        None,
+                        inherited.as_deref(),
+                    )?;
                     let app = store.create_application(
                         CreateApplicationRequest {
                             company,
@@ -443,6 +460,7 @@ async fn main() -> Result<()> {
                             work_mode: None,
                             location: None,
                             compensation: None,
+                            draft_theme_id: Some(theme),
                         },
                         draft,
                     )?;

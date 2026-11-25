@@ -70,9 +70,23 @@ pub struct ApplicationDetail {
     #[serde(default)]
     pub compensation: Compensation,
     pub draft_composition: Composition,
+    /// Theme saved for this application draft. `None` means the row predates theme
+    /// persistence and still renders with [`DEFAULT_THEME_ID`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft_theme_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub submissions: Vec<SubmissionSummary>,
+}
+
+impl ApplicationDetail {
+    /// Theme used to render this application. Missing values stay on the historical default.
+    pub fn render_theme(&self) -> &str {
+        self.draft_theme_id
+            .as_deref()
+            .filter(|id| !id.trim().is_empty())
+            .unwrap_or(DEFAULT_THEME_ID)
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -125,6 +139,9 @@ pub struct CreateApplicationRequest {
     pub location: Option<String>,
     #[serde(default)]
     pub compensation: Option<Compensation>,
+    /// Theme to store for a newly created application. `None` leaves the column null.
+    #[serde(default)]
+    pub draft_theme_id: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -152,6 +169,9 @@ pub struct UpdateApplicationRequest {
     pub tags: Option<Vec<String>>,
     #[serde(default)]
     pub draft_composition: Option<Composition>,
+    /// When set, replaces the saved application theme. Omitted leaves it unchanged.
+    #[serde(default)]
+    pub draft_theme_id: Option<String>,
     #[serde(default)]
     pub employment_type: Option<Option<String>>,
     #[serde(default)]
@@ -300,7 +320,7 @@ impl Store {
             .query_row(
                 "SELECT id, company, title, posting_url, posting_text, source, phase, status, tags_json,
                         employment_type, work_mode, location, compensation_json,
-                        draft_composition_json, created_at, updated_at
+                        draft_composition_json, draft_theme_id, created_at, updated_at
                  FROM applications WHERE id = ?1",
                 [application_id],
                 |row| {
@@ -319,8 +339,9 @@ impl Store {
                         row.get::<_, Option<String>>(11)?,
                         row.get::<_, String>(12)?,
                         row.get::<_, String>(13)?,
-                        row.get::<_, String>(14)?,
+                        row.get::<_, Option<String>>(14)?,
                         row.get::<_, String>(15)?,
+                        row.get::<_, String>(16)?,
                     ))
                 },
             )
@@ -340,6 +361,7 @@ impl Store {
             location,
             compensation_json,
             draft_json,
+            draft_theme_id,
             created_at,
             updated_at,
         )) = row
@@ -369,6 +391,7 @@ impl Store {
             location,
             compensation,
             draft_composition,
+            draft_theme_id,
             created_at,
             updated_at,
             submissions,
@@ -503,12 +526,18 @@ impl Store {
 
         let posting_text = req.posting_text.unwrap_or_default();
 
+        let draft_theme_id = req
+            .draft_theme_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(str::to_string);
         conn.execute(
             "INSERT INTO applications
              (id, posting_url, posting_text, company, title, source, phase, status, tags_json,
               employment_type, work_mode, location, compensation_json,
-              draft_composition_json, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+              draft_composition_json, draft_theme_id, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
             params![
                 id,
                 req.posting_url,
@@ -524,6 +553,7 @@ impl Store {
                 location,
                 compensation_json,
                 draft_json,
+                draft_theme_id,
                 now,
                 now,
             ],
@@ -585,6 +615,10 @@ impl Store {
             None => existing.location,
         };
         let compensation = req.compensation.unwrap_or(existing.compensation);
+        let draft_theme_id = req
+            .draft_theme_id
+            .filter(|id| !id.trim().is_empty())
+            .or(existing.draft_theme_id);
         validate_application_meta(
             employment_type.as_deref(),
             work_mode.as_deref(),
@@ -603,7 +637,8 @@ impl Store {
             "UPDATE applications SET
                 company = ?2, title = ?3, posting_url = ?4, posting_text = ?5, source = ?6, phase = ?7, status = ?8,
                 tags_json = ?9, employment_type = ?10, work_mode = ?11, location = ?12,
-                compensation_json = ?13, draft_composition_json = ?14, updated_at = ?15
+                compensation_json = ?13, draft_composition_json = ?14, draft_theme_id = ?15,
+                updated_at = ?16
              WHERE id = ?1",
             params![
                 application_id,
@@ -620,6 +655,7 @@ impl Store {
                 location,
                 compensation_json,
                 draft_json,
+                draft_theme_id,
                 now,
             ],
         )?;
@@ -848,6 +884,7 @@ mod lifecycle_tests {
             work_mode: None,
             location: None,
             compensation: None,
+            draft_theme_id: None,
         }
     }
 

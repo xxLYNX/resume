@@ -83,6 +83,31 @@ pub fn jobdesk_build_resolved_to_dir(
     )
 }
 
+/// Theme for `jobdesk build` when `--application` is set with draft preview mode.
+/// Explicit `--theme` wins. Without it, the application's stored theme is used (`classic` when NULL).
+/// Submitted preview mode still takes the canonical submission theme inside `jobdesk_build_aligned`.
+pub fn resolve_jobdesk_build_theme(
+    store: &Store,
+    application_id: Option<&str>,
+    preview_mode: &str,
+    cli_theme: Option<&str>,
+) -> Result<String> {
+    use store::DEFAULT_THEME_ID;
+    if preview_mode == "submitted" {
+        return Ok(cli_theme.unwrap_or(DEFAULT_THEME_ID).to_string());
+    }
+    match (application_id, cli_theme) {
+        (Some(app_id), None) => {
+            let app = store
+                .get_application(app_id)?
+                .with_context(|| format!("unknown application `{app_id}`"))?;
+            Ok(app.render_theme().to_string())
+        }
+        (_, Some(theme)) => Ok(theme.to_string()),
+        (None, None) => Ok(DEFAULT_THEME_ID.to_string()),
+    }
+}
+
 /// Same build targets as `serve` preview: catalog default, application draft, or canonical submission.
 pub fn jobdesk_build_aligned(
     store: &Store,
@@ -248,4 +273,74 @@ pub fn hash_tex(tex: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(tex.as_bytes());
     format!("sha256:{:x}", hasher.finalize())
+}
+
+#[cfg(test)]
+mod theme_resolution_tests {
+    use super::*;
+    use domain::Composition;
+    use store::{CreateApplicationRequest, Store};
+
+    fn temp_store() -> (tempfile::TempDir, Store) {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(&dir.path().join("jobdesk.db")).unwrap();
+        (dir, store)
+    }
+
+    fn minimal_app(store: &Store, theme: Option<&str>) -> String {
+        store
+            .create_application(
+                CreateApplicationRequest {
+                    company: "Co".into(),
+                    title: "T".into(),
+                    posting_url: None,
+                    posting_text: None,
+                    source: None,
+                    status: None,
+                    tags: vec![],
+                    clone_from_application_id: None,
+                    clone_from_preset_id: None,
+                    employment_type: None,
+                    work_mode: None,
+                    location: None,
+                    compensation: None,
+                    draft_theme_id: theme.map(str::to_string),
+                },
+                Composition { sections: vec![] },
+            )
+            .unwrap()
+            .id
+    }
+
+    #[test]
+    fn null_stored_theme_resolves_to_classic_for_draft_build() {
+        let (_dir, store) = temp_store();
+        let id = minimal_app(&store, None);
+        let theme =
+            resolve_jobdesk_build_theme(&store, Some(&id), "draft", None).unwrap();
+        assert_eq!(theme, "classic");
+    }
+
+    #[test]
+    fn explicit_cli_theme_overrides_stored_application_theme() {
+        let (_dir, store) = temp_store();
+        let id = minimal_app(&store, Some("classic"));
+        let theme = resolve_jobdesk_build_theme(
+            &store,
+            Some(&id),
+            "draft",
+            Some("ats-classic"),
+        )
+        .unwrap();
+        assert_eq!(theme, "ats-classic");
+    }
+
+    #[test]
+    fn stored_application_theme_used_when_cli_omits_theme() {
+        let (_dir, store) = temp_store();
+        let id = minimal_app(&store, Some("ats-classic"));
+        let theme =
+            resolve_jobdesk_build_theme(&store, Some(&id), "draft", None).unwrap();
+        assert_eq!(theme, "ats-classic");
+    }
 }

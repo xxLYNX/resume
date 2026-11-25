@@ -206,12 +206,14 @@
     let lastPreviewContentHash = null;
     let lastPreviewDownloadFilename = null;
     let lastPreviewPdfUrl = null;
+    const previewRequestContext = new Map();
 
     function invalidatePreviewClientState() {
       previewRequestId += 1;
       lastPreviewContentHash = null;
       lastPreviewDownloadFilename = null;
       lastPreviewPdfUrl = null;
+      previewRequestContext.clear();
     }
 
     function applyPreviewSuccess(data, requestId) {
@@ -241,6 +243,10 @@
       }
       lastPreviewContentHash = hash;
       lastPreviewDownloadFilename = data.download_filename || null;
+      window.jobdeskShowcase?.onPreviewSettled?.(
+        requestId,
+        previewRequestContext.get(requestId),
+      );
     }
 
     function readCompensationFromDom() {
@@ -300,6 +306,7 @@
       if (!resumePreviewActive()) return;
       clearTimeout(previewDebounce);
       previewDebounce = setTimeout(() => rebuild(), 450);
+      window.jobdeskShowcase?.onEditorOrThemeChanged?.();
     }
 
     async function rebuild() {
@@ -321,6 +328,16 @@
         ensurePreviewModeAllowed();
       }
       const requestId = ++previewRequestId;
+      let snapshotComposition = null;
+      try {
+        snapshotComposition = JSON.stringify(compositionFromEditorDom());
+      } catch (_) {
+        snapshotComposition = null;
+      }
+      previewRequestContext.set(requestId, {
+        compositionJson: snapshotComposition,
+        themeId: selectedPreviewThemeId(),
+      });
       building = true;
       statusEl.classList.remove("error");
       logEl.hidden = true;
@@ -353,6 +370,7 @@
           logEl.hidden = false;
           logEl.textContent = detail;
           setPreviewPlaceholder("Fix errors and rebuild", true);
+          window.jobdeskShowcase?.onPreviewFailed?.(requestId);
           return;
         }
         if (data.info && !data.pdf_url) {
@@ -365,6 +383,7 @@
           lastPreviewContentHash = null;
           lastPreviewPdfUrl = null;
           setPreviewPlaceholder(data.info, true);
+          window.jobdeskShowcase?.onPreviewFailed?.(requestId);
           return;
         }
         setPreviewPlaceholder("", false);
@@ -374,6 +393,7 @@
         statusEl.textContent = "Request failed: " + e;
         statusEl.classList.add("error");
         setPreviewPlaceholder("Preview unavailable", true);
+        window.jobdeskShowcase?.onPreviewFailed?.(requestId);
       } finally {
         building = false;
         if (previewRebuildQueued) {

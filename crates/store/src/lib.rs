@@ -29,6 +29,7 @@ pub use import::{import_legacy_content, ImportOptions, ImportStats};
 pub use ledger::default_ledger_download_path;
 pub use legacy_inventory::write_legacy_skills_inventory;
 pub use migrate::migrate;
+pub use showcase::showcase_is_conflict;
 pub use postings::{
     normalize_posting_url, PostingDetail, PostingFetchAttemptSummary, PostingInterpretationDetail,
     PostingSnapshotSummary, PostingSummary, PriorReviewedInterpretation,

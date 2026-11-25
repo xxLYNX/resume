@@ -203,6 +203,54 @@ mod tests {
     }
 
     #[test]
+    fn header_location_label_renders_below_contact_in_classic_and_ats() {
+        let root = repo_root();
+        let (config, month_display) = load_themed_build_config(
+            &root,
+            &root.join("settings/jobdesk.yaml"),
+            "classic",
+        )
+        .unwrap();
+        let mut sections = resolve::ResolvedSections::new();
+        sections.insert(
+            "header".into(),
+            json!({"name": "Ada", "location_label": "Fairfax County, VA"}),
+        );
+        let workspace = tempfile::tempdir().unwrap();
+        let built = write_build_with_config(
+            &root,
+            &config,
+            month_display,
+            workspace.path(),
+            &sections,
+            false,
+            None,
+        )
+        .unwrap();
+        assert!(built.tex.contains("Fairfax County"));
+        assert!(built.tex.contains(r"\footnotesize"));
+
+        let (ats_config, ats_month) = load_themed_build_config(
+            &root,
+            &root.join("settings/jobdesk.yaml"),
+            "ats-classic",
+        )
+        .unwrap();
+        let built_ats = write_build_with_config(
+            &root,
+            &ats_config,
+            ats_month,
+            workspace.path(),
+            &sections,
+            false,
+            None,
+        )
+        .unwrap();
+        assert!(built_ats.tex.contains("Fairfax County"));
+        assert!(built_ats.tex.contains(r"\footnotesize"));
+    }
+
+    #[test]
     fn captured_config_drives_identity_and_rendering() {
         let root = repo_root();
         let (mut config, month_display) =

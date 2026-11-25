@@ -227,7 +227,18 @@
       });
     });
 
-    loadThemeCatalog()
+    async function ensureJobdeskPreferences() {
+      if (window.jobdeskPreferences) return;
+      try {
+        const res = await fetch("/api/preferences");
+        if (res.ok) window.jobdeskPreferences = await res.json();
+      } catch (_) {
+        /* optional */
+      }
+    }
+
+    ensureJobdeskPreferences()
+      .then(() => loadThemeCatalog())
       .then(loadThemeInfo)
       .then(loadSkillNodes)
       .then(refreshCatalogByKind)

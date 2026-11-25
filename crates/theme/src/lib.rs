@@ -11,6 +11,8 @@ pub const CLASSIC_THEME_DIR: &str = "themes/classic";
 
 pub mod preferences;
 
+pub use preferences::initial_application_theme;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ThemeInfo {
     pub id: String,
@@ -278,6 +280,7 @@ fn base_fields_for_kind(kind: &str) -> Vec<CatalogFieldDef> {
     match kind {
         "header" => vec![
             field("name", "Name", "string", false),
+            field("location_label", "Location label", "string", true),
             field("location", "Location", "string", true),
             field("email", "Email", "string", true),
             field("phone", "Phone", "string", true),

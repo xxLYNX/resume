@@ -135,8 +135,11 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if version < 18 {
         migrate_showcase_v18(conn)?;
     }
+    if version < 19 {
+        migrate_application_draft_theme_v19(conn)?;
+    }
     conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '18')",
+        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', '19')",
         [],
     )?;
     Ok(())
@@ -176,6 +179,13 @@ fn migrate_showcase_v18(conn: &Connection) -> Result<()> {
          WHERE NOT EXISTS (SELECT 1 FROM showcase WHERE id = 'default')",
         params![domain::SHOWCASE_DEFAULT_THEME_ID, draft, now],
     )?;
+    Ok(())
+}
+
+/// Nullable theme for application drafts. Existing rows stay NULL and keep rendering
+/// with the historical `classic` default. New rows record the theme chosen at creation.
+fn migrate_application_draft_theme_v19(conn: &Connection) -> Result<()> {
+    add_column_if_missing(conn, "applications", "draft_theme_id", "TEXT")?;
     Ok(())
 }
 
@@ -477,7 +487,7 @@ mod migrate_tests {
     use crate::Store;
 
     #[test]
-    fn fresh_database_schema_version_is_18() {
+    fn fresh_database_schema_version_is_19() {
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("jobdesk.db");
         let store = Store::open(&db).unwrap();
@@ -489,7 +499,56 @@ mod migrate_tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(v, "18");
+        assert_eq!(v, "19");
+    }
+
+    #[test]
+    fn upgrade_from_v18_adds_nullable_application_draft_theme() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("jobdesk.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        Store::open(&db_path).unwrap();
+        conn.execute(
+            "UPDATE schema_meta SET value = '18' WHERE key = 'schema_version'",
+            [],
+        )
+        .unwrap();
+        conn.execute("ALTER TABLE applications DROP COLUMN draft_theme_id", [])
+            .unwrap();
+        crate::migrate(&conn).unwrap();
+        let version: String = conn
+            .query_row(
+                "SELECT value FROM schema_meta WHERE key = 'schema_version'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(version, "19");
+        let store = Store::open(&db_path).unwrap();
+        let app = store
+            .create_application(
+                crate::applications::CreateApplicationRequest {
+                    company: "Co".into(),
+                    title: "Role".into(),
+                    posting_url: None,
+                    posting_text: None,
+                    source: None,
+                    status: None,
+                    tags: vec![],
+                    clone_from_application_id: None,
+                    clone_from_preset_id: None,
+                    employment_type: None,
+                    work_mode: None,
+                    location: None,
+                    compensation: None,
+                    draft_theme_id: None,
+                },
+                domain::empty_showcase_composition(),
+            )
+            .unwrap();
+        assert!(app.draft_theme_id.is_none());
+        assert_eq!(app.render_theme(), "classic");
     }
 }
 
